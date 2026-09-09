@@ -1031,15 +1031,15 @@
             </div>
             <div>
               <strong style="color: var(--amber);">&lt;Project&gt; 项目企划</strong>
-              作品工程单元（当前: <code>加油吧小月</code>）
+              作品工程单元（当前: <code>加油吧小月</code> / <code>jyby-mv</code>）
             </div>
             <div>
               <strong style="color: var(--green);">&lt;AssetID&gt; 目标素材标识</strong>
-              素材类型与稳定业务ID（如 <code>video:shot-b01</code>）
+              与 <code>.output</code> 1:1 天然同构（如 <code>video/units/B01/shots/S01</code>）
             </div>
             <div>
               <strong style="color: var(--purple);">{JobID} 生成作业流水</strong>
-              <strong>同一素材多次生成！</strong>迭代回溯、参数对比与终审选优
+              <strong>同一素材多次生成！</strong>（如 <code>attempt_01</code>~<code>03</code> 选优）
             </div>
           </div>
         </div>
@@ -1054,7 +1054,7 @@
           <!-- Music Track -->
           <div class="story-track-row">
             <div class="track-meta">
-              <strong style="color: var(--purple);">🎵 音频轨 (music:master-track)</strong>
+              <strong style="color: var(--purple);">🎵 音频轨 (music/master/final)</strong>
               <small>已历经 3 次生成作业 (Job 1~3)</small>
             </div>
             <div class="track-pills">
@@ -1078,13 +1078,13 @@
           <!-- Image Track -->
           <div class="story-track-row">
             <div class="track-meta">
-              <strong style="color: var(--green);">🎨 视觉圣经 (image:character-face)</strong>
+              <strong style="color: var(--green);">🎨 视觉圣经 (image/identity/01-front-neutral)</strong>
               <small>已历经 3 次生成作业 (Job 1~3)</small>
             </div>
             <div class="track-pills">
               <span class="track-pill-item done">★ 面容四视图 (Job 3 · 选定) ✓</span>
               <span style="color: var(--muted);">➔</span>
-              <span class="track-pill-item done">无脸人台三视图 ✓</span>
+              <span class="track-pill-item done">B01 无脸人台三视图 ✓</span>
               <span style="color: var(--muted);">➔</span>
               <span class="track-pill-item done">分镜 F01~F04 (开场) ✓</span>
               <span style="color: var(--muted);">➔</span>
@@ -1098,20 +1098,24 @@
           <!-- Video Track -->
           <div class="story-track-row">
             <div class="track-meta">
-              <strong style="color: var(--amber);">🎬 动态运镜 (video:shot-b01~b06)</strong>
-              <small>多镜头连续性流水</small>
+              <strong style="color: var(--amber);">🎬 动态运镜 (video/units/B01/shots/S01~S06)</strong>
+              <small>多镜头连续性流水 (对齐 B01 review.md)</small>
             </div>
             <div class="track-pills">
-              <span class="track-pill-item done">★ 镜头 B01 (Job 2 · 选定成片) ✓</span>
+              <span class="track-pill-item done">★ 塔桥建立 S01 (attempt_03 · 选定成片) ✓</span>
               <span style="color: var(--muted);">➔</span>
-              <span class="track-pill-item running">镜头 B02 环绕 (Job 1 渲染中 75%) ⚡</span>
+              <span class="track-pill-item done">步道行走 S02 ✓</span>
               <span style="color: var(--muted);">➔</span>
-              <span class="track-pill-item queued">镜头 B03 升降俯冲</span>
+              <span class="track-pill-item done">桥栏探身 S03 ✓</span>
               <span style="color: var(--muted);">➔</span>
-              <span class="track-pill-item queued">镜头 B04~B06 序列</span>
+              <span class="track-pill-item done">牵手同行 S04 ✓</span>
+              <span style="color: var(--muted);">➔</span>
+              <span class="track-pill-item done">取下落叶 S05 ✓</span>
+              <span style="color: var(--muted);">➔</span>
+              <span class="track-pill-item done">害羞偷亲 S06 ✓</span>
             </div>
             <div style="text-align: right; font-family: monospace; font-size: 12px; color: var(--amber);">
-              62% 进行中
+              100% B01 装配就绪
             </div>
           </div>
         </div>
@@ -1133,13 +1137,13 @@
 
           <!-- Asset 1: Master Audio with Multiple Jobs -->
           <div class="model-card" id="card-music-asset">
-            <div class="card-thumb-wrap" onclick="openInspector('music:master-track')">
+            <div class="card-thumb-wrap" onclick="openInspector('music/master/final')">
               <div style="text-align: center; color: var(--purple);">
                 <div style="font-size: 38px; margin-bottom: 6px;">🎵</div>
                 <strong style="font-size: 13px; font-family: monospace;" id="music-card-title">48kHz / 24bit Master WAV</strong>
               </div>
               <div class="card-badges">
-                <span class="badge-tag" style="color: var(--purple); border-color: rgba(182,146,254,0.4);">music:master-track</span>
+                <span class="badge-tag" style="color: var(--purple); border-color: rgba(182,146,254,0.4);">music/master/final</span>
                 <span class="badge-status completed" id="music-card-status">● 选定就绪</span>
               </div>
             </div>
@@ -1159,11 +1163,11 @@
 
               <div>
                 <div class="card-title-row">
-                  <span id="music-file-name">jiayou_xiaoyue_master_v3.wav</span>
+                  <span id="music-file-name">Final_Song_Master.wav</span>
                   <span id="music-file-size">42.8 MB</span>
                 </div>
                 <p class="card-prompt" style="margin-top: 6px;" id="music-prompt-desc">
-                  加油吧小月全曲母带音频，BPM 128，元气偶像女声，LRC 强制时间轴对齐闭环。
+                  加油吧小月全曲母带音频，BPM 128，元气偶像女声，LRC 强制时间轴对齐闭环。对应 .output/music/mengsk/加油吧小月/Final_Song_Master.wav。
                 </p>
               </div>
               <div class="model-tags">
@@ -1181,13 +1185,13 @@
 
           <!-- Asset 2: Visual Bible Four-views with Multiple Jobs -->
           <div class="model-card" id="card-image-asset">
-            <div class="card-thumb-wrap" onclick="openInspector('image:character-face')">
+            <div class="card-thumb-wrap" onclick="openInspector('image/identity/01-front-neutral')">
               <div style="text-align: center; color: var(--green);">
                 <div style="font-size: 38px; margin-bottom: 6px;">🖼️</div>
                 <strong style="font-size: 13px; font-family: monospace;" id="image-card-title">2048x1152 PNG Four-Views</strong>
               </div>
               <div class="card-badges">
-                <span class="badge-tag" style="color: var(--green); border-color: rgba(76,227,154,0.4);">image:character-face</span>
+                <span class="badge-tag" style="color: var(--green); border-color: rgba(76,227,154,0.4);">image/identity/01-front-neutral</span>
                 <span class="badge-status completed" id="image-card-status">● 角色锁定</span>
               </div>
             </div>
@@ -1207,11 +1211,11 @@
 
               <div>
                 <div class="card-title-row">
-                  <span id="image-file-name">xiaoyue_face_closeup_v3.png</span>
+                  <span id="image-file-name">01-front-neutral.png</span>
                   <span id="image-file-size">3.4 MB</span>
                 </div>
                 <p class="card-prompt" style="margin-top: 6px;" id="image-prompt-desc">
-                  小月角色定妆特写：参考 Picture 1 面容特征，微笑，现代时尚贝雷帽与大衣，城市散景。
+                  小月角色定妆特写：正面中性表情，齐肩深色短发+酒红挑染。对应 .output/projects/加油吧小月/source/identity/01-front-neutral.png。
                 </p>
               </div>
               <div class="model-tags">
@@ -1228,47 +1232,48 @@
 
           <!-- Asset 3: H3 Rendered Shot B01 with Multiple Jobs -->
           <div class="model-card" id="card-video-asset">
-            <div class="card-thumb-wrap" onclick="openInspector('video:shot-b01')">
+            <div class="card-thumb-wrap" onclick="openInspector('video/units/B01/shots/S01')">
               <div style="text-align: center; color: var(--amber);">
                 <div style="font-size: 38px; margin-bottom: 6px;">🎬</div>
                 <strong style="font-size: 13px; font-family: monospace;" id="video-card-title">720P 25fps H3 Video Shot</strong>
               </div>
               <div class="card-badges">
-                <span class="badge-tag" style="color: var(--amber); border-color: rgba(216,154,69,0.4);">video:shot-b01</span>
-                <span class="badge-status completed" id="video-card-status">● 渲染成片</span>
+                <span class="badge-tag" style="color: var(--amber); border-color: rgba(216,154,69,0.4);">video/units/B01/shots/S01</span>
+                <span class="badge-status completed" id="video-card-status">● 选定成片</span>
               </div>
             </div>
             <div class="card-body">
               <div class="job-iteration-box">
                 <div class="job-iteration-head">
                   <span>同一素材生成历史 (JobID):</span>
-                  <span style="color: var(--amber); font-family: monospace;" id="video-active-job">job-h3-4nfe-002</span>
+                  <span style="color: var(--amber); font-family: monospace;" id="video-active-job">attempt_03</span>
                 </div>
                 <div class="job-iteration-pills">
-                  <span class="job-pill" onclick="switchVideoJob(1)">Job 1 4NFE 草稿</span>
-                  <span class="job-pill active" onclick="switchVideoJob(2)">★ Job 2 8NFE 成片</span>
-                  <span class="job-pill new-gen" onclick="alert('发起新渲染作业: 将基于不同运镜参数追加生成 Job 3')">+ 重新生成</span>
+                  <span class="job-pill" onclick="switchVideoJob(1)">attempt_01 草稿</span>
+                  <span class="job-pill" onclick="switchVideoJob(2)">attempt_02 微调</span>
+                  <span class="job-pill active" onclick="switchVideoJob(3)">★ attempt_03 终审</span>
+                  <span class="job-pill new-gen" onclick="alert('发起新渲染作业: 将基于不同运镜参数追加生成 attempt_04')">+ 重新生成</span>
                 </div>
               </div>
 
               <div>
                 <div class="card-title-row">
-                  <span id="video-file-name">xiaoyue_shot_b01_h3_render.mp4</span>
+                  <span id="video-file-name">B01-delivery-10s.mp4</span>
                   <span id="video-file-size">14.6 MB</span>
                 </div>
                 <p class="card-prompt" style="margin-top: 6px;" id="video-prompt-desc">
-                  5.0s 动态长镜头推近特写，发丝微风飘动，背景聚光灯散景光晕平滑过渡。
+                  塔桥航拍建立 (Shot 1)：5.0s 动态长镜头推近特写，8NFE 高清成片。对应 .output/music-mv/mengsk/加油吧小月/units/B01/output/generated/。
                 </p>
               </div>
               <div class="model-tags">
-                <span>H3</span>
-                <span>LIGHTX2V</span>
+                <span>MINIMAX-H3</span>
                 <span>REF2VA</span>
-                <span>5.0s</span>
+                <span>8NFE</span>
+                <span>B01-S01</span>
               </div>
               <div class="card-footer">
                 <span id="video-timestamp">06:40:12 (36.5s)</span>
-                <span class="card-footer-action" style="color: var(--amber);" onclick="location.href='verdantflare_app_vedio_dashboard_v1.0.html'">在 Video 看板回放 ➔</span>
+                <span class="card-footer-action" style="color: var(--amber);" onclick="location.href='verdantflare_app_vedio_dashboard_v1.0.html'">在 Video 看板诊断 ➔</span>
               </div>
             </div>
           </div>
@@ -1300,10 +1305,10 @@
             <tbody>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video:shot-b01</span>/<span style="color: var(--purple);">{job-h3-4nfe-002}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video/units/B01/shots/S01</span>/<span style="color: var(--purple);">{attempt_03}</span>
                 </td>
-                <td>分镜头 B01 动态运镜</td>
-                <td><span style="color: var(--green); font-weight: 600;">★ Job 2 (选定成片)</span></td>
+                <td>B01 S01 塔桥建立镜头</td>
+                <td><span style="color: var(--green); font-weight: 600;">★ attempt_03 (终审选定)</span></td>
                 <td>MiniMax H3 (10.241.109.6)</td>
                 <td style="font-family: monospace;">36.5s</td>
                 <td><span class="badge-status completed">● 完成</span></td>
@@ -1311,10 +1316,10 @@
               </tr>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video:shot-b01</span>/<span style="color: var(--muted);">{job-h3-draft-001}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video/units/B01/shots/S01</span>/<span style="color: var(--muted);">{attempt_01}</span>
                 </td>
-                <td>分镜头 B01 动态运镜</td>
-                <td><span style="color: var(--muted);">Job 1 (4NFE 草稿)</span></td>
+                <td>B01 S01 塔桥建立镜头</td>
+                <td><span style="color: var(--muted);">attempt_01 (4NFE 草稿)</span></td>
                 <td>MiniMax H3 (10.241.109.6)</td>
                 <td style="font-family: monospace;">18.0s</td>
                 <td><span class="badge-status completed">● 历史归档</span></td>
@@ -1322,10 +1327,10 @@
               </tr>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video:shot-b02</span>/<span style="color: var(--purple);">{job-h3-pan-001}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">video/units/B01/shots/S02</span>/<span style="color: var(--purple);">{attempt_01}</span>
                 </td>
-                <td>分镜头 B02 环绕长镜头</td>
-                <td><span style="color: var(--blue);">Job 1 (初次渲染)</span></td>
+                <td>B01 S02 步道人物行走</td>
+                <td><span style="color: var(--blue);">attempt_01 (初始渲染)</span></td>
                 <td>MiniMax H3 (10.241.109.6)</td>
                 <td style="font-family: monospace; color: var(--blue);">75% (24s)</td>
                 <td><span class="badge-status running">⚡ 推理中</span></td>
@@ -1333,9 +1338,9 @@
               </tr>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">image:character-face</span>/<span style="color: var(--purple);">{job-71367097614070}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">image/identity/01-front-neutral</span>/<span style="color: var(--purple);">{job-71367097614070}</span>
                 </td>
-                <td>小月角色面容锁定四视图</td>
+                <td>小月正面中性定妆四视图</td>
                 <td><span style="color: var(--green); font-weight: 600;">★ Job 3 (选定定妆)</span></td>
                 <td>OpenAI gpt-image-2</td>
                 <td style="font-family: monospace;">53.3s</td>
@@ -1344,20 +1349,20 @@
               </tr>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">image:character-face</span>/<span style="color: var(--muted);">{job-137547101044495}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">image/wardrobe/B01-turnaround</span>/<span style="color: var(--muted);">{job-wardrobe-001}</span>
                 </td>
-                <td>小月角色面容锁定四视图</td>
-                <td><span style="color: var(--muted);">Job 2 (街拍备选)</span></td>
-                <td>OpenAI gpt-image-2</td>
-                <td style="font-family: monospace;">48.4s</td>
+                <td>B01 角色服装人台三视图</td>
+                <td><span style="color: var(--muted);">Job 1 (定稿)</span></td>
+                <td>Codex ImageGen</td>
+                <td style="font-family: monospace;">42.1s</td>
                 <td><span class="badge-status completed">● 备选版本</span></td>
                 <td><a href="verdantflare_app_image_dashboard_v1.0.html" style="color: var(--muted); text-decoration: none;">比对样本 ➔</a></td>
               </tr>
               <tr>
                 <td class="path-cell">
-                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">music:master-track</span>/<span style="color: var(--purple);">{job-music3-master-003}</span>
+                  <span style="color: #8ebcff;">mengsk</span>/<span style="color: var(--amber);">加油吧小月</span>/<span style="color: var(--green);">music/master/final</span>/<span style="color: var(--purple);">{job-music3-master-003}</span>
                 </td>
-                <td>全曲混音母带</td>
+                <td>加油吧小月最终母带混音</td>
                 <td><span style="color: var(--green); font-weight: 600;">★ Job 3 (终审母带)</span></td>
                 <td>Music3 + Aligner + Mixer</td>
                 <td style="font-family: monospace;">48.2s</td>
@@ -1387,7 +1392,7 @@
         <div style="background: rgba(0,0,0,0.5); padding: 14px; border-radius: 8px; border: 1px solid rgba(244,241,232,0.1);">
           <div style="color: var(--muted); font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">四级规范路径 (Path Standard)</div>
           <div style="font-family: monospace; font-size: 14px;" id="modalFullPath">
-            <span style="color: #8ebcff;">mengsk</span> / <span style="color: var(--amber);">加油吧小月</span> / <span style="color: var(--green);">video:shot-b01</span> / <span style="color: var(--purple);">{job-h3-4nfe-002}</span>
+            <span style="color: #8ebcff;">mengsk</span> / <span style="color: var(--amber);">加油吧小月</span> / <span style="color: var(--green);">video/units/B01/shots/S01</span> / <span style="color: var(--purple);">{attempt_03}</span>
           </div>
         </div>
 
@@ -1402,18 +1407,25 @@
           </div>
           <div style="background: rgba(244,241,232,0.03); padding: 12px; border-radius: 6px;">
             <div style="color: var(--muted); font-size: 11px;">素材标识 (AssetID)</div>
-            <div style="font-weight: 600; margin-top: 2px; color: var(--green);" id="modalAssetID">video:shot-b01</div>
+            <div style="font-weight: 600; margin-top: 2px; color: var(--green);" id="modalAssetID">video/units/B01/shots/S01</div>
           </div>
           <div style="background: rgba(244,241,232,0.03); padding: 12px; border-radius: 6px;">
             <div style="color: var(--muted); font-size: 11px;">当前作业 (JobID)</div>
-            <div style="font-weight: 600; margin-top: 2px; color: var(--purple);" id="modalJobID">job-h3-4nfe-002</div>
+            <div style="font-weight: 600; margin-top: 2px; color: var(--purple);" id="modalJobID">attempt_03</div>
           </div>
         </div>
 
         <div style="background: rgba(244,241,232,0.03); padding: 12px; border-radius: 6px;">
           <div style="color: var(--muted); font-size: 11px;">物理存储落盘路径 (Storage SSOT)</div>
           <div style="font-family: monospace; font-size: 12px; margin-top: 4px; color: rgba(244,241,232,0.85);" id="modalStoragePath">
-            /data/projects/mengsk/加油吧小月/assets/video:shot-b01/job-h3-4nfe-002/
+            /data/projects/mengsk/加油吧小月/assets/video/units/B01/shots/S01/attempt_03/
+          </div>
+        </div>
+
+        <div style="background: rgba(76,227,154,0.04); border: 1px solid rgba(76,227,154,0.2); padding: 12px; border-radius: 6px;">
+          <div style="color: var(--green); font-size: 11px; font-weight: 650;">.output 工作区同构映射 (Local CLI Projection)</div>
+          <div style="font-family: monospace; font-size: 12px; margin-top: 4px; color: var(--paper);" id="modalOutputProjection">
+            .output/music-mv/mengsk/加油吧小月/units/B01/output/generated/
           </div>
         </div>
       </div>
@@ -1427,20 +1439,21 @@
 
     // Interactive Job iteration switcher demo logic
     const MUSIC_JOBS = {
-      1: { id: "job-music3-raw-001", file: "raw_track_music3.wav", size: "38.2 MB", desc: "Music3 初始生成的双轨音频底模，女声咬字未微调。", time: "06:15:10 (35.0s)", status: "● 历史归档" },
-      2: { id: "job-music3-rvc-002", file: "xiaoyue_rvc_vocal.wav", size: "40.1 MB", desc: "经过 UVR5 提取与 RVC 音色克隆后的小月人声干声音轨。", time: "06:22:40 (41.4s)", status: "● 历史版本" },
-      3: { id: "job-music3-master-003", file: "jiayou_xiaoyue_master_v3.wav", size: "42.8 MB", desc: "加油吧小月全曲母带音频，BPM 128，元气偶像女声，LRC 强制时间轴对齐闭环。", time: "06:30:15 (48.2s)", status: "● 选定就绪" }
+      1: { id: "job-music3-raw-001", file: "Demo_Candidate_1.wav", size: "38.2 MB", desc: "Music3 初始生成的双轨音频底模，女声咬字未微调。", time: "06:15:10 (35.0s)", status: "● 历史归档" },
+      2: { id: "job-music3-rvc-002", file: "vocal_dry_cloned.wav", size: "40.1 MB", desc: "经过 UVR5 提取与 RVC 音色克隆后的小月人声干声音轨。", time: "06:22:40 (41.4s)", status: "● 历史版本" },
+      3: { id: "job-music3-master-003", file: "Final_Song_Master.wav", size: "42.8 MB", desc: "加油吧小月全曲母带音频，BPM 128，元气偶像女声，LRC 强制时间轴对齐闭环。", time: "06:30:15 (48.2s)", status: "● 选定就绪" }
     };
 
     const IMAGE_JOBS = {
-      1: { id: "job-explore-gemini-001", file: "xiaoyue_gemini_explore.png", size: "2.1 MB", desc: "Gemini 2.1 风格探索原型，因发型与企划不符未采用。", time: "05:10:04 (13.4s)", status: "● 历史版本" },
-      2: { id: "job-137547101044495", file: "xiaoyue_street_shot_02.png", size: "3.1 MB", desc: "Codex 街拍特写镜头：20岁元气偶像，魅力眼神，自然日光风格。", time: "05:35:41 (48.4s)", status: "● 备选版本" },
-      3: { id: "job-71367097614070", file: "xiaoyue_face_closeup_v3.png", size: "3.4 MB", desc: "小月角色定妆特写：参考 Picture 1 面容特征，微笑，现代时尚贝雷帽与大衣，城市散景。", time: "06:37:31 (53.3s)", status: "● 角色锁定" }
+      1: { id: "job-explore-gemini-001", file: "01-front-neutral-draft.png", size: "2.1 MB", desc: "Gemini 2.1 风格探索原型，因发型与企划不符未采用。", time: "05:10:04 (13.4s)", status: "● 历史版本" },
+      2: { id: "job-137547101044495", file: "01-front-neutral-v2.png", size: "3.1 MB", desc: "Codex 街拍特写镜头：20岁元气偶像，魅力眼神，自然日光风格。", time: "05:35:41 (48.4s)", status: "● 备选版本" },
+      3: { id: "job-71367097614070", file: "01-front-neutral.png", size: "3.4 MB", desc: "小月角色定妆特写：正面中性表情，齐肩深色短发+酒红挑染，面容锁死基准。", time: "06:37:31 (53.3s)", status: "● 角色锁定" }
     };
 
     const VIDEO_JOBS = {
-      1: { id: "job-h3-draft-001", file: "shot_b01_draft_4nfe.mp4", size: "8.2 MB", desc: "4NFE 步数快速运动草稿，验证镜头推近速率与构图。", time: "06:28:10 (18.0s)", status: "● 历史归档" },
-      2: { id: "job-h3-4nfe-002", file: "xiaoyue_shot_b01_h3_render.mp4", size: "14.6 MB", desc: "5.0s 动态长镜头推近特写，8NFE 高清成片，发丝微风飘动，聚光灯散景光晕平滑过渡。", time: "06:40:12 (36.5s)", status: "● 渲染成片" }
+      1: { id: "attempt_01", file: "shot_b01_draft_4nfe.mp4", size: "8.2 MB", desc: "4NFE 步数快速运动草稿，验证塔桥推近速率与构图。", time: "06:28:10 (18.0s)", status: "● 历史归档" },
+      2: { id: "attempt_02", file: "shot_b01_adjust_4nfe.mp4", size: "9.1 MB", desc: "S03 单一低角度机位锁定，微调跳镜问题。", time: "06:34:20 (19.2s)", status: "● 历史版本" },
+      3: { id: "attempt_03", file: "B01-delivery-10s.mp4", size: "14.6 MB", desc: "S01~S06 完整装配成片，8NFE 高清渲染，双 5s 单元装配为 10s 成片完成母带挂载。", time: "06:40:12 (36.5s)", status: "● 选定成片" }
     };
 
     function switchMusicJob(ver) {
@@ -1476,7 +1489,7 @@
       document.getElementById('video-timestamp').textContent = data.time;
       document.getElementById('video-card-status').textContent = data.status;
       const pills = document.querySelectorAll('#card-video-asset .job-pill');
-      pills.forEach((p, i) => { if(i < 2) p.classList.toggle('active', i === ver-1); });
+      pills.forEach((p, i) => { if(i < 3) p.classList.toggle('active', i === ver-1); });
     }
 
     function openInspector(assetId) {
@@ -1484,12 +1497,23 @@
       document.getElementById('modalAssetTitle').textContent = `素材详情: ${assetId}`;
       document.getElementById('modalAssetID').textContent = assetId;
       let jid = "job_default";
-      if (assetId === 'music:master-track') jid = document.getElementById('music-active-job').textContent;
-      if (assetId === 'image:character-face') jid = document.getElementById('image-active-job').textContent;
-      if (assetId === 'video:shot-b01') jid = document.getElementById('video-active-job').textContent;
+      let localProj = ".output/";
+      if (assetId.startsWith('music')) {
+        jid = document.getElementById('music-active-job').textContent;
+        localProj = `.output/music/mengsk/加油吧小月/Final_Song_Master.wav`;
+      }
+      if (assetId.startsWith('image')) {
+        jid = document.getElementById('image-active-job').textContent;
+        localProj = `.output/projects/加油吧小月/source/identity/01-front-neutral.png`;
+      }
+      if (assetId.startsWith('video')) {
+        jid = document.getElementById('video-active-job').textContent;
+        localProj = `.output/music-mv/mengsk/加油吧小月/units/B01/output/generated/`;
+      }
       document.getElementById('modalJobID').textContent = jid;
       document.getElementById('modalFullPath').innerHTML = `<span style="color: #8ebcff;">mengsk</span> / <span style="color: var(--amber);">加油吧小月</span> / <span style="color: var(--green);">${assetId}</span> / <span style="color: var(--purple);">{${jid}}</span>`;
       document.getElementById('modalStoragePath').textContent = `/data/projects/mengsk/加油吧小月/assets/${assetId}/${jid}/`;
+      document.getElementById('modalOutputProjection').textContent = localProj;
       modal.style.display = 'flex';
     }
 

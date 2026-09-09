@@ -262,6 +262,7 @@ async def api_list_tasks(request: Request) -> JSONResponse:
     user_id = request.query_params.get("user_id")
     project_id = request.query_params.get("project_id")
     asset_id = request.query_params.get("asset_id")
+    asset_prefix = request.query_params.get("asset_prefix")
     job_id = request.query_params.get("job_id")
     domain = request.query_params.get("domain")
     status = request.query_params.get("status")
@@ -272,6 +273,7 @@ async def api_list_tasks(request: Request) -> JSONResponse:
         user_id=user_id,
         project_id=project_id,
         asset_id=asset_id,
+        asset_prefix=asset_prefix,
         job_id=job_id,
         domain=domain,
         status=status,

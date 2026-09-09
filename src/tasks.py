@@ -334,6 +334,7 @@ class TaskStore:
         user_id: str | None = None,
         project_id: str | None = None,
         asset_id: str | None = None,
+        asset_prefix: str | None = None,
         job_id: str | None = None,
         domain: str | None = None,
         status: str | None = None,
@@ -353,6 +354,9 @@ class TaskStore:
         if asset_id:
             conds.append("asset_id = ?")
             params.append(asset_id)
+        if asset_prefix:
+            conds.append("asset_id LIKE ?")
+            params.append(f"{asset_prefix}%")
         if job_id:
             conds.append("job_id = ?")
             params.append(job_id)
