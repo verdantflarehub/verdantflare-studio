@@ -41,15 +41,39 @@ class MCPAggregator:
 
     def parse_user_project(self, project_id: str, user_id: str | None = None) -> tuple[str, str]:
         """解析 <User>/<Project> 复合格式或独立字段."""
+        u, p, _, _ = self.parse_metadata_path(project_id, user_id=user_id)
+        return u, p
+
+    def parse_metadata_path(
+        self,
+        project_id: str,
+        user_id: str | None = None,
+        asset_id: str | None = None,
+        job_id: str | None = None,
+    ) -> tuple[str, str, str, str]:
+        """解析 <User>/<Project>/<AssetID>/{JobID} 四段式元数据."""
+        parts = [p.strip() for p in project_id.strip().split("/") if p.strip()]
+
+        parsed_user = user_id.strip() if user_id else "default"
+        parsed_project = project_id.strip()
+        parsed_asset = asset_id.strip() if asset_id else "default_asset"
+        parsed_job = job_id.strip() if job_id else ""
+
+        if len(parts) >= 4:
+            parsed_user, parsed_project, parsed_asset, parsed_job = parts[0], parts[1], parts[2], parts[3]
+        elif len(parts) == 3:
+            parsed_user, parsed_project, parsed_asset = parts[0], parts[1], parts[2]
+        elif len(parts) == 2:
+            parsed_user, parsed_project = parts[0], parts[1]
+
         if user_id:
-            clean_proj = project_id.split("/")[-1] if "/" in project_id else project_id
-            return user_id.strip(), clean_proj.strip()
+            parsed_user = user_id.strip()
+        if asset_id:
+            parsed_asset = asset_id.strip()
+        if job_id:
+            parsed_job = job_id.strip()
 
-        if "/" in project_id:
-            parts = project_id.strip().split("/", 1)
-            return parts[0].strip() or "default", parts[1].strip()
-
-        return "default", project_id.strip()
+        return parsed_user, parsed_project, parsed_asset, parsed_job
 
     async def _forward_mcp_tool(
         self,
@@ -59,8 +83,10 @@ class MCPAggregator:
         user_id: str,
         project_id: str,
         task_id: str | None = None,
+        asset_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, Any]:
-        """向内网各 App 发起 MCP JSON-RPC 工具调用，并注入受信任身份头."""
+        """向内网各 App 发起 MCP JSON-RPC 工具调用，并注入受信任身份与资产版本头."""
         payload = {
             "jsonrpc": "2.0",
             "method": "tools/call",
@@ -75,6 +101,10 @@ class MCPAggregator:
             "X-User-Id": user_id,
             "X-Project-Id": project_id,
         }
+        if asset_id:
+            headers["X-Asset-Id"] = asset_id
+        if job_id:
+            headers["X-Job-Id"] = job_id
         if task_id:
             headers["X-Task-Id"] = task_id
 

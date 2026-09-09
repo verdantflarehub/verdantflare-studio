@@ -23,6 +23,8 @@ class TaskRecord:
     task_id: str
     user_id: str
     project_id: str
+    asset_id: str
+    job_id: str
     domain: str  # image, music, video, workflow
     action: str  # generate, separate, align, convert, edit, etc.
     status: str  # queued, running, completed, failed, canceled
@@ -34,8 +36,14 @@ class TaskRecord:
     artifact_ids: list[str] = field(default_factory=list)
     error: str | None = None
 
+    @property
+    def full_path(self) -> str:
+        return f"{self.user_id}/{self.project_id}/{self.asset_id}/{self.job_id}"
+
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        d["full_path"] = self.full_path
+        return d
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> TaskRecord:
@@ -51,10 +59,16 @@ class TaskRecord:
         except Exception:
             artifacts = []
 
+        keys = row.keys()
+        asset_id = row["asset_id"] if "asset_id" in keys and row["asset_id"] else "default_asset"
+        job_id = row["job_id"] if "job_id" in keys and row["job_id"] else row["task_id"]
+
         return cls(
             task_id=row["task_id"],
             user_id=row["user_id"],
             project_id=row["project_id"],
+            asset_id=asset_id,
+            job_id=job_id,
             domain=row["domain"],
             action=row["action"],
             status=row["status"],
@@ -107,6 +121,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     task_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
+    asset_id TEXT NOT NULL DEFAULT 'default_asset',
+    job_id TEXT NOT NULL DEFAULT '',
     domain TEXT NOT NULL,
     action TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -121,6 +137,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_proj ON tasks(user_id, project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_asset ON tasks(user_id, project_id, asset_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_job ON tasks(user_id, project_id, asset_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_domain ON tasks(domain);
 CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC);
@@ -198,6 +216,8 @@ class TaskStore:
         *,
         user_id: str,
         project_id: str,
+        asset_id: str | None = None,
+        job_id: str | None = None,
         domain: str,
         action: str,
         idempotency_key: str | None = None,
@@ -209,7 +229,9 @@ class TaskStore:
         self.ensure_project(user_id, project_id)
 
         now = datetime.now(timezone.utc).isoformat()
+        resolved_asset_id = (asset_id or f"{domain}:{action}").strip()
         resolved_task_id = task_id or f"task_{domain[:3]}_{uuid.uuid4().hex[:16]}"
+        resolved_job_id = (job_id or resolved_task_id).strip()
         params_json = json.dumps(request_params or {}, ensure_ascii=False)
 
         with self._get_conn() as conn:
@@ -226,15 +248,17 @@ class TaskStore:
                 conn.execute(
                     """
                     INSERT INTO tasks (
-                        task_id, user_id, project_id, domain, action, status,
+                        task_id, user_id, project_id, asset_id, job_id, domain, action, status,
                         idempotency_key, created_at, updated_at, duration_seconds,
                         request_params, artifact_ids, error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, '[]', NULL)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, '[]', NULL)
                     """,
                     (
                         resolved_task_id,
                         user_id,
                         project_id,
+                        resolved_asset_id,
+                        resolved_job_id,
                         domain,
                         action,
                         status,
@@ -309,6 +333,8 @@ class TaskStore:
         *,
         user_id: str | None = None,
         project_id: str | None = None,
+        asset_id: str | None = None,
+        job_id: str | None = None,
         domain: str | None = None,
         status: str | None = None,
         limit: int = 50,
@@ -324,6 +350,12 @@ class TaskStore:
         if project_id:
             conds.append("project_id = ?")
             params.append(project_id)
+        if asset_id:
+            conds.append("asset_id = ?")
+            params.append(asset_id)
+        if job_id:
+            conds.append("job_id = ?")
+            params.append(job_id)
         if domain:
             conds.append("domain = ?")
             params.append(domain)
@@ -340,3 +372,12 @@ class TaskStore:
             query = f"SELECT * FROM tasks {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
             rows = conn.execute(query, tuple(params + [limit, offset])).fetchall()
             return [TaskRecord.from_row(r) for r in rows], total
+
+    def list_asset_jobs(
+        self, user_id: str, project_id: str, asset_id: str, limit: int = 50
+    ) -> list[TaskRecord]:
+        """按 <User>/<Project>/<AssetID> 获取同一素材的所有生成 Job 历史列表."""
+        tasks, _ = self.list_tasks(
+            user_id=user_id, project_id=project_id, asset_id=asset_id, limit=limit
+        )
+        return tasks

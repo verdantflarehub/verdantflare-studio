@@ -84,6 +84,45 @@ class TestTaskStore(unittest.TestCase):
         self.assertEqual(total_m, 1)
         self.assertEqual(music_tasks[0].domain, "music")
 
+    def test_asset_multiple_job_iterations(self):
+        # 验证一个素材 (<AssetID>) 经历多次生成 ({JobID}) 的场景
+        user = "mengsk"
+        proj = "jyby-mv"
+        asset = "video:shot-b01"
+
+        # 第一次生成: 4NFE 草稿 (Job 1)
+        j1 = self.store.create_task(
+            user_id=user,
+            project_id=proj,
+            asset_id=asset,
+            job_id="job_draft_01",
+            domain="video",
+            action="generate",
+            request_params={"steps": 4},
+        )
+        self.assertEqual(j1.full_path, "mengsk/jyby-mv/video:shot-b01/job_draft_01")
+        self.store.update_task_status(j1.task_id, "completed", duration_seconds=18.0)
+
+        # 第二次生成: 8NFE 高清成片 (Job 2)
+        j2 = self.store.create_task(
+            user_id=user,
+            project_id=proj,
+            asset_id=asset,
+            job_id="job_final_02",
+            domain="video",
+            action="generate",
+            request_params={"steps": 8},
+        )
+        self.assertEqual(j2.full_path, "mengsk/jyby-mv/video:shot-b01/job_final_02")
+        self.store.update_task_status(j2.task_id, "completed", duration_seconds=36.5)
+
+        # 获取该 Asset 下的所有 Job 生成历史
+        history = self.store.list_asset_jobs(user, proj, asset)
+        self.assertEqual(len(history), 2)
+        job_ids = [t.job_id for t in history]
+        self.assertIn("job_draft_01", job_ids)
+        self.assertIn("job_final_02", job_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

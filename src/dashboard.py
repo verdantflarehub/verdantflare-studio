@@ -261,6 +261,8 @@ async def api_list_tasks(request: Request) -> JSONResponse:
     task_store = _get_task_store(request)
     user_id = request.query_params.get("user_id")
     project_id = request.query_params.get("project_id")
+    asset_id = request.query_params.get("asset_id")
+    job_id = request.query_params.get("job_id")
     domain = request.query_params.get("domain")
     status = request.query_params.get("status")
     limit = int(request.query_params.get("limit", 50))
@@ -269,6 +271,8 @@ async def api_list_tasks(request: Request) -> JSONResponse:
     tasks, total = task_store.list_tasks(
         user_id=user_id,
         project_id=project_id,
+        asset_id=asset_id,
+        job_id=job_id,
         domain=domain,
         status=status,
         limit=limit,
