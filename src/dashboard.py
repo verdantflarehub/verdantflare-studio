@@ -248,7 +248,12 @@ def _get_task_store(request: Request) -> TaskStore:
     return store
 
 
+STATIC_HTML_PATH = Path(__file__).resolve().parent / "static" / "index.html"
+
+
 async def dashboard_page(request: Request) -> Response:
+    if STATIC_HTML_PATH.exists():
+        return HTMLResponse(STATIC_HTML_PATH.read_text(encoding="utf-8"))
     return HTMLResponse(DASHBOARD_HTML)
 
 
