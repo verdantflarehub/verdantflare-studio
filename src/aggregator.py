@@ -27,7 +27,7 @@ class MCPAggregator:
         self.task_store = task_store
         self.image_url = (image_url or os.environ.get("IMAGE_MCP_URL", "http://image-mcp-server:8000")).rstrip("/")
         self.music_url = (music_url or os.environ.get("MUSIC_MCP_URL", "http://music-mcp-server:8000")).rstrip("/")
-        self.video_url = (video_url or os.environ.get("VIDEO_MCP_URL", "http://vedio-mcp-server:8000")).rstrip("/")
+        self.video_url = (video_url or os.environ.get("VIDEO_MCP_URL", "http://video-mcp-server:8000")).rstrip("/")
         self.client = httpx.AsyncClient(timeout=120.0)
 
     @classmethod

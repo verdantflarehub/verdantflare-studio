@@ -2,7 +2,7 @@
 
 VerdantFlare Studio 后端业务中枢与跨模态聚合服务。
 
-作为面向创作者与 AI 智能体（Codex / Antigravity Agent）的统一服务入口，向下连接并聚合调度三大专业生产套件（`verdantflare-app-image`、`verdantflare-app-music`、`verdantflare-app-vedio`），实现多模态项目化生产、跨模态任务中心与统一持久化存储治理。
+作为面向创作者与 AI 智能体（Codex / Antigravity Agent）的统一服务入口，向下连接并聚合调度三大专业生产套件（`verdantflare-app-image`、`verdantflare-app-music`、`verdantflare-app-video`），实现多模态项目化生产、跨模态任务中心与统一持久化存储治理。
 
 ---
 
@@ -22,7 +22,7 @@ VerdantFlare Studio 后端业务中枢与跨模态聚合服务。
 | `STUDIO_ARTIFACT_ROOT` | `/data/projects` | 共享持久化存储根路径 |
 | `IMAGE_MCP_URL` | `http://image-mcp-server:8000` | Downstream Image MCP 服务地址 |
 | `MUSIC_MCP_URL` | `http://music-mcp-server:8000` | Downstream Music MCP 服务地址 |
-| `VIDEO_MCP_URL` | `http://vedio-mcp-server:8000` | Downstream Video MCP 服务地址 |
+| `VIDEO_MCP_URL` | `http://video-mcp-server:8000` | Downstream Video MCP 服务地址 |
 | `STUDIO_BEARER_TOKEN` | *(可选)* | 统一访问口令，配置后启用 Bearer 鉴权保护 |
 | `STUDIO_MCP_ALLOWED_HOSTS` | `127.0.0.1:*,localhost:*,[::1]:*` | MCP DNS Rebinding 防护允许的 Host 列表 |
 | `STUDIO_MCP_ALLOWED_ORIGINS` | `http://127.0.0.1:*,http://localhost:*,http://[::1]:*` | MCP 允许的 CORS Origin 列表 |
