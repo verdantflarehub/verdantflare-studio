@@ -15,6 +15,7 @@ class Upstream:
         if url.endswith('/identity/login'):
             return httpx.Response(201,json={'access_token':TOKEN,'username':'admin','expires_at':'2026-09-15T23:00:00Z'})
         if url.endswith('/identity/logout'):return httpx.Response(204)
+        if url.endswith('/identity/me'):return httpx.Response(200,json={'station_id':'00000000-0000-7000-8000-000000000000','organization_id':'00000000-0000-7000-8000-000000000001','roles':['admin'],'scopes':['app:read']})
         return httpx.Response(200,json={'items':[],'next_cursor':None})
 
 class PreviewTests(unittest.TestCase):

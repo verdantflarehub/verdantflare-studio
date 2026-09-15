@@ -43,13 +43,14 @@ function render(){
 }
 async function refresh(){
  if(refreshing)return;refreshing=true;$('reset').disabled=true;
- try{const data=await api('apps');apps=data.items;connected=true;render();if(selected){const a=apps.find(x=>x.app_id===selected);if(a)drawDetail(a)}}
+ try{const data=await api('apps');apps=data.items;identity=await api('me');connected=true;render();if(selected){const a=apps.find(x=>x.app_id===selected);if(a)drawDetail(a)}}
  catch(e){connected=false;apps=[];render();if(selected)closeDetail();if(!e.unauthorized)notice(e.message)}
  finally{refreshing=false;$('reset').disabled=false}
 }
+async function command(action){if(!selected)return;const a=apps.find(x=>x.app_id===selected);if(!a)return;const key='studio-'+crypto.randomUUID();try{const op=await api('commands',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:crypto.randomUUID(),idempotency_key:key,organization_id:identity.organization_id||apps[0]?.organization_id||'',station_id:identity.station_id||'',app_id:a.app_id,app_version:a.version,action})});notice(`${a.display_name}：操作已受理`);$('detailContent').insertAdjacentHTML('afterbegin',`<p class="tag">操作已受理 · ${esc(op.phase||'checking')}</p>`);setTimeout(refresh,1000)}catch(e){notice(e.message)}}
 function drawDetail(a){
  $('detailHead').innerHTML=`<div class="card-top"><div class="app-icon ${esc(a.group_id)}">${icon(a)}</div><div><h2 id="detailTitle">${esc(a.display_name)}</h2><p>${brand(a)} · v${esc(a.version)} ${badge(a)}</p></div></div>`;
- $('actions').innerHTML=['安装','启动','关闭','重启','删除'].map(x=>`<button class="btn" disabled title="操作管理开发中">${x}</button>`).join('');
+ $('actions').innerHTML=[['安装','install'],['启动','start'],['关闭','stop'],['重启','restart'],['删除','delete']].map(([label,action])=>`<button class="btn" data-command="${action}" ${a.deployment.state==='unknown'?'disabled':''}>${label}</button>`).join('');
  $('progress').innerHTML='';
  $('detailContent').innerHTML=`<p>安装与操作管理正在开发，当前可查看真实部署状态。</p><h3>部署</h3><p>状态：${statusText[a.deployment.state]}</p><p>就绪副本：${a.deployment.ready_replicas??'—'} / ${a.deployment.desired_replicas??'—'}</p><p>观测时间：${new Date(a.deployment.observed_at).toLocaleString()}</p><h3>模型</h3><p>${a.models.length?esc(a.models.join(' · ')):'无需本地模型'}</p><p>${a.model_status==='unknown'?'模型下载与预热状态尚未接入':'不需要模型预热'}</p><details><summary>部署信息</summary><p>${esc(a.namespace)} / ${esc(a.workload_name)}</p><h4>当前镜像</h4>${a.deployment.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.component)}：${esc(i.image)}</p>`).join('')}<h4>清单镜像</h4>${a.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.image)}</p>`).join('')}</details>`;
  document.querySelectorAll('[data-detail-tab]').forEach(b=>{b.hidden=b.dataset.detailTab!=='overview'});
@@ -66,5 +67,5 @@ $('newTask').disabled=true;$('newTask').title='创作任务开发中';
 $('sideCollapse').onclick=()=>{document.body.classList.toggle('sidebar-collapsed');$('sideCollapse').setAttribute('aria-expanded',String(!document.body.classList.contains('sidebar-collapsed')))};
 $('search').addEventListener('input',render);$('closeDrawer').onclick=closeDetail;$('overlay').onclick=e=>{if(e.target===$('overlay'))closeDetail()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&selected)closeDetail()});
-document.addEventListener('click',e=>{const b=e.target.closest('button,a');if(!b||b.disabled)return;if(b.dataset.placeholder){e.preventDefault();notice('该功能正在开发');return}if(b.dataset.detail){openDetail(b.dataset.detail);return}if(b.dataset.group){group=b.dataset.group;render();return}if(b.dataset.tab){tab=b.dataset.tab;render();return}if(b.dataset.nav){mode=b.dataset.nav==='models'?'models':'market';tab=b.dataset.nav==='installed'?'installed':'all';group='all';render()}});
+document.addEventListener('click',e=>{const b=e.target.closest('button,a');if(!b||b.disabled)return;if(b.dataset.placeholder){e.preventDefault();notice('该功能正在开发');return}if(b.dataset.command){command(b.dataset.command);return}if(b.dataset.detail){openDetail(b.dataset.detail);return}if(b.dataset.group){group=b.dataset.group;render();return}if(b.dataset.tab){tab=b.dataset.tab;render();return}if(b.dataset.nav){mode=b.dataset.nav==='models'?'models':'market';tab=b.dataset.nav==='installed'?'installed':'all';group='all';render()}});
 $('overlay').style.display='none';render();refresh();setInterval(()=>{if(!$('loginDialog').open)refresh()},30000);

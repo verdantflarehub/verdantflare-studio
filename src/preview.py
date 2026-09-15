@@ -27,8 +27,9 @@ async def api(request: Request):
     method=request.method
     login=route=='login' and method=='POST'
     logout=route=='logout' and method=='POST'
+    command=route=='commands' and method=='POST'
     read=method=='GET' and (route in ('me','health','apps') or re.fullmatch(r'apps/[a-z0-9][a-z0-9-]{0,62}',route))
-    if not (login or logout or read):return JSONResponse({'code':'NOT_FOUND','message':'接口尚未开放'},404)
+    if not (login or logout or command or read):return JSONResponse({'code':'NOT_FOUND','message':'接口尚未开放'},404)
     if method=='POST' and request.headers.get('origin')!=ORIGIN:
         return JSONResponse({'code':'PERMISSION_DENIED','message':'请求来源不匹配'},403)
     token=request.cookies.get(COOKIE,'')
@@ -45,7 +46,12 @@ async def api(request: Request):
             chunks.append(chunk)
         body=b''.join(chunks);headers['Content-Type']='application/json'
     elif logout: body=b'{}';headers['Content-Type']='application/json'
-    paths={'login':'/identity/login','logout':'/identity/logout','me':'/identity/me','health':'/station/health','apps':'/catalog/apps'}
+    elif command:
+        if request.headers.get('content-type','').split(';')[0]!='application/json': return JSONResponse({'code':'INVALID_ARGUMENT'},400)
+        body=await request.body();
+        if len(body)>16384:return JSONResponse({'code':'INVALID_ARGUMENT'},400)
+        headers['Content-Type']='application/json'
+    paths={'login':'/identity/login','logout':'/identity/logout','commands':'/app-commands','me':'/identity/me','health':'/station/health','apps':'/catalog/apps'}
     path=paths.get(route,'/catalog/'+route)
     try:
         async with httpx.AsyncClient(timeout=15,follow_redirects=False) as client:
