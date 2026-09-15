@@ -58,3 +58,10 @@ uvicorn src.server:app --host 0.0.0.0 --port 8000 --reload
 
 部署清单由 `verdantflare-design/deploys/` 统一管辖：
 `deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare-studio/`
+## 2026-09-15 首个真实 Market 界面
+
+容器默认运行 `src.preview:app`，对外提供 `/studio/`。页面沿用已批准 Market 设计，接入 Core 的登录、退出、应用目录、分组搜索和详情。安装与操作按钮暂不可用，不再使用模拟下载或模拟运行状态。旧 MCP 聚合服务代码保留，当前预览进程不暴露其接口。
+
+配置 `STATION_CORE_URL`（默认 `http://station-core:5050`）和 `STUDIO_PUBLIC_ORIGIN`（完整 HTTPS Origin）。会话保存在 HttpOnly/Secure/SameSite=Strict Cookie；前端不保存 access_token。首次管理员由受控部署流程初始化。
+
+镜像经 `.github/workflows/studio.yml` 发布；main/dev 构建，release push 发布固定版本镜像。镜像名称、SERVICE 和 VERSION 在流水线顶部 env 中配置，使用既有三项 Registry Secrets。中央设计和部署仍分别位于 verdantflare-design 的 docs/design/studio/ 与 deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare/。

@@ -45,3 +45,6 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+__pycache__/
+.env*
