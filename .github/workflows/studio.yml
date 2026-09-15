@@ -3,7 +3,7 @@ name: Studio
 env:
   IMAGE_NAME: wod/verdantflare-station
   SERVICE: studio
-  VERSION: 0.1.0
+  VERSION: 0.1.1
 
 on:
   push:

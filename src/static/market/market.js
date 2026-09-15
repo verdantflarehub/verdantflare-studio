@@ -7,13 +7,13 @@ const installed=a=>!['not_installed','unknown'].includes(a.deployment.state);
 const active=a=>['starting','stopping'].includes(a.deployment.state);
 function brand(a){return {vf:'VF 官方',minimax:'MiniMax',github:'GitHub'}[a.brand]||'GitHub'}
 function icon(a){return `<span class="app-brand-mark" data-logo="${esc(a.brand)}">${brandMarks[a.brand]||brandMarks.github}</span>`}
-function badge(a){return `<span class="tag ${esc(a.deployment.state)}">${statusText[a.deployment.state]||'状态未知'}</span>`}
+function badge(a){return `<span class="status ${a.deployment.state==='ready'?'running':a.deployment.state==='degraded'?'failed':''}"><i class="dot ${a.deployment.state==='ready'?'on':''}"></i>${statusText[a.deployment.state]||'状态未知'}</span>`}
 function notice(message){$('toast').textContent=message;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),3500)}
 function login(){connected=false;apps=[];render();if(!$('loginDialog').open)$('loginDialog').showModal()}
 async function api(path,options={}){
  const r=await fetch('/studio/api/'+path,{credentials:'same-origin',cache:'no-store',...options});
  const data=r.status===204?{}:await r.json();
- if(r.status===401){login();throw Error('登录已失效，请重新登录')}
+ if(r.status===401 && path!=='login'){login();const error=Error('请先登录');error.unauthorized=true;throw error}
  if(!r.ok)throw Error(({ACCOUNT_LOCKED:'登录失败次数过多，请稍后再试',UNAUTHENTICATED:'用户名或密码不正确',SERVICE_UNAVAILABLE:'Station 暂时无法连接'}[data.code])||data.message||'请求失败');
  return data;
 }
@@ -28,14 +28,15 @@ function render(){
  document.querySelector('.statusbar>span').innerHTML=`<i class="dot"></i> ${connected?'Station Core 已连接':'Station 未连接'}`;
  document.querySelector('.strip-right .demo').textContent=connected?'实时应用目录':'未连接 Station';
  document.querySelector('.rail-heading .pill').textContent=connected?'已连接':'未连接';
+ document.querySelector('.station p').textContent=connected?'Core 已连接 · 真实应用目录':'等待连接 Station';
  document.querySelectorAll('[data-group]').forEach(b=>b.classList.toggle('active',b.dataset.group===group));
  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
  $('groupNav').innerHTML=Object.keys(labels).map(g=>`<button class="group-nav" data-group="${g}">${labels[g]}<span class="count">${apps.filter(a=>a.group_id===g).length}</span></button>`).join('');
  $('catalog').innerHTML=!connected?'<div class="empty">登录后查看 Station 中的真实应用。</div>':!shown.length?'<div class="empty">没有符合条件的应用</div>':Object.keys(labels).map(g=>{
   const list=shown.filter(a=>a.group_id===g);if(!list.length)return '';
-  return `<section><div class="section-title"><h2>${labels[g]}</h2><small>${list.length} 个应用</small><span class="line"></span></div><div class="grid">${list.map(a=>`<article class="app-card" data-card="${esc(a.app_id)}"><div class="card-top"><div class="app-icon ${g}">${icon(a)}</div><div><button class="app-title" data-detail="${esc(a.app_id)}">${esc(a.display_name)}</button><small class="version brand-version">${brand(a)} · v${esc(a.version)}</small></div></div><p class="card-desc">${mode==='models'?(a.models.length?esc(a.models.join(' · ')):'无需本地模型'):a.models.length?'模型：'+esc(a.models.join(' · ')):'提供应用入口，无本地模型依赖'}</p><div class="tags">${badge(a)}<span class="tag">${a.model_status==='not_required'?'无需模型':'模型状态未知'}</span></div><div class="card-bottom"><span>${a.deployment.ready_replicas??'—'}/${a.deployment.desired_replicas??'—'} 就绪副本</span><button class="btn" data-detail="${esc(a.app_id)}">查看详情</button></div></article>`).join('')}</div></section>`;
+  return `<section><div class="section-title"><h2>${labels[g]}</h2><small>${list.length} 个应用</small><span class="line"></span></div><div class="grid">${list.map(a=>`<article class="app-card" data-card="${esc(a.app_id)}"><div class="card-top"><div class="app-icon ${g}">${icon(a)}</div><div><button class="app-title" data-detail="${esc(a.app_id)}">${esc(a.display_name)}</button><small class="version brand-version">${brand(a)} · v${esc(a.version)}</small></div></div><p class="card-desc">${mode==='models'?(a.models.length?esc(a.models.join(' · ')):'无需本地模型'):a.models.length?'模型：'+esc(a.models.join(' · ')):'提供应用入口，无本地模型依赖'}</p><div class="tags">${badge(a)}<span class="tag">${a.model_status==='not_required'?'无需模型':'模型状态未知'}</span></div><div class="card-foot"><span>${a.deployment.ready_replicas??'—'}/${a.deployment.desired_replicas??'—'} 就绪副本</span><button class="btn" data-detail="${esc(a.app_id)}">查看详情</button></div></article>`).join('')}</div></section>`;
  }).join('');
- $('mcpNav').innerHTML=apps.filter(a=>a.brand==='vf').map(a=>`<button class="mcp-entry" data-detail="${esc(a.app_id)}">${esc(a.display_name)} ${badge(a)}</button>`).join('');
+ $('mcpNav').innerHTML=apps.filter(a=>a.brand==='vf').map(a=>`<button class="nav-link" data-detail="${esc(a.app_id)}">${esc(a.display_name)} ${badge(a)}</button>`).join('');
  $('railActivity').textContent='安装与操作管理开发中';$('railModels').textContent='状态未知';
  $('pageTitle').textContent=mode==='models'?'模型市场':'应用市场';
  $('pageSubtitle').textContent=mode==='models'?'查看应用声明的模型依赖':'Image · Music · Video，统一查看本地应用';
@@ -43,7 +44,7 @@ function render(){
 async function refresh(){
  if(refreshing)return;refreshing=true;$('reset').disabled=true;
  try{const data=await api('apps');apps=data.items;connected=true;render();if(selected){const a=apps.find(x=>x.app_id===selected);if(a)drawDetail(a)}}
- catch(e){connected=false;apps=[];render();if(selected)closeDetail();notice(e.message)}
+ catch(e){connected=false;apps=[];render();if(selected)closeDetail();if(!e.unauthorized)notice(e.message)}
  finally{refreshing=false;$('reset').disabled=false}
 }
 function drawDetail(a){
@@ -56,7 +57,7 @@ function drawDetail(a){
 async function openDetail(id){try{const data=await api('apps/'+encodeURIComponent(id));selected=id;drawDetail(data.app);$('overlay').classList.add('open');$('overlay').style.display='flex';$('closeDrawer').focus()}catch(e){notice(e.message)}}
 function closeDetail(){selected=null;$('overlay').classList.remove('open');$('overlay').style.display='none'}
 $('loginDialog').addEventListener('cancel',e=>e.preventDefault());
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,b=form.querySelector('button');b.disabled=true;$('loginError').textContent='';try{await api('login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:form.elements.username.value,password:form.elements.password.value})});form.elements.password.value='';$('loginDialog').close();await refresh()}catch(err){$('loginError').textContent=err.message}finally{b.disabled=false}});
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,b=form.querySelector('button');b.disabled=true;$('loginError').textContent='';try{await api('login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:form.elements.username.value,password:form.elements.password.value})});form.elements.password.value='';$('toast').classList.remove('show');$('loginDialog').close();await refresh()}catch(err){$('loginError').textContent=err.message}finally{b.disabled=false}});
 $('reset').textContent='刷新状态';$('reset').onclick=refresh;
 $('theme').onclick=()=>{const light=document.body.dataset.theme!=='light';document.body.dataset.theme=light?'light':'dark';$('theme').textContent=light?'深色主题':'浅色主题'};
 const logout=document.createElement('button');logout.className='btn';logout.textContent='退出登录';logout.onclick=async()=>{try{await api('logout',{method:'POST'});closeDetail();login()}catch(e){notice(e.message)}};$('reset').after(logout);

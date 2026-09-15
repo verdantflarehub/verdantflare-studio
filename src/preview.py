@@ -20,7 +20,7 @@ async def page(request: Request):
     return FileResponse(ROOT/'index.html',headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
 
 async def health(request: Request):
-    return JSONResponse({'status':'ok','service':'verdantflare-studio','version':'0.1.0'})
+    return JSONResponse({'status':'ok','service':'verdantflare-studio','version':'0.1.1'})
 
 async def api(request: Request):
     route=request.path_params['path']
