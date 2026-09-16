@@ -48,3 +48,7 @@ htmlcov/
 
 __pycache__/
 .env*
+
+# Shared Go / Vue application
+frontend/node_modules/
+frontend/dist/

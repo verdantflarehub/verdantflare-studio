@@ -1,16 +1,23 @@
-FROM python:3.11-slim
+# Gin/Vue website build; all build steps use scripts/build.sh.
+FROM node:24-bookworm-slim AS frontend
+WORKDIR /src/frontend
+COPY frontend/ ./
+COPY scripts/build.sh /src/scripts/build.sh
+RUN bash /src/scripts/build.sh frontend
 
-WORKDIR /app
+FROM golang:1.26-bookworm AS backend
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY scripts/build.sh scripts/build.sh
+RUN go mod download
+COPY cmd/web/ cmd/web/
+COPY internal/ internal/
+COPY frontend/assets.go frontend/assets.go
+COPY --from=frontend /src/frontend/dist/ frontend/dist/
+RUN bash scripts/build.sh web --backend-only
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    STUDIO_ARTIFACT_ROOT=/data/projects
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY src/ /app/src/
-
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=backend /src/build/studio-web /studio-web
+ENV STUDIO_LISTEN=0.0.0.0:8000
 EXPOSE 8000
-
-CMD ["uvicorn", "src.preview:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/studio-web"]
