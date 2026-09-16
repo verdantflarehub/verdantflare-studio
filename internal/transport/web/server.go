@@ -30,7 +30,7 @@ func New(station *application.Station, origin string, assets fs.FS) *gin.Engine 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.2.0"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.2.1"})
 	})
 	r.Any("/studio/api/*path", s.api)
 	files := http.StripPrefix("/studio/", http.FileServer(http.FS(assets)))

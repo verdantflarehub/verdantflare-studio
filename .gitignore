@@ -1,54 +1,15 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
+# Build outputs and frontend dependencies
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+frontend/node_modules/
+frontend/dist/
 
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# SQLite databases
+# Local credentials and data
+.env*
 *.db
 *.sqlite3
 
-# Unit test / coverage
-.coverage
-htmlcov/
-.pytest_cache/
-
-# IDE
+# Editor files
 .idea/
 .vscode/
 *.swp
-
-__pycache__/
-.env*
-
-# Shared Go / Vue application
-frontend/node_modules/
-frontend/dist/
