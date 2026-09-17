@@ -31,6 +31,8 @@ type Station struct {
 	client *http.Client
 }
 
+var operationPath = regexp.MustCompile(`^operations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
 var appPath = regexp.MustCompile(`^apps/[a-z0-9][a-z0-9-]{0,62}$`)
 
 func ID() string {
@@ -64,6 +66,8 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 		path = "/identity/logout"
 	case in.Method == "POST" && in.Path == "commands":
 		path = "/app-commands"
+	case in.Method == "GET" && operationPath.MatchString(in.Path):
+		path = "/app-" + in.Path
 	case in.Method == "GET" && in.Path == "me":
 		path = "/identity/me"
 	case in.Method == "GET" && in.Path == "health":
