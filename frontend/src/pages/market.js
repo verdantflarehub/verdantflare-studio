@@ -77,7 +77,6 @@ async function command(action){
  if(entry?.sending)return;
  if(entry&&!terminal(entry.op)&&!entry.rejected){notice('已有待完成操作，请查询原操作');return}
  entry={command:{request_id:crypto.randomUUID(),idempotency_key:'studio-'+crypto.randomUUID(),organization_id:identity.organization_id,station_id:identity.station_id,app_id:a.app_id,app_version:a.version,action}};
- if(action==='adopt')entry.command.expected_workload_uid=a.deployment.uid;
  operations.set(a.app_id,entry);saveOperations();drawDetail(a);
  try{await submit(entry);notice(`${a.display_name}：命令已记录，等待执行`)}catch(e){notice(e.message)}
  if(selected===a.app_id)drawDetail(a);
@@ -92,9 +91,13 @@ async function pollOperations(){
 function drawDetail(a){
  const entry=operations.get(a.app_id),op=entry?.op,busy=entry&&!entry.rejected&&!terminal(op);
  $('detailHead').innerHTML=`<div class="card-top"><div class="app-icon ${esc(a.group_id)}">${icon(a)}</div><div><h2 id="detailTitle">${esc(a.display_name)}</h2><p>${brand(a)} · v${esc(a.version)} ${badge(a)}</p></div></div>`;
- $('actions').innerHTML=[['纳管现有应用','adopt'],['安装','install'],['启动','start'],['关闭','stop'],['重启','restart'],['删除','delete']].map(([label,action])=>`<button class="btn" data-command="${action}" ${a.deployment.state==='unknown'||busy||(action==='adopt'?a.deployment.management_status!=='unmanaged'||!a.deployment.uid:action==='install'?a.deployment.state!=='not_installed':a.deployment.management_status!=='managed')?'disabled':''}>${label}</button>`).join('');
+ $('actions').innerHTML=[['安装','install'],['启动','start'],['关闭','stop'],['重启','restart'],['删除','delete']].map(([label,action])=>{
+  const unavailable=['stop','restart','delete'].includes(action);
+  const disabled=a.deployment.state==='unknown'||busy||unavailable||(action==='install'?a.deployment.state!=='not_installed':!installed(a));
+  return `<button class="btn" data-command="${action}" ${disabled?'disabled':''} ${unavailable?'title="暂不可用：尚未支持安全结束进行中的任务"':''}>${label}</button>`;
+ }).join('');
  $('progress').innerHTML=entry?`<p>${op?op.status==='accepted'?'命令已记录，等待执行':op.status==='failed'?'操作失败':op.status==='succeeded'?'操作完成':esc(phases[op.phase]||op.phase):entry.rejected?'命令被拒绝':'响应待确认，正在使用原幂等键恢复'}</p>${op?`<p>阶段：${esc(phases[op.phase]||op.phase)} · 操作 ID：${esc(op.operation_id)}</p><p>下载：${op.download.downloaded_bytes} / ${op.download.total_bytes??'未知'} 字节 · ${op.download.percent==null?'进度未知':esc(op.download.percent)+'%'}</p>`:''}${op?.error?`<p role="alert">${esc(op.error.message)} (${esc(op.error.code)})</p>`:''}${entry.error?`<p role="alert">${esc(entry.error)}</p>`:''}`:'';
- $('detailContent').innerHTML=`<p>命令状态与部署就绪分别展示；下载完成不代表安装或模型预热完成。</p><h3>部署</h3><p>管理状态：${({managed:'已纳管',unmanaged:'未纳管',foreign:'其他归属',unknown:'未知'})[a.deployment.management_status]||'未知'}</p><p>纳管只登记现有应用，不会重启服务。关闭、重启、删除尚待安全排空能力接入。</p><p>状态：${statusText[a.deployment.state]}</p><p>就绪副本：${a.deployment.ready_replicas??'—'} / ${a.deployment.desired_replicas??'—'}</p><p>观测时间：${new Date(a.deployment.observed_at).toLocaleString()}</p><h3>模型</h3><p>${a.models.length?esc(a.models.join(' · ')):'无需本地模型'}</p><p>${a.model_status==='unknown'?'模型下载与预热状态尚未接入':'不需要模型预热'}</p><details><summary>部署信息</summary><p>${esc(a.namespace)} / ${esc(a.workload_name)}</p><h4>当前镜像</h4>${a.deployment.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.component)}：${esc(i.image)}</p>`).join('')}<h4>清单镜像</h4>${a.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.image)}</p>`).join('')}</details>`;
+ $('detailContent').innerHTML=`<p>命令状态与部署就绪分别展示；下载完成不代表安装或模型预热完成。</p><h3>部署</h3><p>关闭、重启和删除暂不可用：尚未支持安全结束进行中的任务。</p><p>状态：${statusText[a.deployment.state]}</p><p>就绪副本：${a.deployment.ready_replicas??'—'} / ${a.deployment.desired_replicas??'—'}</p><p>观测时间：${new Date(a.deployment.observed_at).toLocaleString()}</p><h3>模型</h3><p>${a.models.length?esc(a.models.join(' · ')):'无需本地模型'}</p><p>${a.model_status==='unknown'?'模型下载与预热状态尚未接入':'不需要模型预热'}</p><details><summary>部署信息</summary><p>${esc(a.namespace)} / ${esc(a.workload_name)}</p><h4>当前镜像</h4>${a.deployment.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.component)}：${esc(i.image)}</p>`).join('')}<h4>清单镜像</h4>${a.images.map(i=>`<p style="overflow-wrap:anywhere">${esc(i.image)}</p>`).join('')}</details>`;
  document.querySelectorAll('[data-detail-tab]').forEach(b=>{b.hidden=b.dataset.detailTab!=='overview'});
 }
 async function openDetail(id){try{const data=await api('apps/'+encodeURIComponent(id));selected=id;drawDetail(data.app);$('overlay').classList.add('open');$('overlay').style.display='flex';$('closeDrawer').focus()}catch(e){notice(e.message)}}
