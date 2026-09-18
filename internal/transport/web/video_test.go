@@ -34,6 +34,9 @@ func TestVideoIsolation(t *testing.T) {
 	defer core.Close()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
+		if values, ok := r.Header["Range"]; ok && (len(values) == 0 || values[0] == "") {
+			t.Error("empty Range header breaks Starlette FileResponse")
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Header.Get("Authorization") != "Bearer video-secret" {
 			t.Error("missing video auth")
 		}

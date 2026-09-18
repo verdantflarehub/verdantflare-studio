@@ -98,7 +98,9 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		}
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set("Range", c.GetHeader("Range"))
+	if value := c.GetHeader("Range"); value != "" {
+		req.Header.Set("Range", value)
+	}
 	client := &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
