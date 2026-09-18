@@ -36,5 +36,5 @@ export function mountVideo({listen, api, notice, login}) {
  const observer=new MutationObserver(()=>{if(active)frame.contentWindow?.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*')});observer.observe(document.body,{attributes:true,attributeFilter:['data-theme']});
  document.getElementById('videoBack').onclick=()=>{location.hash='/market'};
  document.getElementById('videoRetry').onclick=sync;
- return {open:()=>navigate('/dashboard#tasks'),sync,close,dispose:()=>{close();observer.disconnect()}};
+ return {open:()=>route()==='/dashboard#tasks'?sync():navigate('/dashboard#tasks'),sync,close,dispose:()=>{close();observer.disconnect()}};
 }
