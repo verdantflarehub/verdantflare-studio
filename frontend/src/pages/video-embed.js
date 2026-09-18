@@ -9,11 +9,18 @@ export function mountVideo({listen, api, notice, login}) {
   const params=new URLSearchParams(location.hash.split('?')[1]||'');
   return /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(params.get('video')||'')?params.get('video'):null;
  }
+ function breadcrumbs(path){
+  const items=[['应用市场','#/market'],['Video MCP','#/market?video='+encodeURIComponent('/dashboard#tasks')]];
+  if(path.startsWith('/dashboard/tasks/'))items.push(['任务','#/market?video='+encodeURIComponent('/dashboard#tasks')],['任务详情',null]);
+  else items.push([{tasks:'任务',models:'模型',mcp:'MCP'}[path.split('#')[1]]||'任务',null]);
+  const list=document.getElementById('videoBreadcrumb');list.replaceChildren();
+  for(const [label,href] of items){const li=document.createElement('li'),item=document.createElement(href?'a':'span');item.textContent=label;if(href)item.href=href;else item.setAttribute('aria-current','page');li.append(item);list.append(li)}
+ }
  function close(){generation++;active=false;pending.clear();frame.removeAttribute('src');host.hidden=true;market.hidden=false;document.getElementById('pageTitle').textContent='应用市场'}
  async function sync(){
   const path=route();if(!path){close();return}
   const epoch=++generation;pending.clear();
-  try {await api('me');if(epoch!==generation)return;active=true;market.hidden=true;host.hidden=false;document.getElementById('pageTitle').textContent='Video MCP';document.getElementById('pageSubtitle').textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');frame.src='/studio/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');document.getElementById('videoMessage').textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
+  try {await api('me');if(epoch!==generation)return;active=true;market.hidden=true;host.hidden=false;breadcrumbs(path);document.getElementById('pageTitle').textContent='Video MCP';document.getElementById('pageSubtitle').textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');frame.src='/studio/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');document.getElementById('videoMessage').textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
  }
  function navigate(path){location.hash='/market?video='+encodeURIComponent(path)}
  listen(window,'hashchange',sync);
@@ -34,7 +41,6 @@ export function mountVideo({listen, api, notice, login}) {
   }catch{reply({status:502,body:new ArrayBuffer(0)})}finally{if(epoch===generation)pending.delete(d.id)}
  });
  const observer=new MutationObserver(()=>{if(active)frame.contentWindow?.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*')});observer.observe(document.body,{attributes:true,attributeFilter:['data-theme']});
- document.getElementById('videoBack').onclick=()=>{location.hash='/market'};
  document.getElementById('videoRetry').onclick=sync;
  return {open:()=>route()==='/dashboard#tasks'?sync():navigate('/dashboard#tasks'),sync,close,dispose:()=>{close();observer.disconnect()}};
 }

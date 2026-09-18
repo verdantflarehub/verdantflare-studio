@@ -126,7 +126,7 @@ onBeforeUnmount(() => dispose?.())
                   id="reset">刷新状态</button><button class="btn primary"
                   data-tab="installed">查看已安装</button></div>
       </header>
-      <section id="videoHost" hidden><div class="video-host-bar"><button class="btn" id="videoBack">← 应用市场</button><span id="videoMessage" role="status"></span><button class="btn" id="videoRetry">重新连接</button></div><iframe id="videoFrame" title="Video MCP 工作区" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe></section>
+      <section id="videoHost" hidden><div class="video-host-bar"><nav class="video-breadcrumb" aria-label="面包屑"><ol id="videoBreadcrumb"></ol></nav><span id="videoMessage" role="status"></span><button class="btn" id="videoRetry">重新连接</button></div><iframe id="videoFrame" title="Video MCP 工作区" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe></section>
 <div id="marketContent"><div class="workspace-strip">
         <div class="workspace-avatar">VF</div>
         <div><strong>青焰创作工作区</strong>
