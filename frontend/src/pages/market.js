@@ -1,3 +1,4 @@
+import { mountVideo } from './video-embed'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
 // Temporary adapter for approved Market interactions; migrate into Vue components next.
@@ -20,7 +21,7 @@ function brand(a){return {vf:'VF 官方',minimax:'MiniMax',github:'GitHub'}[a.br
 function icon(a){return `<span class="app-brand-mark" data-logo="${esc(a.brand)}">${brandMarks[a.brand]||brandMarks.github}</span>`}
 function badge(a){return `<span class="status ${a.deployment.state==='ready'?'running':a.deployment.state==='degraded'?'failed':''}"><i class="dot ${a.deployment.state==='ready'?'on':''}"></i>${statusText[a.deployment.state]||'状态未知'}</span>`}
 function notice(message){$('toast').textContent=message;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),3500)}
-function login(){connected=false;identity={};operations.clear();apps=[];render();if(!$('loginDialog').open)$('loginDialog').showModal()}
+function login(){video.close();connected=false;identity={};operations.clear();apps=[];render();if(!$('loginDialog').open)$('loginDialog').showModal()}
 async function api(path,options={}){
  const r=await request({path,method:options.method||'GET',body:options.body?JSON.parse(options.body):undefined});
  const data=r.status===204?{}:await r.json();
@@ -28,6 +29,7 @@ async function api(path,options={}){
  if(!r.ok){const error=Error(({ACCOUNT_LOCKED:'登录失败次数过多，请稍后再试',UNAUTHENTICATED:'用户名或密码不正确',SERVICE_UNAVAILABLE:'Station 暂时无法连接'}[data.code])||data.message||'请求失败');error.status=r.status;throw error;}
  return data;
 }
+const video=mountVideo({listen,api,notice,login});
 function render(){
  const q=$('search').value.trim().toLowerCase();
  const shown=apps.filter(a=>(group==='all'||a.group_id===group)&&(tab==='all'||tab==='installed'&&installed(a)||tab==='active'&&active(a))&&[a.display_name,...a.models].join(' ').toLowerCase().includes(q));
@@ -45,12 +47,12 @@ function render(){
  $('groupNav').innerHTML=Object.keys(labels).map(g=>`<button class="group-nav" data-group="${g}">${labels[g]}<span class="count">${apps.filter(a=>a.group_id===g).length}</span></button>`).join('');
  $('catalog').innerHTML=!connected?'<div class="empty">登录后查看 Station 中的真实应用。</div>':!shown.length?'<div class="empty">没有符合条件的应用</div>':Object.keys(labels).map(g=>{
   const list=shown.filter(a=>a.group_id===g);if(!list.length)return '';
-  return `<section><div class="section-title"><h2>${labels[g]}</h2><small>${list.length} 个应用</small><span class="line"></span></div><div class="grid">${list.map(a=>`<article class="app-card" data-card="${esc(a.app_id)}"><div class="card-top"><div class="app-icon ${g}">${icon(a)}</div><div><button class="app-title" data-detail="${esc(a.app_id)}">${esc(a.display_name)}</button><small class="version brand-version">${brand(a)} · v${esc(a.version)}</small></div></div><p class="card-desc">${mode==='models'?(a.models.length?esc(a.models.join(' · ')):'无需本地模型'):a.models.length?'模型：'+esc(a.models.join(' · ')):'提供应用入口，无本地模型依赖'}</p><div class="tags">${badge(a)}<span class="tag">${a.model_status==='not_required'?'无需模型':'模型状态未知'}</span></div><div class="card-foot"><span>${a.deployment.ready_replicas??'—'}/${a.deployment.desired_replicas??'—'} 就绪副本</span><button class="btn" data-detail="${esc(a.app_id)}">查看详情</button></div></article>`).join('')}</div></section>`;
+  return `<section><div class="section-title"><h2>${labels[g]}</h2><small>${list.length} 个应用</small><span class="line"></span></div><div class="grid">${list.map(a=>`<article class="app-card" data-card="${esc(a.app_id)}"><div class="card-top"><div class="app-icon ${g}">${icon(a)}</div><div><button class="app-title" data-detail="${esc(a.app_id)}">${esc(a.display_name)}</button><small class="version brand-version">${brand(a)} · v${esc(a.version)}</small></div></div><p class="card-desc">${mode==='models'?(a.models.length?esc(a.models.join(' · ')):'无需本地模型'):a.models.length?'模型：'+esc(a.models.join(' · ')):'提供应用入口，无本地模型依赖'}</p><div class="tags">${badge(a)}<span class="tag">${a.model_status==='not_required'?'无需模型':'模型状态未知'}</span></div><div class="card-foot"><span>${a.deployment.ready_replicas??'—'}/${a.deployment.desired_replicas??'—'} 就绪副本</span>${a.app_id==='video-mcp-server'&&a.deployment.state==='ready'?'<button class="btn primary" data-open-video="true">打开</button>':''}<button class="btn" data-detail="${esc(a.app_id)}">查看详情</button></div></article>`).join('')}</div></section>`;
  }).join('');
  $('mcpNav').innerHTML=apps.filter(a=>a.brand==='vf').map(a=>`<button class="nav-link" data-detail="${esc(a.app_id)}">${esc(a.display_name)} ${badge(a)}</button>`).join('');
  $('railActivity').textContent=`${[...operations.values()].filter(x=>!terminal(x.op)).length} 个待完成操作`;$('railModels').textContent='状态未知';
- $('pageTitle').textContent=mode==='models'?'模型市场':'应用市场';
- $('pageSubtitle').textContent=mode==='models'?'查看应用声明的模型依赖':'Image · Music · Video，统一查看本地应用';
+ if(document.getElementById('videoHost').hidden)$('pageTitle').textContent=mode==='models'?'模型市场':'应用市场';
+ if(document.getElementById('videoHost').hidden)$('pageSubtitle').textContent=mode==='models'?'查看应用声明的模型依赖':'Image · Music · Video，统一查看本地应用';
 }
 async function refresh(){
  if(refreshing)return;refreshing=true;$('reset').disabled=true;
@@ -112,9 +114,9 @@ $('newTask').disabled=true;$('newTask').title='创作任务开发中';
 $('sideCollapse').onclick=()=>{document.body.classList.toggle('sidebar-collapsed');$('sideCollapse').setAttribute('aria-expanded',String(!document.body.classList.contains('sidebar-collapsed')))};
 $('search').addEventListener('input',render);$('closeDrawer').onclick=closeDetail;$('overlay').onclick=e=>{if(e.target===$('overlay'))closeDetail()};
 listen(document,'keydown',e=>{if(e.key==='Escape'&&selected)closeDetail()});
-listen(document,'click',e=>{const b=e.target.closest('button,a');if(!b||b.disabled)return;if(b.dataset.placeholder){e.preventDefault();notice('该功能正在开发');return}if(b.dataset.command){command(b.dataset.command);return}if(b.dataset.detail){openDetail(b.dataset.detail);return}if(b.dataset.group){group=b.dataset.group;render();return}if(b.dataset.tab){tab=b.dataset.tab;render();return}if(b.dataset.nav){mode=b.dataset.nav==='models'?'models':'market';tab=b.dataset.nav==='installed'?'installed':'all';group='all';render()}});
-$('overlay').style.display='none';render();refresh();const polling=setInterval(()=>{if(!$('loginDialog').open)refresh()},30000);
+listen(document,'click',e=>{const b=e.target.closest('button,a');if(!b||b.disabled)return;if(b.dataset.openVideo){e.preventDefault();const app=apps.find(a=>a.app_id==='video-mcp-server');if(app?.deployment.state==='ready')video.open();else notice('Video 暂未就绪');return}if(b.dataset.placeholder){e.preventDefault();notice('该功能正在开发');return}if(b.dataset.command){command(b.dataset.command);return}if(b.dataset.detail){openDetail(b.dataset.detail);return}if(b.dataset.group){group=b.dataset.group;render();return}if(b.dataset.tab){if(!document.getElementById('videoHost').hidden)location.hash='/market';tab=b.dataset.tab;render();return}if(b.dataset.nav){if(!document.getElementById('videoHost').hidden)location.hash='/market';mode=b.dataset.nav==='models'?'models':'market';tab=b.dataset.nav==='installed'?'installed':'all';group='all';render()}});
+$('overlay').style.display='none';render();refresh().then(()=>video.sync());const polling=setInterval(()=>{if(!$('loginDialog').open)refresh()},30000);
 
 const operationTimer=setInterval(pollOperations,2000);
-return () => { clearInterval(operationTimer);clearInterval(polling); controller.abort(); };
+return () => { video.dispose();clearInterval(operationTimer);clearInterval(polling); controller.abort(); };
 }

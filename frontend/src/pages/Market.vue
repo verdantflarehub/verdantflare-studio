@@ -126,7 +126,8 @@ onBeforeUnmount(() => dispose?.())
                   id="reset">刷新状态</button><button class="btn primary"
                   data-tab="installed">查看已安装</button></div>
       </header>
-      <div class="workspace-strip">
+      <section id="videoHost" hidden><div class="video-host-bar"><button class="btn" id="videoBack">← 应用市场</button><span id="videoMessage" role="status"></span><button class="btn" id="videoRetry">重新连接</button></div><iframe id="videoFrame" title="Video MCP 工作区" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe></section>
+<div id="marketContent"><div class="workspace-strip">
         <div class="workspace-avatar">VF</div>
         <div><strong>青焰创作工作区</strong>
           <p>Image · Music · Video</p>
@@ -141,7 +142,7 @@ onBeforeUnmount(() => dispose?.())
               <p>查看真实应用与运行状态，安装管理即将接入。</p>
             </div>
             <div class="hero-actions"><button class="btn primary"
-                      data-detail="video-mcp-server">Video MCP ↗</button><button class="btn"
+                      data-open-video="true">Video MCP ↗</button><button class="btn"
                       data-detail="video-minimax-h3-vdn">MiniMax H3 VDN</button></div>
           </section>
           <section class="catalog-section">
@@ -200,7 +201,7 @@ onBeforeUnmount(() => dispose?.())
       <footer class="footnote"><span>应用与版本来自当前部署清单 · 实时运行状态来自 Station</span><a
            href="#" data-placeholder="true">Market 设计 ↗</a></footer>
     </div>
-  </main>
+</div>  </main>
   <footer class="statusbar"><span><i class="dot"></i> 目标 Station · 未连接</span><span id="statusSummary">已安装 0 · 运行中
       0</span><span class="right">Studio 应用市场 · 在线预览</span></footer>
   <dialog id="launchDialog">

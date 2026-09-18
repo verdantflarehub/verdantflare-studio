@@ -25,14 +25,17 @@ type Server struct {
 	sessions map[string]session
 }
 
-func New(station *application.Station, origin string, assets fs.FS) *gin.Engine {
+func New(station *application.Station, origin string, assets fs.FS, video ...VideoConfig) *gin.Engine {
 	s := &Server{station: station, origin: origin, secure: strings.HasPrefix(origin, "https://"), sessions: map[string]session{}}
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.3.1"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.4.0"})
 	})
 	r.Any("/studio/api/*path", s.api)
+	if len(video) > 0 {
+		r.Any("/studio/apps/video/*path", func(c *gin.Context) { s.video(c, video[0]) })
+	}
 	files := http.StripPrefix("/studio/", http.FileServer(http.FS(assets)))
 	r.GET("/studio", func(c *gin.Context) { c.Redirect(302, "/studio/") })
 	r.GET("/studio/", gin.WrapH(files))

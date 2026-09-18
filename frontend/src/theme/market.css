@@ -2530,3 +2530,6 @@
 
 #loginDialog{border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--ink);width:360px;padding:28px}#loginDialog::backdrop{background:rgba(20,30,25,.55)}#loginForm label{display:block;margin:16px 0}#loginForm input{display:block;box-sizing:border-box;width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}#loginError{color:var(--danger)}button:disabled{opacity:.5;cursor:not-allowed}.login-actions{display:flex;gap:8px}.tag.unknown{color:var(--muted)}
 #app { min-height:100vh; }
+
+[hidden]{display:none!important}
+.video-host-bar{display:flex;align-items:center;gap:12px;margin:0 0 16px}.video-host-bar span{flex:1;color:var(--muted);font-size:12px}#videoFrame{display:block;width:100%;height:calc(100dvh - 240px);min-height:520px;border:0;background:transparent}#videoHost{min-width:0}
