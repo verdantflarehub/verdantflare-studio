@@ -67,6 +67,9 @@ onBeforeUnmount(() => dispose?.())
             <path d="m4.5 7 7.5 4 7.5-4M12 11v10" />
           </svg></span><span class="label">模型市场</span></button>
       <a class="nav-link"
+         href="#/station/proxies"
+         title="网络出口"><span class="nav-icon">⌁</span><span class="label">网络出口</span></a>
+      <a class="nav-link"
          href="#" data-placeholder="true"
          title="项目"><span class="nav-icon"><svg viewBox="0 0 24 24"
                fill="none"

@@ -3,7 +3,7 @@ name: Studio
 env:
   REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
   IMAGE_NAME: wod/verdantflare-station
-  IMAGE_VERSION: studio-v0.4.4
+  IMAGE_VERSION: studio-v0.4.5
 
 on:
   push:
