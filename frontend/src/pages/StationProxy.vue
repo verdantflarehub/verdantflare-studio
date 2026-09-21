@@ -158,7 +158,7 @@ onBeforeUnmount(() => { if (previousTheme) document.body.dataset.theme = previou
 .status.active { color:#398d70; }.status.pending { color:#a97835; }.status.off { color:var(--muted); }.status.testing { color:#6488b0; }
 .status .dot { width:6px; height:6px; background:currentColor; }
 .dot.on { background:#398d70; }
-.row-actions { display:flex; gap:3px; }
+.row-actions { white-space:nowrap; text-align:right; }
 .icon-button { padding:4px 6px; border:0; border-radius:6px; background:transparent; color:var(--muted); font-size:10px; }
 .icon-button:hover { background:var(--shell-button); color:var(--ink); }
 .table-footer { display:flex; justify-content:space-between; padding:12px 14px; color:var(--muted); font-size:10px; }
