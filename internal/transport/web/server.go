@@ -1,14 +1,16 @@
 package web
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"io"
 	"io/fs"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/verdantflarehub/verdantflare-studio/internal/application"
+	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 )
 
 const cookieName = "vf_studio_session"
@@ -20,20 +22,28 @@ type session struct {
 	expires time.Time
 }
 type Server struct {
-	station  *application.Station
-	origin   string
-	secure   bool
-	mu       sync.Mutex
-	sessions map[string]session
+	station    *application.Station
+	origin     string
+	secure     bool
+	mu         sync.Mutex
+	sessions   map[string]session
+	mcpGateway *mcp.Gateway
 }
 
 func New(station *application.Station, origin string, assets fs.FS, video ...VideoConfig) *gin.Engine {
+	engine, _ := NewServer(station, origin, assets, video...)
+	return engine
+}
+
+func NewServer(station *application.Station, origin string, assets fs.FS, video ...VideoConfig) (*gin.Engine, *Server) {
 	s := &Server{station: station, origin: origin, secure: strings.HasPrefix(origin, "https://"), sessions: map[string]session{}}
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.1"})
 	})
+	r.POST("/mcp", s.mcpHandler)
+	r.POST("/studio/mcp", s.mcpHandler)
 	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
 	if len(video) > 0 {
@@ -47,7 +57,7 @@ func New(station *application.Station, origin string, assets fs.FS, video ...Vid
 	r.GET("/studio", func(c *gin.Context) { c.Redirect(301, "/") })
 	r.GET("/studio/", func(c *gin.Context) { c.Redirect(301, "/") })
 	r.GET("/studio/assets/*path", gin.WrapH(studioFiles))
-	return r
+	return r, s
 }
 func (s *Server) api(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
