@@ -27,6 +27,8 @@ func videoStatic(path string) bool {
 	switch path {
 	case "/dashboard/static/dashboard.css", "/dashboard/static/dashboard.js", "/dashboard/static/resources.js", "/dashboard/static/task-detail.js", "/dashboard/static/studio-embed.js", "/dashboard/static/studio-theme.css":
 		return true
+	case "/dashboard/frontend/dashboard.css", "/dashboard/frontend/dashboard.js", "/dashboard/frontend/resources.js", "/dashboard/frontend/task-detail.js", "/dashboard/frontend/studio-embed.js", "/dashboard/frontend/studio-theme.css":
+		return true
 	}
 	return false
 }

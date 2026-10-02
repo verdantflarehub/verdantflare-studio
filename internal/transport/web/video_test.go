@@ -72,7 +72,7 @@ func TestVideoIsolation(t *testing.T) {
 	if call("GET", "/studio/apps/video/api/dashboard", "", cookie).Code != 200 {
 		t.Fatal("authorized legacy read failed")
 	}
-	for _, path := range []string{"/runtime-artifacts/x/content", "/mcp", "/api/../identity/me", "/dashboard/static/no.js"} {
+	for _, path := range []string{"/runtime-artifacts/x/content", "/mcp", "/api/../identity/me", "/dashboard/static/no.js", "/dashboard/frontend/no.js"} {
 		before := calls
 		if call("GET", "/apps/video"+path, "", cookie).Code != 404 || calls != before {
 			t.Fatal("allowlist bypass", path)
@@ -93,6 +93,10 @@ func TestVideoIsolation(t *testing.T) {
 	w = call("GET", "/apps/video/dashboard", "", nil)
 	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'none'") {
 		t.Fatal("static CSP")
+	}
+	w = call("GET", "/apps/video/dashboard/frontend/studio-embed.js", "", nil)
+	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'none'") {
+		t.Fatal("frontend static CSP")
 	}
 	w = call("GET", "/studio/apps/video/dashboard", "", nil)
 	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'none'") {

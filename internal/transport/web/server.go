@@ -32,7 +32,7 @@ func New(station *application.Station, origin string, assets fs.FS, video ...Vid
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.0"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.1"})
 	})
 	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
