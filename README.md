@@ -21,6 +21,6 @@ bash scripts/build.sh image
 
 Windows 下可通过 Git Bash 执行脚本，程序带 `.exe` 后缀。脚本自动完成依赖安装、前端构建和 Go 编译。
 
-网站默认访问 `http://127.0.0.1:8000/studio/`。通过 `STATION_CORE_URL` 指定 Station，`STUDIO_PUBLIC_ORIGIN`、`STUDIO_LISTEN` 配置网站访问来源与监听地址；`STUDIO_IMAGE` 指定镜像名称。
+网站默认访问 `http://127.0.0.1:8000/`（自动重定向兼容旧 `/studio/`）。通过 `STATION_CORE_URL` 指定 Station，`STUDIO_PUBLIC_ORIGIN`、`STUDIO_LISTEN` 配置网站访问来源与监听地址；`STUDIO_IMAGE` 指定镜像名称。
 
 `image` 目标通过默认 Dockerfile 构建 Gin/Vue 网站镜像。

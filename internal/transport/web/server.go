@@ -30,16 +30,21 @@ func New(station *application.Station, origin string, assets fs.FS, video ...Vid
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.4.3"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.4.9"})
 	})
+	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
 	if len(video) > 0 {
+		r.Any("/apps/video/*path", func(c *gin.Context) { s.video(c, video[0]) })
 		r.Any("/studio/apps/video/*path", func(c *gin.Context) { s.video(c, video[0]) })
 	}
-	files := http.StripPrefix("/studio/", http.FileServer(http.FS(assets)))
-	r.GET("/studio", func(c *gin.Context) { c.Redirect(302, "/studio/") })
-	r.GET("/studio/", gin.WrapH(files))
-	r.GET("/studio/assets/*path", gin.WrapH(files))
+	rootFiles := http.FileServer(http.FS(assets))
+	studioFiles := http.StripPrefix("/studio/", rootFiles)
+	r.GET("/", gin.WrapH(rootFiles))
+	r.GET("/assets/*path", gin.WrapH(rootFiles))
+	r.GET("/studio", func(c *gin.Context) { c.Redirect(301, "/") })
+	r.GET("/studio/", func(c *gin.Context) { c.Redirect(301, "/") })
+	r.GET("/studio/assets/*path", gin.WrapH(studioFiles))
 	return r
 }
 func (s *Server) api(c *gin.Context) {
@@ -86,12 +91,14 @@ func (s *Server) api(c *gin.Context) {
 		sid = application.ID()
 		s.sessions[sid] = session{out.Token, time.Now().Add(8 * time.Hour)}
 		s.mu.Unlock()
-		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: sid, Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: 8 * 3600})
+		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: sid, Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: 8 * 3600})
+		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	if path == "logout" || out.Status == 401 {
 		s.mu.Lock()
 		delete(s.sessions, sid)
 		s.mu.Unlock()
+		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	if out.Status == 204 {

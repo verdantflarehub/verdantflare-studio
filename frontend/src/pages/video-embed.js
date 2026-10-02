@@ -20,7 +20,7 @@ export function mountVideo({listen, api, notice, login}) {
  async function sync(){
   const path=route();if(!path){close();return}
   const epoch=++generation;pending.clear();
-  try {await api('me');if(epoch!==generation)return;active=true;market.hidden=true;host.hidden=false;breadcrumbs(path);document.getElementById('pageTitle').textContent='Video MCP';document.getElementById('pageSubtitle').textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');frame.src='/studio/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');document.getElementById('videoMessage').textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
+  try {await api('me');if(epoch!==generation)return;active=true;market.hidden=true;host.hidden=false;breadcrumbs(path);document.getElementById('pageTitle').textContent='Video MCP';document.getElementById('pageSubtitle').textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');frame.src='/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');document.getElementById('videoMessage').textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
  }
  function navigate(path){location.hash='/market?video='+encodeURIComponent(path)}
  listen(window,'hashchange',sync);
@@ -35,7 +35,7 @@ export function mountVideo({listen, api, notice, login}) {
   if(!['GET','POST'].includes(method)||!pathPattern.test(d.path.split('?')[0])||d.path.split('?')[0].includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
   pending.add(d.id);
   try {
-   const r=await fetch('/studio/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers:method==='POST'?{'Content-Type':'application/json'}:{},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)});
+   const r=await fetch('/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers:method==='POST'?{'Content-Type':'application/json'}:{},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)});
    if(r.status===401){close();login();return}
    reply({status:r.status,contentType:r.headers.get('Content-Type')||'application/octet-stream',body:await r.arrayBuffer()});
   }catch{reply({status:502,body:new ArrayBuffer(0)})}finally{if(epoch===generation)pending.delete(d.id)}

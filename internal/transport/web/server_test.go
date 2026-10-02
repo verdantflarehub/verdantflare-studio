@@ -43,39 +43,51 @@ func TestSessionAndBoundary(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		return rr
 	}
-	if rr := call("POST", "/studio/api/login", "https://evil.example", "{}", nil); rr.Code != 403 {
+	if rr := call("POST", "/api/login", "https://evil.example", "{}", nil); rr.Code != 403 {
 		t.Fatal(rr.Code)
 	}
 	if calls != 0 {
 		t.Fatal("CSRF reached upstream")
 	}
-	if rr := call("GET", "/studio/api/apps", "", "", nil); rr.Code != 401 {
+	if rr := call("GET", "/api/apps", "", "", nil); rr.Code != 401 {
 		t.Fatal(rr.Code)
 	}
-	rr := call("POST", "/studio/api/login", "https://studio.example", `{"username":"admin","password":"test"}`, nil)
+	if rr := call("POST", "/studio/api/login", "https://evil.example", "{}", nil); rr.Code != 403 {
+		t.Fatal(rr.Code)
+	}
+	rr := call("POST", "/api/login", "https://studio.example", `{"username":"admin","password":"test"}`, nil)
 	if rr.Code != 201 || strings.Contains(rr.Body.String(), "credential") {
 		t.Fatal("credential disclosure or login failed")
 	}
 	cookie := rr.Result().Cookies()[0]
-	if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode || cookie.Value == "test-private-credential" {
+	if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode || cookie.Value == "test-private-credential" || cookie.Path != "/" {
 		t.Fatal("unsafe cookie")
 	}
-	if rr = call("GET", "/studio/api/apps", "", "", cookie); rr.Code != 200 {
+	if rr = call("GET", "/api/apps", "", "", cookie); rr.Code != 200 {
 		t.Fatal(rr.Code)
 	}
-	if rr = call("GET", "/studio/api/apps/../../identity", "", "", cookie); rr.Code != 404 {
+	if rr = call("GET", "/studio/api/apps", "", "", cookie); rr.Code != 200 {
+		t.Fatal("legacy /studio/api failed", rr.Code)
+	}
+	if rr = call("GET", "/api/apps/../../identity", "", "", cookie); rr.Code != 404 {
 		t.Fatal("path escape", rr.Code)
 	}
-	if rr = call("POST", "/studio/api/commands", "https://studio.example", strings.Repeat("x", 16385), cookie); rr.Code != 413 {
+	if rr = call("POST", "/api/commands", "https://studio.example", strings.Repeat("x", 16385), cookie); rr.Code != 413 {
 		t.Fatal(rr.Code)
 	}
-	if rr = call("POST", "/studio/api/logout", "https://studio.example", "", cookie); rr.Code != 204 {
+	if rr = call("POST", "/api/logout", "https://studio.example", "", cookie); rr.Code != 204 {
 		t.Fatal(rr.Code)
 	}
-	if rr = call("GET", "/studio/api/apps", "", "", cookie); rr.Code != 401 {
+	if rr = call("GET", "/api/apps", "", "", cookie); rr.Code != 401 {
 		t.Fatal("logout did not invalidate session")
 	}
-	if rr = call("GET", "/studio/", "", "", nil); rr.Code != 200 || rr.Body.String() != "market" {
-		t.Fatal("asset route failed")
+	if rr = call("GET", "/", "", "", nil); rr.Code != 200 || rr.Body.String() != "market" {
+		t.Fatal("root asset route failed")
+	}
+	if rr = call("GET", "/studio/", "", "", nil); rr.Code != 301 || rr.Header().Get("Location") != "/" {
+		t.Fatal("legacy studio redirect failed")
+	}
+	if rr = call("GET", "/studio", "", "", nil); rr.Code != 301 || rr.Header().Get("Location") != "/" {
+		t.Fatal("legacy studio redirect failed")
 	}
 }
