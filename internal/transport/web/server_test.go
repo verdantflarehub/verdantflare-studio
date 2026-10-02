@@ -60,8 +60,8 @@ func TestSessionAndBoundary(t *testing.T) {
 		t.Fatal("credential disclosure or login failed")
 	}
 	cookie := rr.Result().Cookies()[0]
-	if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode || cookie.Value == "test-private-credential" || cookie.Path != "/" {
-		t.Fatal("unsafe cookie")
+	if !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteStrictMode || cookie.Value == "test-private-credential" || cookie.Path != "/" || cookie.MaxAge != 72*3600 {
+		t.Fatal("unsafe cookie or unexpected MaxAge", cookie.MaxAge)
 	}
 	if rr = call("GET", "/api/apps", "", "", cookie); rr.Code != 200 {
 		t.Fatal(rr.Code)

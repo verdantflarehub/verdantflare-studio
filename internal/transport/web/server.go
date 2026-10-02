@@ -12,6 +12,8 @@ import (
 )
 
 const cookieName = "vf_studio_session"
+const defaultSessionTTL = 72 * time.Hour
+const defaultSessionMaxAge = int(defaultSessionTTL / time.Second) // 259200 (3 days)
 
 type session struct {
 	token   string
@@ -30,7 +32,7 @@ func New(station *application.Station, origin string, assets fs.FS, video ...Vid
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.4.9"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.0"})
 	})
 	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
@@ -89,9 +91,9 @@ func (s *Server) api(c *gin.Context) {
 			return
 		}
 		sid = application.ID()
-		s.sessions[sid] = session{out.Token, time.Now().Add(8 * time.Hour)}
+		s.sessions[sid] = session{out.Token, time.Now().Add(defaultSessionTTL)}
 		s.mu.Unlock()
-		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: sid, Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: 8 * 3600})
+		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: sid, Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: defaultSessionMaxAge})
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	if path == "logout" || out.Status == 401 {
