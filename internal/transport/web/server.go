@@ -40,7 +40,7 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.1"})
+		c.JSON(200, gin.H{"status": "ok", "service": "verdantflare-studio", "entrypoint": "gin", "version": "0.5.2"})
 	})
 	r.POST("/mcp", s.mcpHandler)
 	r.POST("/studio/mcp", s.mcpHandler)
