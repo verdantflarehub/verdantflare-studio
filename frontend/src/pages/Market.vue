@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from "vue"
 import { mountMarket } from "./market"
+import vfLogo from "../assets/verdantflare-logo.png"
+
 let dispose: (() => void) | undefined
 onMounted(() => { dispose = mountMarket() })
 onBeforeUnmount(() => dispose?.())
@@ -11,6 +13,7 @@ onBeforeUnmount(() => dispose?.())
   <aside class="side" aria-label="Studio 主菜单">
     <div class="side-brand">
       <img id="vfSideLogo"
+           :src="vfLogo"
            alt="VerdantFlare"
            width="26"
            height="26">

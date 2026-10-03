@@ -58,7 +58,7 @@ suffix=''
 [[ "$(go env GOOS)" != windows ]] || suffix='.exe'
 output="build/studio-${target}${suffix}"
 if [[ "$target" == web ]]; then
-  CGO_ENABLED=0 go build -trimpath -o "$output" ./cmd/web
+  CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$output" ./cmd/web
 else
   go build -trimpath -o "$output" ./cmd/desktop
 fi
