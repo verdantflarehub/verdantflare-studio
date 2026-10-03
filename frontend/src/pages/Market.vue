@@ -104,11 +104,10 @@ onBeforeUnmount(() => dispose?.())
        data-nav="proxies">
       <span class="nav-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 18 22 12 16 6"></polyline>
-          <polyline points="8 6 2 12 8 18"></polyline>
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
         </svg>
       </span>
-      <span>调试端口</span>
+      <span>网络出口</span>
     </a>
 
     <div class="side-bottom">
@@ -198,13 +197,16 @@ onBeforeUnmount(() => dispose?.())
                 <button class="tab" data-tab="installed">已安装 <span id="installedCount">—</span></button>
                 <button class="tab" data-tab="active">进行中 <span id="activeCount">—</span></button>
               </div>
-              <label class="search">
-                <span aria-hidden="true">⌕</span>
-                <input id="search" placeholder="搜索应用、模型或能力" aria-label="搜索应用、模型或能力" type="search">
-              </label>
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input id="search" placeholder="搜索应用、模型或能力..." aria-label="搜索应用、模型或能力" type="search">
+              </div>
             </div>
-            <div class="filters">
-              <button class="chip active" data-group="all">全部分组</button>
+            <div class="filters-bar">
+              <button class="chip active" data-group="all">全部</button>
               <button class="chip" data-group="image">Image</button>
               <button class="chip" data-group="music">Music</button>
               <button class="chip" data-group="video">Video</button>

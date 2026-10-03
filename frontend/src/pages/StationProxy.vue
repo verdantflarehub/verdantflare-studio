@@ -81,11 +81,9 @@ onBeforeUnmount(() => { if (previousTheme) document.body.dataset.theme = previou
         <a class="nav-link" href="#/market"><span class="nav-icon">▣</span><span class="label">应用市场</span><span class="nav-chevron">⌄</span></a>
         <div class="market-subnav"><button class="group-nav">已安装应用<span class="count">12</span></button><button class="group-nav">Image<span class="count">2</span></button><button class="group-nav">Music<span class="count">6</span></button><button class="group-nav">Video<span class="count">5</span></button></div>
         <a class="nav-link" href="#/market"><span class="nav-icon">◇</span><span class="label">模型市场</span></a>
+        <a class="nav-link" href="#/market"><span class="nav-icon">▤</span><span class="label">资源管理</span></a>
         <a class="nav-link selected" href="#/station/proxies"><span class="nav-icon">⌁</span><span class="label">网络出口</span></a>
-        <a class="nav-link" href="#/market"><span class="nav-icon">□</span><span class="label">项目</span></a>
-        <a class="nav-link" href="#/market"><span class="nav-icon">◎</span><span class="label">数字世界</span></a>
       </nav>
-      <div class="recent-projects"><div class="nav-label">项目</div><p>项目管理开发中</p></div>
       <div class="side-bottom"><a class="nav-link" href="#/market"><span class="nav-icon">?</span><span class="label">帮助与设计说明</span></a><div class="station"><strong><span class="dot"></span><span>成都 Station</span></strong><p>Core 已连接 · 代理预览</p></div></div>
     </aside>
     <main class="main">
