@@ -385,12 +385,43 @@ onBeforeUnmount(() => dispose?.())
   <!-- Login Dialog -->
   <dialog id="loginDialog" aria-labelledby="loginTitle">
     <form id="loginForm">
-      <h2 id="loginTitle">登录 Station</h2>
-      <p>连接你的青焰创作工作区</p>
-      <label>用户名<input name="username" autocomplete="username" required value="admin"></label>
-      <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
+      <div class="login-brand-header">
+        <div class="login-logo-badge">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#087e60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="eyebrow">VERDANTFLARE STATION</span>
+          <h2 id="loginTitle">登录 Station</h2>
+        </div>
+      </div>
+      <p class="login-subtitle">连接你的青焰创作工作区，调度 5090 集群算力与服务。</p>
+      
+      <div class="form-group">
+        <label for="loginUsername">用户名</label>
+        <div class="input-wrap">
+          <input id="loginUsername" name="username" autocomplete="username" required value="admin" placeholder="输入用户名">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="loginPassword">访问密码</label>
+        <div class="input-wrap">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required placeholder="输入访问凭据密码">
+        </div>
+      </div>
+
       <p id="loginError" role="alert"></p>
-      <button class="btn primary" type="submit">登录</button>
+
+      <button class="btn primary submit-btn" type="submit">
+        <span>连接并进入工作区</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
     </form>
   </dialog>
 </template>

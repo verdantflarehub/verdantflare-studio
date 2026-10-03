@@ -1637,3 +1637,169 @@
   border-radius: 12px;
   background: var(--panel);
 }
+
+/* ==========================================================================
+   Modals & Login Dialog (VerdantFlare Premium Design)
+   ========================================================================== */
+dialog {
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 28px;
+  margin: auto;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36), 0 4px 16px rgba(0, 0, 0, 0.12);
+  outline: none;
+}
+
+dialog::backdrop {
+  background: rgba(14, 20, 17, 0.68);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#loginDialog {
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--ink);
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  padding: 32px;
+  margin: auto;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36), 0 4px 16px rgba(0, 0, 0, 0.12);
+  outline: none;
+}
+
+#loginForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.login-logo-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--shell-button);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#loginTitle {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 2px 0 0;
+  letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 6px 0 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.input-wrap input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--subtle);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input-wrap input:hover {
+  border-color: var(--line-strong);
+}
+
+.input-wrap input:focus {
+  border-color: var(--accent);
+  background: var(--panel);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+#loginError {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+  margin: -4px 0 14px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#loginError:empty {
+  display: none;
+}
+
+#loginForm .submit-btn {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 4px;
+}
+
+#loginForm .submit-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px var(--accent-glow);
+}
+
+#loginForm .submit-btn:active {
+  transform: translateY(0);
+}
+
+#loginForm .submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
