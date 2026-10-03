@@ -1,7 +1,8 @@
 // Opaque-origin iframe; all data access stays on the authenticated host.
 export function mountVideo({listen, api, notice, login}) {
  const host=document.getElementById('videoHost'), frame=document.getElementById('videoFrame');
- const market=document.getElementById('marketContent');
+ const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
+ const getResource=()=>document.getElementById('resourceView');
  let active=false, generation=0, pending=new Set(), viewState=null;
  const pathPattern=/^\/(api\/(dashboard|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/result)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
  const theme=()=>document.body.dataset.theme==='light'?'light':'dark';
@@ -13,14 +14,14 @@ export function mountVideo({listen, api, notice, login}) {
   const items=[['应用市场','#/market'],['Video MCP','#/market?video='+encodeURIComponent('/dashboard#tasks')]];
   if(path.startsWith('/dashboard/tasks/'))items.push(['任务','#/market?video='+encodeURIComponent('/dashboard#tasks')],['任务详情',null]);
   else items.push([{tasks:'任务',models:'模型',mcp:'MCP'}[path.split('#')[1]]||'任务',null]);
-  const list=document.getElementById('videoBreadcrumb');list.replaceChildren();
-  for(const [label,href] of items){const li=document.createElement('li'),item=document.createElement(href?'a':'span');item.textContent=label;if(href)item.href=href;else item.setAttribute('aria-current','page');li.append(item);list.append(li)}
+  const list=document.getElementById('videoBreadcrumb');if(list){list.replaceChildren();
+  for(const [label,href] of items){const li=document.createElement('li'),item=document.createElement(href?'a':'span');item.textContent=label;if(href)item.href=href;else item.setAttribute('aria-current','page');li.append(item);list.append(li)}}
  }
- function close(){generation++;active=false;pending.clear();frame.removeAttribute('src');host.hidden=true;market.hidden=false;document.getElementById('pageTitle').textContent='应用市场'}
+ function close(){generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场'}
  async function sync(){
   const path=route();if(!path){close();return}
   const epoch=++generation;pending.clear();
-  try {await api('me');if(epoch!==generation)return;active=true;market.hidden=true;host.hidden=false;breadcrumbs(path);document.getElementById('pageTitle').textContent='Video MCP';document.getElementById('pageSubtitle').textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');frame.src='/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');document.getElementById('videoMessage').textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
+  try {await api('me');if(epoch!==generation)return;active=true;const m=getMarket(),res=getResource();if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(host){host.hidden=false;host.style.display='block'}breadcrumbs(path);const t=document.getElementById('pageTitle');if(t)t.textContent='Video MCP';const s=document.getElementById('pageSubtitle');if(s)s.textContent='视频任务、模型与 MCP 服务工作区';const [url,hash]=path.split('#');if(frame)frame.src='/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');const msg=document.getElementById('videoMessage');if(msg)msg.textContent='正在连接 Video…'} catch(e){close();notice(e.message)}
  }
  function navigate(path){location.hash='/market?video='+encodeURIComponent(path)}
  listen(window,'hashchange',sync);
