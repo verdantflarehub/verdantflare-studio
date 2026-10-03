@@ -171,6 +171,9 @@ func (s *Server) mcpHandler(c *gin.Context) {
 			"X-Project-Id": projectID,
 			"X-Request-Id": reqID,
 		}
+		if authHeader != "" {
+			headers["Authorization"] = authHeader
+		}
 
 		result, status, err := gw.CallTool(c.Request.Context(), toolName, arguments, headers)
 		if err != nil {

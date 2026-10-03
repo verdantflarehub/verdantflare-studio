@@ -9,6 +9,8 @@ import (
 )
 
 func TestGateway_ListToolsAndCall(t *testing.T) {
+	t.Setenv("STUDIO_VIDEO_TOKEN", "mock-video-token")
+
 	// Create mock downstream video microservice
 	videoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-User-Id") != "usr_123" {
@@ -16,6 +18,12 @@ func TestGateway_ListToolsAndCall(t *testing.T) {
 		}
 		if r.Header.Get("X-Project-Id") != "prj_456" {
 			t.Errorf("expected X-Project-Id prj_456, got %s", r.Header.Get("X-Project-Id"))
+		}
+		if r.Header.Get("Accept") != "application/json, text/event-stream" {
+			t.Errorf("expected Accept application/json, text/event-stream, got %s", r.Header.Get("Accept"))
+		}
+		if r.Header.Get("Authorization") != "Bearer mock-video-token" {
+			t.Errorf("expected Authorization Bearer mock-video-token, got %s", r.Header.Get("Authorization"))
 		}
 
 		var body map[string]any

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -195,10 +196,17 @@ func (g *Gateway) CallTool(ctx context.Context, toolName string, arguments map[s
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
 	for k, v := range headers {
 		if v != "" {
 			req.Header.Set(k, v)
 		}
+	}
+
+	if token := g.resolveToken(domain); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	} else if req.Header.Get("Authorization") == "" && headers["Authorization"] != "" {
+		req.Header.Set("Authorization", headers["Authorization"])
 	}
 
 	resp, err := g.httpClient.Do(req)
@@ -231,6 +239,22 @@ func (g *Gateway) CallTool(ctx context.Context, toolName string, arguments map[s
 	}
 
 	return jsonResp, resp.StatusCode, nil
+}
+
+func (g *Gateway) resolveToken(domain string) string {
+	upperDomain := strings.ToUpper(domain)
+	candidates := []string{
+		"STUDIO_" + upperDomain + "_TOKEN",
+		upperDomain + "_MCP_BEARER_TOKEN",
+		"STUDIO_BEARER_TOKEN",
+		"INTERNAL_SERVICE_TOKEN",
+	}
+	for _, envKey := range candidates {
+		if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
+			return val
+		}
+	}
+	return ""
 }
 
 func (g *Gateway) Close() error {
