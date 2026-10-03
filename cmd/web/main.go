@@ -28,6 +28,11 @@ func main() {
 
 	handler, webServer := web.NewServer(s, env("STUDIO_PUBLIC_ORIGIN", "http://127.0.0.1:8000"), frontend.Assets(), web.VideoConfig{URL: os.Getenv("STUDIO_VIDEO_URL"), Token: os.Getenv("STUDIO_VIDEO_TOKEN")})
 
+	webServer.EnableImage(handler, web.ImageConfig{
+		URL:   env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-image.svc.cluster.local:8000"),
+		Token: os.Getenv("STUDIO_IMAGE_TOKEN"),
+	})
+
 	etcdRaw := env("ETCD_ENDPOINTS", "http://etcd.verdantflare-station.svc.cluster.local:2379")
 	var etcdEndpoints []string
 	for _, ep := range strings.Split(etcdRaw, ",") {

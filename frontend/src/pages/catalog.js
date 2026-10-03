@@ -7,13 +7,13 @@ export const CATALOG_APPS = [
     display_name: 'Image MCP',
     group_id: 'image',
     brand: 'vf',
-    version: '0.1.21',
+    version: '0.1.22',
     gpu: 0,
     models: [],
     tagline: '图像创作，从一个想法开始。',
     description: '连接 Codex 与 Gemini，完成图像生成、编辑和局部重绘。',
     capabilities: ['image.generate', 'image.edit', 'image.inpaint', 'image.faceswap'],
-    dashboard: 'verdantflare_app_image_dashboard_v1.0.html'
+    dashboard: '/apps/image/dashboard'
   },
   {
     app_id: 'image-face-fusion-api',

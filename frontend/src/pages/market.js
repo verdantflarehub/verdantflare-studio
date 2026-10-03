@@ -1,4 +1,5 @@
 import { mountVideo } from './video-embed'
+import { mountImage } from './image-embed'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
 import { mergeCatalogWithLive } from './catalog'
@@ -86,6 +87,9 @@ export function mountMarket() {
       if (a.app_id === 'video-mcp-server') {
         return '<button class="btn primary" data-open-video="true">打开</button>';
       }
+      if (a.app_id === 'image-mcp-server') {
+        return '<button class="btn primary" data-open-image="true">打开</button>';
+      }
       return `<button class="btn" data-detail="${esc(a.app_id)}">管理</button>`;
     }
     if (state === 'stopped') {
@@ -106,6 +110,7 @@ export function mountMarket() {
 
   function login() {
     video.close();
+    image.close();
     connected = false;
     identity = {};
     operations.clear();
@@ -132,6 +137,7 @@ export function mountMarket() {
   }
 
   const video = mountVideo({ listen, api, notice, login });
+  const image = mountImage({ listen, api, notice, login });
 
   function render() {
     const searchInput = $('search');
@@ -531,6 +537,13 @@ export function mountMarket() {
       else notice('Video 暂未就绪');
       return;
     }
+    if (b.dataset.openImage) {
+      e.preventDefault();
+      const app = apps.find(a => a.app_id === 'image-mcp-server');
+      if (app?.deployment.state === 'ready' || app?.deployment.state === 'running') image.open();
+      else notice('Image 暂未就绪');
+      return;
+    }
     if (b.dataset.placeholder) {
       e.preventDefault();
       notice('该功能正在开发');
@@ -559,6 +572,7 @@ export function mountMarket() {
     }
     if (b.dataset.tab) {
       if (!document.getElementById('videoHost').hidden) location.hash = '/market';
+      if (document.getElementById('imageHost') && !document.getElementById('imageHost').hidden) location.hash = '/market';
       tab = b.dataset.tab;
       render();
       return;
@@ -568,6 +582,7 @@ export function mountMarket() {
         e.preventDefault();
       }
       if (!document.getElementById('videoHost').hidden) location.hash = '/market';
+      if (document.getElementById('imageHost') && !document.getElementById('imageHost').hidden) location.hash = '/market';
       if (b.dataset.nav === 'resources') {
         mode = 'resources';
       } else if (b.dataset.nav === 'models') {
@@ -586,12 +601,16 @@ export function mountMarket() {
 
   if ($('overlay')) $('overlay').style.display = 'none';
   render();
-  refresh().then(() => video.sync());
+  refresh().then(() => {
+    video.sync();
+    image.sync();
+  });
   const polling = setInterval(() => { if (!$('loginDialog').open) refresh() }, 30000);
   const operationTimer = setInterval(pollOperations, 2000);
 
   return () => {
     video.dispose();
+    image.dispose();
     clearInterval(operationTimer);
     clearInterval(polling);
     controller.abort();

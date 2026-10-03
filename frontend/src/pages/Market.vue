@@ -190,6 +190,18 @@ onBeforeUnmount(() => dispose?.())
         <iframe id="videoFrame" title="Video MCP 工作区" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe>
       </section>
 
+      <!-- Image MCP Embedded Viewport -->
+      <section id="imageHost" hidden>
+        <div class="video-host-bar">
+          <nav class="video-breadcrumb" aria-label="面包屑">
+            <ol id="imageBreadcrumb"></ol>
+          </nav>
+          <span id="imageMessage" role="status"></span>
+          <button class="btn" id="imageRetry">重新连接</button>
+        </div>
+        <iframe id="imageFrame" title="Image MCP 工作区" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer"></iframe>
+      </section>
+
       <!-- Primary Market Columns (Full Width Workspace) -->
       <div id="marketView" class="market-columns">
         <div class="market-primary">
