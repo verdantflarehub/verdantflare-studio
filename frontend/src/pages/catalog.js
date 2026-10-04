@@ -7,7 +7,7 @@ export const CATALOG_APPS = [
     display_name: 'Image MCP',
     group_id: 'image',
     brand: 'vf',
-    version: '0.1.22',
+    version: '0.1.23',
     gpu: 0,
     models: [],
     tagline: '图像创作，从一个想法开始。',

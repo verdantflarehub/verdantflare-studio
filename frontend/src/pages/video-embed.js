@@ -17,7 +17,7 @@ export function mountVideo({listen, api, notice, login}) {
   const list=document.getElementById('videoBreadcrumb');if(list){list.replaceChildren();
   for(const [label,href] of items){const li=document.createElement('li'),item=document.createElement(href?'a':'span');item.textContent=label;if(href)item.href=href;else item.setAttribute('aria-current','page');li.append(item);list.append(li)}}
  }
- function close(){currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
+ function close(){currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const s=document.getElementById('pageSubtitle');if(s)s.textContent='为 Station 安装创作应用，管理模型与运行状态。';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
  async function sync(){
   const path=route();if(!path){close();return}
   const [url,hash]=path.split('#');
@@ -30,7 +30,7 @@ export function mountVideo({listen, api, notice, login}) {
   const epoch=++generation;pending.clear();
   try {
    await api('me');if(epoch!==generation)return;active=true;
-   const m=getMarket(),res=getResource();if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
+   const m=getMarket(),res=getResource(),imgHost=document.getElementById('imageHost');if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(imgHost){imgHost.hidden=true;imgHost.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
    const main=document.querySelector('.main');if(main)main.classList.add('embed-active');
    breadcrumbs(path);
    const t=document.getElementById('pageTitle');if(t)t.textContent='Video MCP';

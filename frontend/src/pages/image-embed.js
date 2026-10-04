@@ -48,6 +48,8 @@ export function mountImage({ listen, api, notice, login }) {
     }
     const t = document.getElementById('pageTitle');
     if (t) t.textContent = '应用市场';
+    const s = document.getElementById('pageSubtitle');
+    if (s) s.textContent = '为 Station 安装创作应用，管理模型与运行状态。';
     const main = document.querySelector('.main');
     if (main) main.classList.remove('embed-active');
   }
@@ -82,7 +84,7 @@ export function mountImage({ listen, api, notice, login }) {
       const t = document.getElementById('pageTitle');
       if (t) t.textContent = 'Image MCP';
       const s = document.getElementById('pageSubtitle');
-      if (s) s.textContent = '图像生成、模型底座与 MCP 契约工作台';
+      if (s) s.textContent = '图像生成、模型图层与 MCP 规约工作台';
       if (frame) frame.src = '/apps/image' + url + '?embed=1&theme=' + theme() + '&view=' + epoch + (hash ? '#' + hash : '');
       const msg = document.getElementById('imageMessage');
       if (msg) msg.textContent = '正在连接 Image…';
