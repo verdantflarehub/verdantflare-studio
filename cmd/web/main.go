@@ -54,6 +54,10 @@ func main() {
 				log.Printf("[MCP Gateway] Connected to etcd %v and started discovery", etcdEndpoints)
 				webServer.SetMCPGateway(gw)
 			}
+			if cli := gw.Client(); cli != nil {
+				log.Printf("[Session] Connected to etcd for persistent sessions")
+				webServer.SetEtcdClient(cli)
+			}
 		}
 	}
 

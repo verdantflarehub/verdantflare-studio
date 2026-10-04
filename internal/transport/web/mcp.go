@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
@@ -55,10 +54,7 @@ func (s *Server) mcpHandler(c *gin.Context) {
 	if !authenticated {
 		// Fallback to cookie session
 		sid, _ := c.Cookie(cookieName)
-		s.mu.Lock()
-		ss, exists := s.sessions[sid]
-		s.mu.Unlock()
-		if exists && ss.token != "" && ss.expires.After(time.Now()) {
+		if _, valid := s.getSession(c.Request.Context(), sid); valid {
 			authenticated = true
 		}
 	}

@@ -91,3 +91,27 @@ func TestSessionAndBoundary(t *testing.T) {
 		t.Fatal("legacy studio redirect failed")
 	}
 }
+
+func TestSessionStore(t *testing.T) {
+	_, s := NewServer(nil, "https://studio.example", fstest.MapFS{})
+	ctx := t.Context()
+
+	// Initially empty
+	if _, ok := s.getSession(ctx, "non-existent"); ok {
+		t.Fatal("expected no session")
+	}
+
+	// Save session
+	s.saveSession(ctx, "sid-123", "token-abc")
+	tok, ok := s.getSession(ctx, "sid-123")
+	if !ok || tok != "token-abc" {
+		t.Fatalf("expected token-abc, got %s (ok=%v)", tok, ok)
+	}
+
+	// Delete session
+	s.deleteSession(ctx, "sid-123")
+	if _, ok := s.getSession(ctx, "sid-123"); ok {
+		t.Fatal("expected session deleted")
+	}
+}
+

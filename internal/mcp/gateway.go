@@ -257,9 +257,14 @@ func (g *Gateway) resolveToken(domain string) string {
 	return ""
 }
 
+func (g *Gateway) Client() *clientv3.Client {
+	return g.client
+}
+
 func (g *Gateway) Close() error {
 	if g.client != nil {
 		return g.client.Close()
 	}
 	return nil
 }
+

@@ -51,14 +51,12 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 			return
 		}
 		sid, _ := c.Cookie(cookieName)
-		s.mu.Lock()
-		ss := s.sessions[sid]
-		s.mu.Unlock()
-		if ss.token == "" || !ss.expires.After(time.Now()) {
+		token, valid := s.getSession(c.Request.Context(), sid)
+		if !valid {
 			c.Status(401)
 			return
 		}
-		auth := s.station.Call(c.Request.Context(), ss.token, application.Request{Path: "me", Method: "GET"})
+		auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
 		if auth.Status != 200 {
 			c.Status(auth.Status)
 			return

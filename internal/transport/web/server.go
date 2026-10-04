@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"net/http"
@@ -11,11 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 const cookieName = "vf_studio_session"
 const defaultSessionTTL = 72 * time.Hour
 const defaultSessionMaxAge = int(defaultSessionTTL / time.Second) // 259200 (3 days)
+const sessionEtcdPrefix = "/verdantflare/studio/sessions/"
 
 type session struct {
 	token   string
@@ -27,7 +30,82 @@ type Server struct {
 	secure     bool
 	mu         sync.Mutex
 	sessions   map[string]session
+	etcd       *clientv3.Client
 	mcpGateway *mcp.Gateway
+}
+
+func (s *Server) SetEtcdClient(cli *clientv3.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.etcd = cli
+}
+
+func (s *Server) getSession(ctx context.Context, sid string) (string, bool) {
+	if sid == "" {
+		return "", false
+	}
+	s.mu.Lock()
+	now := time.Now()
+	ss, ok := s.sessions[sid]
+	if ok && ss.expires.After(now) && ss.token != "" {
+		s.mu.Unlock()
+		return ss.token, true
+	}
+	s.mu.Unlock()
+
+	if s.etcd != nil {
+		getCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		resp, err := s.etcd.Get(getCtx, sessionEtcdPrefix+sid)
+		if err == nil && len(resp.Kvs) > 0 {
+			tok := string(resp.Kvs[0].Value)
+			if tok != "" {
+				s.mu.Lock()
+				s.sessions[sid] = session{tok, time.Now().Add(defaultSessionTTL)}
+				s.mu.Unlock()
+				return tok, true
+			}
+		}
+	}
+	return "", false
+}
+
+func (s *Server) saveSession(ctx context.Context, sid, token string) {
+	s.mu.Lock()
+	s.sessions[sid] = session{token, time.Now().Add(defaultSessionTTL)}
+	s.mu.Unlock()
+
+	if s.etcd != nil {
+		go func() {
+			leaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			lease, err := s.etcd.Grant(leaseCtx, int64(defaultSessionMaxAge))
+			putCtx, pcancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer pcancel()
+			if err == nil {
+				_, _ = s.etcd.Put(putCtx, sessionEtcdPrefix+sid, token, clientv3.WithLease(lease.ID))
+			} else {
+				_, _ = s.etcd.Put(putCtx, sessionEtcdPrefix+sid, token)
+			}
+		}()
+	}
+}
+
+func (s *Server) deleteSession(ctx context.Context, sid string) {
+	if sid == "" {
+		return
+	}
+	s.mu.Lock()
+	delete(s.sessions, sid)
+	s.mu.Unlock()
+
+	if s.etcd != nil {
+		go func() {
+			delCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, _ = s.etcd.Delete(delCtx, sessionEtcdPrefix+sid)
+		}()
+	}
 }
 
 func New(station *application.Station, origin string, assets fs.FS, video ...VideoConfig) *gin.Engine {
@@ -81,35 +159,29 @@ func (s *Server) api(c *gin.Context) {
 		}
 	}
 	sid, _ := c.Cookie(cookieName)
-	s.mu.Lock()
-	now := time.Now()
-	for id, ss := range s.sessions {
-		if !ss.expires.After(now) {
-			delete(s.sessions, id)
-		}
-	}
-	ss := s.sessions[sid]
-	s.mu.Unlock()
-	out := s.station.Call(c.Request.Context(), ss.token, application.Request{Path: path, Method: c.Request.Method, Body: body})
+	token, _ := s.getSession(c.Request.Context(), sid)
+	out := s.station.Call(c.Request.Context(), token, application.Request{Path: path, Method: c.Request.Method, Body: body})
 	c.Header("X-Request-ID", out.RequestID)
 	if path == "login" && out.Status == 201 {
+		if sid != "" {
+			s.deleteSession(c.Request.Context(), sid)
+		}
 		s.mu.Lock()
-		delete(s.sessions, sid)
 		if len(s.sessions) >= 10000 {
 			s.mu.Unlock()
 			c.JSON(503, gin.H{"code": "SERVICE_UNAVAILABLE"})
 			return
 		}
-		sid = application.ID()
-		s.sessions[sid] = session{out.Token, time.Now().Add(defaultSessionTTL)}
 		s.mu.Unlock()
+		sid = application.ID()
+		s.saveSession(c.Request.Context(), sid, out.Token)
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: sid, Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: defaultSessionMaxAge})
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	if path == "logout" || out.Status == 401 {
-		s.mu.Lock()
-		delete(s.sessions, sid)
-		s.mu.Unlock()
+		if sid != "" {
+			s.deleteSession(c.Request.Context(), sid)
+		}
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
