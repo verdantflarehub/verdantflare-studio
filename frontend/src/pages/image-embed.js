@@ -33,23 +33,32 @@ export function mountImage({ listen, api, notice, login }) {
 
   const loader = document.getElementById('viewportLoader');
   const loaderText = document.getElementById('loaderText');
+  let loaderTimer = null;
   function showLoader(text) {
     if (loader) {
       if (loaderText) loaderText.textContent = text || '正在启动 Image MCP 工作台…';
       loader.classList.remove('fading');
       loader.hidden = false;
       loader.style.display = 'flex';
+      clearTimeout(loaderTimer);
+      loaderTimer = setTimeout(() => {
+        hideLoader();
+      }, 2500);
     }
   }
   function hideLoader() {
+    clearTimeout(loaderTimer);
     if (loader && !loader.hidden) {
       loader.classList.add('fading');
       setTimeout(() => {
         loader.hidden = true;
         loader.style.display = 'none';
         loader.classList.remove('fading');
-      }, 250);
+      }, 280);
     }
+  }
+  if (frame) {
+    frame.addEventListener('load', () => setTimeout(hideLoader, 150));
   }
 
   function close() {

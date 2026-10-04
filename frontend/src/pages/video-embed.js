@@ -19,23 +19,32 @@ export function mountVideo({listen, api, notice, login}) {
  }
  const loader = document.getElementById('viewportLoader');
  const loaderText = document.getElementById('loaderText');
+ let loaderTimer = null;
  function showLoader(text) {
   if (loader) {
    if (loaderText) loaderText.textContent = text || '正在启动 Video MCP 工作台…';
    loader.classList.remove('fading');
    loader.hidden = false;
    loader.style.display = 'flex';
+   clearTimeout(loaderTimer);
+   loaderTimer = setTimeout(() => {
+    hideLoader();
+   }, 2500);
   }
  }
  function hideLoader() {
+  clearTimeout(loaderTimer);
   if (loader && !loader.hidden) {
    loader.classList.add('fading');
    setTimeout(() => {
     loader.hidden = true;
     loader.style.display = 'none';
     loader.classList.remove('fading');
-   }, 250);
+   }, 280);
   }
+ }
+ if (frame) {
+  frame.addEventListener('load', () => setTimeout(hideLoader, 150));
  }
  function close(){hideLoader();currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const s=document.getElementById('pageSubtitle');if(s)s.textContent='为 Station 安装创作应用，管理模型与运行状态。';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
  async function sync(){
