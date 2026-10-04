@@ -130,11 +130,36 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	}
 	rootFiles := http.FileServer(http.FS(assets))
 	studioFiles := http.StripPrefix("/studio/", rootFiles)
-	r.GET("/", gin.WrapH(rootFiles))
-	r.GET("/assets/*path", gin.WrapH(rootFiles))
-	r.GET("/studio", func(c *gin.Context) { c.Redirect(301, "/") })
-	r.GET("/studio/", func(c *gin.Context) { c.Redirect(301, "/") })
-	r.GET("/studio/assets/*path", gin.WrapH(studioFiles))
+
+	// 1. Immutable hashed static assets: 7-day cache
+	serveAssets := func(h http.Handler) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			c.Header("Cache-Control", "public, max-age=604800, immutable")
+			c.Header("X-Content-Type-Options", "nosniff")
+			h.ServeHTTP(c.Writer, c.Request)
+		}
+	}
+	r.GET("/assets/*path", serveAssets(rootFiles))
+	r.GET("/studio/assets/*path", serveAssets(studioFiles))
+
+	// 2. Zero-cache for HTML entrypoint and redirect routes
+	serveIndex := func(c *gin.Context) {
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.Header("X-Content-Type-Options", "nosniff")
+		data, err := fs.ReadFile(assets, "index.html")
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	}
+
+	r.GET("/", serveIndex)
+	r.GET("/index.html", serveIndex)
+	r.GET("/studio", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/") })
+	r.GET("/studio/", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/") })
 	return r, s
 }
 func (s *Server) api(c *gin.Context) {

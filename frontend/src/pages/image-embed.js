@@ -31,7 +31,29 @@ export function mountImage({ listen, api, notice, login }) {
     }
   }
 
+  const loader = document.getElementById('viewportLoader');
+  const loaderText = document.getElementById('loaderText');
+  function showLoader(text) {
+    if (loader) {
+      if (loaderText) loaderText.textContent = text || '正在启动 Image MCP 工作台…';
+      loader.classList.remove('fading');
+      loader.hidden = false;
+      loader.style.display = 'flex';
+    }
+  }
+  function hideLoader() {
+    if (loader && !loader.hidden) {
+      loader.classList.add('fading');
+      setTimeout(() => {
+        loader.hidden = true;
+        loader.style.display = 'none';
+        loader.classList.remove('fading');
+      }, 250);
+    }
+  }
+
   function close() {
+    hideLoader();
     currentUrl = null;
     generation++;
     active = false;
@@ -57,6 +79,7 @@ export function mountImage({ listen, api, notice, login }) {
   async function sync() {
     const path = route();
     if (!path) {
+      hideLoader();
       close();
       return;
     }
@@ -69,26 +92,31 @@ export function mountImage({ listen, api, notice, login }) {
     currentUrl = url;
     const epoch = ++generation;
     pending.clear();
+
+    // First-Paint: immediate viewport lockdown before async network
+    const m = getMarket(), res = getResource(), vHost = getVideo();
+    if (m) { m.hidden = true; m.style.display = 'none'; }
+    if (res) { res.hidden = true; res.style.display = 'none'; }
+    if (vHost) { vHost.hidden = true; vHost.style.display = 'none'; }
+    if (host) { host.hidden = false; host.style.display = 'flex'; }
+    const main = document.querySelector('.main');
+    if (main) main.classList.add('embed-active');
+    breadcrumbs(path);
+    const t = document.getElementById('pageTitle');
+    if (t) t.textContent = 'Image MCP';
+    const s = document.getElementById('pageSubtitle');
+    if (s) s.textContent = '图像生成、模型图层与 MCP 规约工作台';
+    showLoader('正在启动 Image MCP 工作台…');
+
     try {
       await api('me');
       if (epoch !== generation) return;
       active = true;
-      const m = getMarket(), res = getResource(), vHost = getVideo();
-      if (m) { m.hidden = true; m.style.display = 'none'; }
-      if (res) { res.hidden = true; res.style.display = 'none'; }
-      if (vHost) { vHost.hidden = true; vHost.style.display = 'none'; }
-      if (host) { host.hidden = false; host.style.display = 'flex'; }
-      const main = document.querySelector('.main');
-      if (main) main.classList.add('embed-active');
-      breadcrumbs(path);
-      const t = document.getElementById('pageTitle');
-      if (t) t.textContent = 'Image MCP';
-      const s = document.getElementById('pageSubtitle');
-      if (s) s.textContent = '图像生成、模型图层与 MCP 规约工作台';
       if (frame) frame.src = '/apps/image' + url + '?embed=1&theme=' + theme() + '&view=' + epoch + (hash ? '#' + hash : '');
       const msg = document.getElementById('imageMessage');
-      if (msg) msg.textContent = '正在连接 Image…';
+      if (msg) msg.textContent = '';
     } catch (e) {
+      hideLoader();
       currentUrl = null;
       close();
       notice(e.message);
@@ -105,6 +133,7 @@ export function mountImage({ listen, api, notice, login }) {
     const d = e.data;
     if (d.view !== String(generation)) return;
     if (d.type === 'ready') {
+      hideLoader();
       const msg = document.getElementById('imageMessage');
       if (msg) msg.textContent = '';
       frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'theme', theme: theme() }, '*');

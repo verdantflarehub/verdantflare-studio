@@ -178,6 +178,29 @@ onBeforeUnmount(() => dispose?.())
         </div>
       </header>
 
+      <!-- Studio OS 视口级优雅加载态 (VF 青焰美学 Viewport Loader) -->
+      <div id="viewportLoader" class="viewport-loader" hidden>
+        <div class="loader-content">
+          <div class="loader-logo-wrap">
+            <svg class="loader-flame" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 4L54 26L32 60L10 26L32 4Z" fill="url(#vfFlameGrad)" />
+              <path d="M32 14L44 28L32 48L20 28L32 14Z" fill="var(--bg)" opacity="0.88" />
+              <defs>
+                <linearGradient id="vfFlameGrad" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#087e60" />
+                  <stop offset="0.5" stop-color="#75c7ab" />
+                  <stop offset="1" stop-color="#5379ac" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div class="loader-text" id="loaderText">正在连接应用工作台…</div>
+          <div class="loader-bar-track">
+            <div class="loader-bar-thumb"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Video MCP Embedded Viewport -->
       <section id="videoHost" hidden>
         <div class="video-host-bar">

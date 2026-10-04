@@ -622,10 +622,21 @@ export function mountMarket() {
   });
 
   if ($('overlay')) $('overlay').style.display = 'none';
-  render();
-  refresh().then(() => {
+
+  // First-Paint Immediate Route Resolution (Zero Market Flash)
+  const isVideoRoute = location.hash.includes('video=');
+  const isImageRoute = location.hash.includes('image=');
+  if (isVideoRoute) {
     video.sync();
+  } else if (isImageRoute) {
     image.sync();
+  } else {
+    render();
+  }
+
+  refresh().then(() => {
+    if (location.hash.includes('video=')) video.sync();
+    else if (location.hash.includes('image=')) image.sync();
   });
   const polling = setInterval(() => {
     if (!$('loginDialog').open) {

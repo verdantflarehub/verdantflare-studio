@@ -17,9 +17,29 @@ export function mountVideo({listen, api, notice, login}) {
   const list=document.getElementById('videoBreadcrumb');if(list){list.replaceChildren();
   for(const [label,href] of items){const li=document.createElement('li'),item=document.createElement(href?'a':'span');item.textContent=label;if(href)item.href=href;else item.setAttribute('aria-current','page');li.append(item);list.append(li)}}
  }
- function close(){currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const s=document.getElementById('pageSubtitle');if(s)s.textContent='为 Station 安装创作应用，管理模型与运行状态。';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
+ const loader = document.getElementById('viewportLoader');
+ const loaderText = document.getElementById('loaderText');
+ function showLoader(text) {
+  if (loader) {
+   if (loaderText) loaderText.textContent = text || '正在启动 Video MCP 工作台…';
+   loader.classList.remove('fading');
+   loader.hidden = false;
+   loader.style.display = 'flex';
+  }
+ }
+ function hideLoader() {
+  if (loader && !loader.hidden) {
+   loader.classList.add('fading');
+   setTimeout(() => {
+    loader.hidden = true;
+    loader.style.display = 'none';
+    loader.classList.remove('fading');
+   }, 250);
+  }
+ }
+ function close(){hideLoader();currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const s=document.getElementById('pageSubtitle');if(s)s.textContent='为 Station 安装创作应用，管理模型与运行状态。';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
  async function sync(){
-  const path=route();if(!path){close();return}
+  const path=route();if(!path){hideLoader();close();return}
   const [url,hash]=path.split('#');
   if(active&&currentUrl===url&&frame){
    breadcrumbs(path);
@@ -28,23 +48,25 @@ export function mountVideo({listen, api, notice, login}) {
   }
   currentUrl=url;
   const epoch=++generation;pending.clear();
+  const m=getMarket(),res=getResource(),imgHost=document.getElementById('imageHost');
+  if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(imgHost){imgHost.hidden=true;imgHost.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
+  const main=document.querySelector('.main');if(main)main.classList.add('embed-active');
+  breadcrumbs(path);
+  const t=document.getElementById('pageTitle');if(t)t.textContent='Video MCP';
+  const s=document.getElementById('pageSubtitle');if(s)s.textContent='视频任务、模型与 MCP 服务工作区';
+  showLoader('正在启动 Video MCP 工作台…');
   try {
    await api('me');if(epoch!==generation)return;active=true;
-   const m=getMarket(),res=getResource(),imgHost=document.getElementById('imageHost');if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(imgHost){imgHost.hidden=true;imgHost.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
-   const main=document.querySelector('.main');if(main)main.classList.add('embed-active');
-   breadcrumbs(path);
-   const t=document.getElementById('pageTitle');if(t)t.textContent='Video MCP';
-   const s=document.getElementById('pageSubtitle');if(s)s.textContent='视频任务、模型与 MCP 服务工作区';
    if(frame)frame.src='/apps/video'+url+'?embed=1&theme='+theme()+'&view='+epoch+(hash?'#'+hash:'');
-   const msg=document.getElementById('videoMessage');if(msg)msg.textContent='正在连接 Video…';
-  } catch(e){currentUrl=null;close();notice(e.message)}
+   const msg=document.getElementById('videoMessage');if(msg)msg.textContent='';
+  } catch(e){hideLoader();currentUrl=null;close();notice(e.message)}
  }
  function navigate(path){location.hash='/market?video='+encodeURIComponent(path)}
  listen(window,'hashchange',sync);
  listen(window,'message',async e=>{
   if(!active||e.source!==frame.contentWindow||e.origin!=='null'||!e.data||e.data.channel!=='vf-video')return;
   const d=e.data;if(d.view!==String(generation))return;
-  if(d.type==='ready'){document.getElementById('videoMessage').textContent='';frame.contentWindow.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*');frame.contentWindow.postMessage({channel:'vf-studio',type:'restore',state:viewState},'*');return}
+  if(d.type==='ready'){hideLoader();document.getElementById('videoMessage').textContent='';frame.contentWindow.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*');frame.contentWindow.postMessage({channel:'vf-studio',type:'restore',state:viewState},'*');return}
   if(d.type==='navigate'&&typeof d.path==='string'&&/^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(d.path)){if(d.state && typeof d.state==='object')viewState=d.state;navigate(d.path);return}
   if(d.type==='resize'&&typeof d.height==='number'){if(frame)frame.style.height=Math.max(d.height,600)+'px';return}
   if(d.type==='wheel'&&typeof d.deltaY==='number'){window.scrollBy({top:d.deltaY,behavior:'auto'});return}
