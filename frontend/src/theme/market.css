@@ -1653,18 +1653,23 @@
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
 }
 
-/* Embedded Application Mode: Seamless Full Viewport with Zero Double-Scrollbars */
+/* Embedded Application Mode: Seamless Full-Bleed Viewport with Far-Right Single Scrollbar */
 .main.embed-active {
   height: 100vh;
   max-height: 100vh;
   overflow: hidden;
-  padding: 24px 36px 20px;
+  padding: 24px 0 0 36px;
 }
 
 .main.embed-active .workspace {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.main.embed-active .heading,
+.main.embed-active .video-host-bar {
+  padding-right: 36px;
 }
 
 .main.embed-active #videoHost,
@@ -1683,7 +1688,12 @@
   height: 100%;
   min-height: 0;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   background: var(--panel);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
 }
