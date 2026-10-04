@@ -116,6 +116,14 @@ export function mountImage({ listen, api, notice, login }) {
       navigate(d.path);
       return;
     }
+    if (d.type === 'resize' && typeof d.height === 'number') {
+      if (frame) frame.style.height = Math.max(d.height, 600) + 'px';
+      return;
+    }
+    if (d.type === 'wheel' && typeof d.deltaY === 'number') {
+      window.scrollBy({ top: d.deltaY, behavior: 'auto' });
+      return;
+    }
     if (d.type !== 'request' || !Number.isSafeInteger(d.id) || typeof d.path !== 'string' || d.path.length > 2048 || pending.has(d.id) || pending.size >= 32) return;
     const epoch = generation, method = d.method || 'GET';
     const reply = value => {

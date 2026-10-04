@@ -46,6 +46,8 @@ export function mountVideo({listen, api, notice, login}) {
   const d=e.data;if(d.view!==String(generation))return;
   if(d.type==='ready'){document.getElementById('videoMessage').textContent='';frame.contentWindow.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*');frame.contentWindow.postMessage({channel:'vf-studio',type:'restore',state:viewState},'*');return}
   if(d.type==='navigate'&&typeof d.path==='string'&&/^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(d.path)){if(d.state && typeof d.state==='object')viewState=d.state;navigate(d.path);return}
+  if(d.type==='resize'&&typeof d.height==='number'){if(frame)frame.style.height=Math.max(d.height,600)+'px';return}
+  if(d.type==='wheel'&&typeof d.deltaY==='number'){window.scrollBy({top:d.deltaY,behavior:'auto'});return}
   if(d.type!=='request'||!Number.isSafeInteger(d.id)||typeof d.path!=='string'||d.path.length>2048||pending.has(d.id)||pending.size>=32)return;
   const epoch=generation,method=d.method||'GET';
   const reply=value=>{if(epoch===generation&&active)frame.contentWindow.postMessage({channel:'vf-studio',type:'response',id:d.id,...value},'*')};
