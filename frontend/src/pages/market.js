@@ -222,12 +222,26 @@ export function mountMarket() {
       }
     }
 
-    // Viewport Mode Switching: Market vs Resources
+    // Viewport Mode Switching: Market vs Resources vs Embedded Viewports
     const marketView = $('marketView');
     const resourceView = $('resourceView');
     const videoHost = $('videoHost');
+    const imageHost = $('imageHost');
+    const isEmbedActive = location.hash.includes('video=') ||
+                          location.hash.includes('image=') ||
+                          (videoHost && !videoHost.hidden) ||
+                          (imageHost && !imageHost.hidden);
 
-    if (videoHost && videoHost.hidden) {
+    if (isEmbedActive) {
+      if (marketView) {
+        marketView.hidden = true;
+        marketView.style.display = 'none';
+      }
+      if (resourceView) {
+        resourceView.hidden = true;
+        resourceView.style.display = 'none';
+      }
+    } else {
       if (mode === 'resources') {
         if (marketView) {
           marketView.hidden = true;
@@ -485,10 +499,18 @@ export function mountMarket() {
 
   if ($('reset')) $('reset').onclick = refresh;
   if ($('theme')) {
+    const savedTheme = localStorage.getItem('vf_studio_theme') || 'light';
+    document.body.dataset.theme = savedTheme;
+    document.documentElement.dataset.theme = savedTheme;
+    $('theme').textContent = savedTheme === 'dark' ? '浅色主题' : '深色主题';
+
     $('theme').onclick = () => {
       const isDark = document.body.dataset.theme === 'dark';
-      document.body.dataset.theme = isDark ? 'light' : 'dark';
-      $('theme').textContent = isDark ? '深色主题' : '浅色主题';
+      const nextTheme = isDark ? 'light' : 'dark';
+      document.body.dataset.theme = nextTheme;
+      document.documentElement.dataset.theme = nextTheme;
+      localStorage.setItem('vf_studio_theme', nextTheme);
+      $('theme').textContent = nextTheme === 'dark' ? '浅色主题' : '深色主题';
     };
   }
 
@@ -605,7 +627,14 @@ export function mountMarket() {
     video.sync();
     image.sync();
   });
-  const polling = setInterval(() => { if (!$('loginDialog').open) refresh() }, 30000);
+  const polling = setInterval(() => {
+    if (!$('loginDialog').open) {
+      refresh().then(() => {
+        if (location.hash.includes('video=')) video.sync();
+        if (location.hash.includes('image=')) image.sync();
+      });
+    }
+  }, 30000);
   const operationTimer = setInterval(pollOperations, 2000);
 
   return () => {
