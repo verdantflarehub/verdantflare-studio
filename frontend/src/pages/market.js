@@ -160,7 +160,7 @@ export function mountMarket() {
     const clusterDot = document.querySelector('.side-cluster-lead i.dot');
     if (clusterDot) clusterDot.className = `dot ${connected ? 'on' : ''}`;
     const clusterMeta = document.querySelector('.side-cluster-meta');
-    if (clusterMeta) clusterMeta.textContent = connected ? 'Core 就绪 · 8 卡 RTX 5090' : '等待连接 Station';
+    if (clusterMeta) clusterMeta.textContent = connected ? 'Core 就绪 · 2 卡 RTX 5090' : '等待连接 Station';
 
     const userName = document.querySelector('.side-user-name');
     if (userName) userName.textContent = identity.user_id || 'admin';

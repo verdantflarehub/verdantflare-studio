@@ -127,7 +127,7 @@ onBeforeUnmount(() => dispose?.())
           </div>
           <span class="side-cluster-pill">在线</span>
         </div>
-        <div class="side-cluster-meta">Core 就绪 · 8 卡 RTX 5090</div>
+        <div class="side-cluster-meta">Core 就绪 · 2 卡 RTX 5090</div>
       </button>
 
       <!-- 2. User Login Card -->
