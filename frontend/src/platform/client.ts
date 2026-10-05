@@ -1,7 +1,14 @@
+import { isMockEnabled, handleMockRequest } from '../mocks'
+
 export interface Request {path:string;method:string;body?:unknown}
 interface Result {status:number;data:unknown;request_id:string}
 const desktop = new URLSearchParams(location.search).get('host') === 'desktop'
+
 export async function request(input:Request):Promise<Response> {
+ if (isMockEnabled()) {
+  const mockRes = await handleMockRequest(input)
+  if (mockRes) return mockRes
+ }
  if (desktop) {
   const { Call } = await import('@wailsio/runtime')
   const result = await Call.ByName('github.com/verdantflarehub/verdantflare-studio/internal/transport/desktop.Service.Call',input) as Result

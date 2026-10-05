@@ -1,111 +1,152 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import vfLogo from '../assets/verdantflare-logo.png'
+import { computed, onMounted, reactive, ref } from "vue";
+import { isMockEnabled, mockProxies, mockProbeFixtures } from "../mocks";
 
-type ProxyStatus = 'active' | 'pending' | 'off' | 'testing'
-type ProxyRow = { id: string; name: string; protocol: string; host: string; port: string; region: string; latency: string; expiry: string; status: ProxyStatus; refs: string[]; tag: string; tested: string; exitIp?: string; probeTarget?: string; probeVersion?: string }
+type ProxyStatus = "active" | "pending" | "off" | "testing";
+type ProxyRow = {
+  id: string;
+  name: string;
+  protocol: string;
+  host: string;
+  port: string;
+  region: string;
+  latency: string;
+  expiry: string;
+  status: ProxyStatus;
+  refs: string[];
+  tag: string;
+  tested: string;
+  exitIp?: string;
+  probeTarget?: string;
+  probeVersion?: string;
+};
 
-const rows = ref<ProxyRow[]>([
-  {
-    id: 'proxy_01DMIT_LA',
-    name: 'dmit.la.usa · 美西高速专线 1',
-    protocol: 'HTTP',
-    host: 'openclash.openclash.svc.cluster.local',
-    port: '1081',
-    region: '美国 · 洛杉矶',
-    latency: '208 ms',
-    expiry: '长期有效',
-    status: 'active',
-    refs: ['ChatGPT 账号 01 (团队主号 · 独占出口)', 'Claude 3.7 生产主线'],
-    tag: 'chatgpt-team-01, dmit',
-    tested: '刚刚',
-    exitIp: '154.21.84.34',
-    probeTarget: 'egress_probe · ipify',
-    probeVersion: 'mihomo-v1.19.29'
-  },
-  {
-    id: 'proxy_02WEYLAND_LA',
-    name: 'weyland.la.usa · 美西 BGP 专线 2',
-    protocol: 'HTTP',
-    host: 'openclash.openclash.svc.cluster.local',
-    port: '1082',
-    region: '美国 · 洛杉矶',
-    latency: '206 ms',
-    expiry: '长期有效',
-    status: 'active',
-    refs: ['ChatGPT 账号 02 (备用批量 · 专属隔离)', 'Google Omni / Wan Video 专属通道'],
-    tag: 'chatgpt-team-02, weyland',
-    tested: '刚刚',
-    exitIp: '64.186.238.29',
-    probeTarget: 'egress_probe · ipify',
-    probeVersion: 'mihomo-v1.19.29'
-  },
-])
+const rows = ref<ProxyRow[]>(
+  isMockEnabled() ? JSON.parse(JSON.stringify(mockProxies)) : [],
+);
+const probeFixtures = mockProbeFixtures;
 
-const query = ref('')
-const protocol = ref('')
-const status = ref('')
-const binding = ref('')
-const selected = ref<string[]>([])
-const drawer = ref<ProxyRow | null>(null)
-const modal = ref<'add' | 'edit' | 'import' | 'delete' | null>(null)
-const editingId = ref<string | null>(null)
-const deleteIds = ref<string[]>([])
-const notice = ref('')
-const importText = ref('')
-const importPreview = ref('')
-const form = reactive({ name: '', protocol: 'HTTP', host: '', port: '', region: '', expiry: '长期有效', tag: '', username: '', password: '', note: '' })
-const currentTheme = ref('light')
+const query = ref("");
+const protocol = ref("");
+const status = ref("");
+const binding = ref("");
+const selected = ref<string[]>([]);
+const drawer = ref<ProxyRow | null>(null);
+const modal = ref<"add" | "edit" | "import" | "delete" | null>(null);
+const editingId = ref<string | null>(null);
+const deleteIds = ref<string[]>([]);
+const notice = ref("");
+const importText = ref("");
+const importPreview = ref("");
+const form = reactive({
+  name: "",
+  protocol: "HTTP",
+  host: "",
+  port: "",
+  region: "",
+  expiry: "长期有效",
+  tag: "",
+  username: "",
+  password: "",
+  note: "",
+});
+const currentTheme = ref("light");
 
-const statusText: Record<ProxyStatus, string> = { active: '正常', pending: '待测试', off: '已停用', testing: '测试中' }
-const probeFixtures: Record<string, { latency: string; ip: string; region: string }> = {
-  proxy_01DMIT_LA: { latency: '208 ms', ip: '154.21.84.34', region: '美国 · 洛杉矶' },
-  proxy_02WEYLAND_LA: { latency: '206 ms', ip: '64.186.238.29', region: '美国 · 洛杉矶' }
-}
+const statusText: Record<ProxyStatus, string> = {
+  active: "正常",
+  pending: "待测试",
+  off: "已停用",
+  testing: "测试中",
+};
 
-const filtered = computed(() => rows.value.filter((row) => {
-  const needle = query.value.trim().toLowerCase()
-  return (!needle || `${row.name} ${row.host} ${row.tag}`.toLowerCase().includes(needle)) &&
-    (!protocol.value || row.protocol === protocol.value) &&
-    (!status.value || row.status === status.value) &&
-    (!binding.value || (binding.value === 'bound' ? row.refs.length > 0 : binding.value === 'unbound' ? row.refs.length === 0 : true))
-}))
+const filtered = computed(() =>
+  rows.value.filter((row) => {
+    const needle = query.value.trim().toLowerCase();
+    return (
+      (!needle ||
+        `${row.name} ${row.host} ${row.tag}`.toLowerCase().includes(needle)) &&
+      (!protocol.value || row.protocol === protocol.value) &&
+      (!status.value || row.status === status.value) &&
+      (!binding.value ||
+        (binding.value === "bound"
+          ? row.refs.length > 0
+          : binding.value === "unbound"
+            ? row.refs.length === 0
+            : true))
+    );
+  }),
+);
 
-const activeCount = computed(() => rows.value.filter((row) => row.status === 'active').length)
-const pendingCount = computed(() => rows.value.filter((row) => row.status === 'pending').length)
-const referenceCount = computed(() => rows.value.reduce((total, row) => total + row.refs.length, 0))
-const allSelected = computed(() => filtered.value.length > 0 && filtered.value.every((row) => selected.value.includes(row.id)))
+const activeCount = computed(
+  () => rows.value.filter((row) => row.status === "active").length,
+);
+const pendingCount = computed(
+  () => rows.value.filter((row) => row.status === "pending").length,
+);
+const referenceCount = computed(() =>
+  rows.value.reduce((total, row) => total + row.refs.length, 0),
+);
+const allSelected = computed(
+  () =>
+    filtered.value.length > 0 &&
+    filtered.value.every((row) => selected.value.includes(row.id)),
+);
 
 function flash(message: string) {
-  notice.value = message
-  window.setTimeout(() => { notice.value = '' }, 2600)
+  notice.value = message;
+  window.setTimeout(() => {
+    notice.value = "";
+  }, 2600);
 }
 
 function resetForm(row?: ProxyRow) {
-  Object.assign(form, row
-    ? { ...row, username: '', password: '', note: '' }
-    : { name: '', protocol: 'HTTP', host: '', port: '', region: '', expiry: '长期有效', tag: '', username: '', password: '', note: '' })
+  Object.assign(
+    form,
+    row
+      ? { ...row, username: "", password: "", note: "" }
+      : {
+          name: "",
+          protocol: "HTTP",
+          host: "",
+          port: "",
+          region: "",
+          expiry: "长期有效",
+          tag: "",
+          username: "",
+          password: "",
+          note: "",
+        },
+  );
 }
 
 function openAdd() {
-  editingId.value = null
-  resetForm()
-  modal.value = 'add'
+  editingId.value = null;
+  resetForm();
+  modal.value = "add";
 }
 
 function openEdit(row: ProxyRow) {
-  editingId.value = row.id
-  resetForm(row)
-  drawer.value = null
-  modal.value = 'edit'
+  editingId.value = row.id;
+  resetForm(row);
+  drawer.value = null;
+  modal.value = "edit";
 }
 
 function save() {
-  if (!form.name || !form.host || !form.port) return
+  if (!form.name || !form.host || !form.port) return;
   if (editingId.value) {
-    const row = rows.value.find((item) => item.id === editingId.value)
-    if (row) Object.assign(row, { ...form, status: 'pending', latency: '—', tested: '尚未测试', exitIp: '', probeTarget: '', probeVersion: '' })
-    flash('代理已保存，等待重新测试')
+    const row = rows.value.find((item) => item.id === editingId.value);
+    if (row)
+      Object.assign(row, {
+        ...form,
+        status: "pending",
+        latency: "—",
+        tested: "尚未测试",
+        exitIp: "",
+        probeTarget: "",
+        probeVersion: "",
+      });
+    flash("代理已保存，等待重新测试");
   } else {
     rows.value.unshift({
       id: `proxy_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
@@ -113,251 +154,122 @@ function save() {
       protocol: form.protocol,
       host: form.host,
       port: form.port,
-      region: form.region || '未探测',
-      latency: '—',
+      region: form.region || "未探测",
+      latency: "—",
       expiry: form.expiry,
-      status: 'pending',
+      status: "pending",
       refs: [],
-      tag: form.tag || 'untagged',
-      tested: '尚未测试',
-      exitIp: '',
-      probeTarget: '',
-      probeVersion: ''
-    })
-    flash('代理已保存，待连接测试')
+      tag: form.tag || "untagged",
+      tested: "尚未测试",
+      exitIp: "",
+      probeTarget: "",
+      probeVersion: "",
+    });
+    flash("代理已保存，待连接测试");
   }
-  modal.value = null
+  modal.value = null;
 }
 
 function test(row: ProxyRow) {
-  if (row.status === 'testing') return
-  row.status = 'testing'
-  flash(`正在探测 ${row.name}…`)
+  if (row.status === "testing") return;
+  row.status = "testing";
+  flash(`正在探测 ${row.name}…`);
   window.setTimeout(() => {
-    const fixture = probeFixtures[row.id] ?? { latency: '203 ms', ip: '192.0.2.88', region: row.region }
-    row.status = 'active'
-    row.latency = fixture.latency
-    row.exitIp = fixture.ip
-    row.region = fixture.region
-    row.probeTarget = 'egress_probe · ipify'
-    row.probeVersion = 'probe-2026.09'
-    row.tested = '刚刚'
-    flash(`${row.name} Core 探测通过，出口 ${row.exitIp || '未返回'}`)
-  }, 900)
+    const fixture = probeFixtures[row.id] ?? {
+      latency: "203 ms",
+      ip: "192.0.2.88",
+      region: row.region,
+    };
+    row.status = "active";
+    row.latency = fixture.latency;
+    row.exitIp = fixture.ip;
+    row.region = fixture.region;
+    row.probeTarget = "egress_probe · ipify";
+    row.probeVersion = "probe-2026.09";
+    row.tested = "刚刚";
+    flash(`${row.name} Core 探测通过，出口 ${row.exitIp || "未返回"}`);
+  }, 900);
 }
 
 function toggle(row: ProxyRow) {
-  row.status = row.status === 'off' ? 'pending' : 'off'
-  flash(row.status === 'off' ? '代理已停用' : '代理已启用')
+  row.status = row.status === "off" ? "pending" : "off";
+  flash(row.status === "off" ? "代理已停用" : "代理已启用");
 }
 
 function askDelete(rowsToDelete: ProxyRow[]) {
   if (rowsToDelete.some((row) => row.refs.length)) {
-    flash('已被渠道引用，不能直接删除；请先解除引用或停用')
-    return
+    flash("已被渠道引用，不能直接删除；请先解除引用或停用");
+    return;
   }
-  deleteIds.value = rowsToDelete.map((row) => row.id)
-  editingId.value = deleteIds.value[0] ?? null
-  modal.value = 'delete'
+  deleteIds.value = rowsToDelete.map((row) => row.id);
+  editingId.value = deleteIds.value[0] ?? null;
+  modal.value = "delete";
 }
 
 function confirmDelete() {
-  rows.value = rows.value.filter((row) => !deleteIds.value.includes(row.id))
-  selected.value = selected.value.filter((id) => !deleteIds.value.includes(id))
-  deleteIds.value = []
-  modal.value = null
-  drawer.value = null
-  flash('代理已删除')
+  rows.value = rows.value.filter((row) => !deleteIds.value.includes(row.id));
+  selected.value = selected.value.filter((id) => !deleteIds.value.includes(id));
+  deleteIds.value = [];
+  modal.value = null;
+  drawer.value = null;
+  flash("代理已删除");
 }
 
 function toggleAll() {
   selected.value = allSelected.value
-    ? selected.value.filter((id) => !filtered.value.some((row) => row.id === id))
-    : [...new Set([...selected.value, ...filtered.value.map((row) => row.id)])]
+    ? selected.value.filter(
+        (id) => !filtered.value.some((row) => row.id === id),
+      )
+    : [...new Set([...selected.value, ...filtered.value.map((row) => row.id)])];
 }
 
 function batchTest() {
-  selected.value.map((id) => rows.value.find((row) => row.id === id)).filter(Boolean).forEach((row) => test(row as ProxyRow))
+  selected.value
+    .map((id) => rows.value.find((row) => row.id === id))
+    .filter(Boolean)
+    .forEach((row) => test(row as ProxyRow));
 }
 
 function parseImport() {
-  const lines = importText.value.split('\n').map((line) => line.trim()).filter(Boolean)
-  const valid = lines.filter((line) => /^(https?|socks5h?):\/\/.*:\d+$/.test(line)).length
-  importPreview.value = `解析结果：${valid} 条有效，${lines.length - valid} 条需检查，0 条重复`
+  const lines = importText.value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const valid = lines.filter((line) =>
+    /^(https?|socks5h?):\/\/.*:\d+$/.test(line),
+  ).length;
+  importPreview.value = `解析结果：${valid} 条有效，${lines.length - valid} 条需检查，0 条重复`;
 }
 
 function confirmImport() {
-  modal.value = null
-  importText.value = ''
-  importPreview.value = ''
-  flash('已导入代理，待测试')
+  modal.value = null;
+  importText.value = "";
+  importPreview.value = "";
+  flash("已导入代理，待测试");
 }
 
 function syncTheme(theme: string) {
-  currentTheme.value = theme
-  document.body.dataset.theme = theme
-  document.documentElement.dataset.theme = theme
-  localStorage.setItem('vf_studio_theme', theme)
+  currentTheme.value = theme;
+  document.body.dataset.theme = theme;
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("vf_studio_theme", theme);
 }
 
 function toggleTheme() {
-  syncTheme(currentTheme.value === 'dark' ? 'light' : 'dark')
+  syncTheme(currentTheme.value === "dark" ? "light" : "dark");
 }
 
 onMounted(() => {
-  const saved = localStorage.getItem('vf_studio_theme') || document.body.dataset.theme || 'light'
-  syncTheme(saved)
-})
+  const saved =
+    localStorage.getItem("vf_studio_theme") ||
+    document.body.dataset.theme ||
+    "light";
+  syncTheme(saved);
+});
 </script>
 
 <template>
   <div class="proxy-page">
-    <!-- Left Sidebar: Complete Integrated Brand & Primary Navigation (Aligned with Studio OS / Market v1.1) -->
-    <aside class="side" aria-label="Studio 主菜单">
-      <a class="side-brand" href="#/market">
-        <img id="vfSideLogo"
-             :src="vfLogo"
-             alt="VerdantFlare"
-             width="26"
-             height="26">
-        <div class="brand-text">
-          <span>青焰 · VerdantFlare</span>
-          <small>STUDIO OS</small>
-        </div>
-      </a>
-
-      <button class="side-create-btn"
-              id="newTask"
-              aria-label="新建创作任务"
-              @click="flash('创作任务功能开发中')">
-        <svg width="15"
-             height="15"
-             viewBox="0 0 24 24"
-             fill="none"
-             stroke="currentColor"
-             stroke-width="2.2"
-             stroke-linecap="round"
-             stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>新建创作任务</span>
-      </button>
-
-      <div class="nav-label">创作空间</div>
-      <a class="nav-link"
-         href="#/market"
-         data-nav="workbench">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-        </span>
-        <span>工作台</span>
-      </a>
-
-      <a class="nav-link"
-         href="#/market"
-         data-nav="market">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-        </span>
-        <span>应用市场</span>
-      </a>
-
-      <a class="nav-link"
-         href="#/market?mode=models"
-         data-nav="models">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="8"></circle>
-            <line x1="12" y1="2" x2="12" y2="6"></line>
-            <line x1="12" y1="18" x2="12" y2="22"></line>
-            <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-            <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-            <line x1="2" y1="12" x2="6" y2="12"></line>
-            <line x1="18" y1="12" x2="22" y2="12"></line>
-            <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-            <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-          </svg>
-        </span>
-        <span>模型市场</span>
-      </a>
-
-      <a class="nav-link"
-         href="#/market?mode=resources"
-         data-nav="resources">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-            <line x1="6" y1="6" x2="6.01" y2="6"></line>
-            <line x1="6" y1="18" x2="6.01" y2="18"></line>
-          </svg>
-        </span>
-        <span>资源管理</span>
-      </a>
-
-      <a class="nav-link selected"
-         href="#/station/proxies"
-         data-nav="proxies">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-          </svg>
-        </span>
-        <span>网络出口</span>
-      </a>
-
-      <div class="side-bottom">
-        <!-- 1. Station Cluster Online Card (Clickable to switch to Resource Center) -->
-        <a href="#/market?mode=resources"
-           class="side-cluster-card"
-           data-nav="resources"
-           id="sideClusterCard"
-           title="当前连接：5090集群 (k8s.dev.verdantflarehub.com) · 点击查看资源看板">
-          <div class="side-cluster-row">
-            <div class="side-cluster-lead">
-              <i class="dot on"></i>
-              <span class="side-cluster-name">5090集群</span>
-            </div>
-            <span class="side-cluster-pill">在线</span>
-          </div>
-          <div class="side-cluster-meta">Core 就绪 · 2 卡 RTX 5090</div>
-        </a>
-
-        <!-- 2. User Login Card -->
-        <div class="side-user-card"
-             id="sideUserCard"
-             title="当前操作员：admin · 青岚创意工作室">
-          <div class="avatar">VF</div>
-          <div class="side-user-info">
-            <span class="side-user-name">admin</span>
-            <span class="side-user-team">青岚创意工作室</span>
-          </div>
-        </div>
-
-        <a class="nav-link side-help-link"
-           href="#/market"
-           @click.prevent="flash('帮助与设计说明正在完善中')"
-           title="帮助与设计说明">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9"></circle>
-              <path d="M9.8 9a2.4 2.4 0 1 1 3.2 2.3c-.7.3-1 1-1 1.7v.3M12 17h.01"></path>
-            </svg>
-          </span>
-          <span>帮助与设计说明</span>
-        </a>
-      </div>
-    </aside>
-
     <!-- Main Content Area: Pure Workspace -->
     <main class="main">
       <div class="workspace proxy-workspace">
@@ -365,18 +277,25 @@ onMounted(() => {
           <div class="heading-left">
             <span class="eyebrow">STATION · NETWORK EGRESS</span>
             <h1>网络出口</h1>
-            <p>维护 Station 的代理出口，供 Video、Image 和 Music MCP 渠道引用。</p>
+            <p>
+              维护 Station 的代理出口，供 Video、Image 和 Music MCP 渠道引用。
+            </p>
           </div>
           <div class="heading-actions">
-            <button class="btn ghost" @click="toggleTheme">{{ currentTheme === 'dark' ? '浅色主题' : '深色主题' }}</button>
-            <button class="btn" @click="flash('代理列表已刷新')">刷新状态</button>
+            <button class="btn ghost" @click="toggleTheme">
+              {{ currentTheme === "dark" ? "浅色主题" : "深色主题" }}
+            </button>
+            <button class="btn" @click="flash('代理列表已刷新')">
+              刷新状态
+            </button>
             <button class="btn primary" @click="openAdd">＋ 添加代理</button>
           </div>
         </header>
 
         <div class="review-note">
           <span class="review-dot"></span>
-          <b>出口实况</b> 已连接 5090 集群 OpenClash 网络出口 · 2 条真实海外专线通道就绪 (按 ChatGPT 账号与来源独立路由)
+          <b>出口实况</b> 已连接 5090 集群 OpenClash 网络出口 · 2
+          条真实海外专线通道就绪 (按 ChatGPT 账号与来源独立路由)
         </div>
 
         <section class="proxy-metrics">
@@ -411,7 +330,11 @@ onMounted(() => {
           <div class="proxy-toolbar">
             <label class="proxy-search">
               <span>⌕</span>
-              <input v-model="query" placeholder="搜索代理名称或地址" aria-label="搜索代理名称或地址">
+              <input
+                v-model="query"
+                placeholder="搜索代理名称或地址"
+                aria-label="搜索代理名称或地址"
+              />
             </label>
             <select v-model="protocol">
               <option value="">协议：全部</option>
@@ -434,21 +357,39 @@ onMounted(() => {
             </select>
             <span class="toolbar-grow"></span>
             <button class="btn" @click="modal = 'import'">⇧ 导入</button>
-            <button class="btn" @click="flash('已生成脱敏导出文件（开发预览未下载）')">⇩ 导出</button>
+            <button
+              class="btn"
+              @click="flash('已生成脱敏导出文件（开发预览未下载）')"
+            >
+              ⇩ 导出
+            </button>
           </div>
 
           <div v-if="selected.length" class="selection">
             <b>{{ selected.length }}</b> 个代理已选择
             <span class="toolbar-grow"></span>
             <button class="btn" @click="batchTest">▷ 测试连接</button>
-            <button class="btn danger" @click="askDelete(rows.filter((row) => selected.includes(row.id)))">删除</button>
+            <button
+              class="btn danger"
+              @click="
+                askDelete(rows.filter((row) => selected.includes(row.id)))
+              "
+            >
+              删除
+            </button>
           </div>
 
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th><input type="checkbox" :checked="allSelected" @change="toggleAll"></th>
+                  <th>
+                    <input
+                      type="checkbox"
+                      :checked="allSelected"
+                      @change="toggleAll"
+                    />
+                  </th>
                   <th>代理</th>
                   <th>协议</th>
                   <th>地址</th>
@@ -461,27 +402,68 @@ onMounted(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in filtered" :key="row.id" :class="{chosen: selected.includes(row.id)}">
+                <tr
+                  v-for="row in filtered"
+                  :key="row.id"
+                  :class="{ chosen: selected.includes(row.id) }"
+                >
                   <td>
-                    <input type="checkbox"
-                           :checked="selected.includes(row.id)"
-                           @change="selected.includes(row.id) ? selected = selected.filter((id) => id !== row.id) : selected.push(row.id)">
+                    <input
+                      type="checkbox"
+                      :checked="selected.includes(row.id)"
+                      @change="
+                        selected.includes(row.id)
+                          ? (selected = selected.filter((id) => id !== row.id))
+                          : selected.push(row.id)
+                      "
+                    />
                   </td>
                   <td>
-                    <button class="proxy-name" @click="drawer = row">{{ row.name }}</button>
+                    <button class="proxy-name" @click="drawer = row">
+                      {{ row.name }}
+                    </button>
                     <small>{{ row.id }} · {{ row.tag }}</small>
                   </td>
-                  <td><span class="protocol-tag">{{ row.protocol }}</span></td>
-                  <td><code>{{ row.host }}:{{ row.port }}</code></td>
+                  <td>
+                    <span class="protocol-tag">{{ row.protocol }}</span>
+                  </td>
+                  <td>
+                    <code>{{ row.host }}:{{ row.port }}</code>
+                  </td>
                   <td>{{ row.region }}</td>
-                  <td :class="row.status === 'active' ? 'ok' : 'warn'">{{ row.latency }}</td>
+                  <td :class="row.status === 'active' ? 'ok' : 'warn'">
+                    {{ row.latency }}
+                  </td>
                   <td>{{ row.refs.length }} 个渠道</td>
                   <td>{{ row.expiry }}</td>
-                  <td><span :class="['status', row.status]"><i class="dot"></i>{{ statusText[row.status] }}</span></td>
+                  <td>
+                    <span :class="['status', row.status]"
+                      ><i class="dot"></i>{{ statusText[row.status] }}</span
+                    >
+                  </td>
                   <td class="row-actions">
-                    <button class="icon-button" title="查看详情" @click="drawer = row">查看</button>
-                    <button class="icon-button" title="编辑" @click="openEdit(row)">编辑</button>
-                    <button class="icon-button" @click="row.refs.length ? (drawer = row) : askDelete([row])">{{ row.refs.length ? '引用' : '删除' }}</button>
+                    <button
+                      class="icon-button"
+                      title="查看详情"
+                      @click="drawer = row"
+                    >
+                      查看
+                    </button>
+                    <button
+                      class="icon-button"
+                      title="编辑"
+                      @click="openEdit(row)"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      class="icon-button"
+                      @click="
+                        row.refs.length ? (drawer = row) : askDelete([row])
+                      "
+                    >
+                      {{ row.refs.length ? "引用" : "删除" }}
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -498,7 +480,10 @@ onMounted(() => {
           </div>
         </section>
 
-        <p class="proxy-footnote">代理出口由 5090 集群 OpenClash 统一管理；支持按 ChatGPT 账号、供应商渠道和 MCP 独立绑定专用端口。</p>
+        <p class="proxy-footnote">
+          代理出口由 5090 集群 OpenClash 统一管理；支持按 ChatGPT
+          账号、供应商渠道和 MCP 独立绑定专用端口。
+        </p>
       </div>
     </main>
 
@@ -514,31 +499,73 @@ onMounted(() => {
         <button class="drawer-close" @click="drawer = null">×</button>
       </header>
       <div class="drawer-body">
-        <span :class="['status', drawer.status]"><i class="dot"></i>{{ statusText[drawer.status] }}</span>
+        <span :class="['status', drawer.status]"
+          ><i class="dot"></i>{{ statusText[drawer.status] }}</span
+        >
         <section>
           <h3>Core 代理探测</h3>
-          <p class="probe-explain">Station Core 经此代理访问固定探测目标，只证明代理出口可达，不代表供应商渠道已接入。</p>
+          <p class="probe-explain">
+            Station Core
+            经此代理访问固定探测目标，只证明代理出口可达，不代表供应商渠道已接入。
+          </p>
           <dl>
-            <div><dt>协议</dt><dd>{{ drawer.protocol }}</dd></div>
-            <div><dt>地址</dt><dd>{{ drawer.host }}:{{ drawer.port }}</dd></div>
-            <div><dt>观测出口 IP</dt><dd>{{ drawer.exitIp || '尚未探测' }}</dd></div>
-            <div><dt>出口位置</dt><dd>{{ drawer.region }}</dd></div>
-            <div><dt>探测目标 / 版本</dt><dd>{{ drawer.probeTarget || '—' }}<small v-if="drawer.probeVersion">{{ drawer.probeVersion }}</small></dd></div>
-            <div><dt>最近延迟</dt><dd>{{ drawer.latency }}</dd></div>
-            <div><dt>认证</dt><dd class="masked">已配置 · 不回显</dd></div>
-            <div><dt>最近探测</dt><dd>{{ drawer.tested }}</dd></div>
+            <div>
+              <dt>协议</dt>
+              <dd>{{ drawer.protocol }}</dd>
+            </div>
+            <div>
+              <dt>地址</dt>
+              <dd>{{ drawer.host }}:{{ drawer.port }}</dd>
+            </div>
+            <div>
+              <dt>观测出口 IP</dt>
+              <dd>{{ drawer.exitIp || "尚未探测" }}</dd>
+            </div>
+            <div>
+              <dt>出口位置</dt>
+              <dd>{{ drawer.region }}</dd>
+            </div>
+            <div>
+              <dt>探测目标 / 版本</dt>
+              <dd>
+                {{ drawer.probeTarget || "—"
+                }}<small v-if="drawer.probeVersion">{{
+                  drawer.probeVersion
+                }}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>最近延迟</dt>
+              <dd>{{ drawer.latency }}</dd>
+            </div>
+            <div>
+              <dt>认证</dt>
+              <dd class="masked">已配置 · 不回显</dd>
+            </div>
+            <div>
+              <dt>最近探测</dt>
+              <dd>{{ drawer.tested }}</dd>
+            </div>
           </dl>
           <button class="btn primary" @click="test(drawer)">▷ Core 探测</button>
         </section>
         <section>
           <h3>账号隔离与分流策略</h3>
-          <p class="probe-explain">每个海外专线节点在集群内开放独立监听端口（1081 / 1082），支持按不同的 ChatGPT 账号、供应商模型或工作流直接指定专属端口出口，规避多账号共用同出口触发风控或被动关联封禁。</p>
+          <p class="probe-explain">
+            每个海外专线节点在集群内开放独立监听端口（1081 /
+            1082），支持按不同的 ChatGPT
+            账号、供应商模型或工作流直接指定专属端口出口，规避多账号共用同出口触发风控或被动关联封禁。
+          </p>
         </section>
         <section>
           <h3>引用渠道 · {{ drawer.refs.length }}</h3>
-          <p v-if="!drawer.refs.length" class="muted">暂无渠道引用，可在对应 MCP 渠道设置中绑定。</p>
+          <p v-if="!drawer.refs.length" class="muted">
+            暂无渠道引用，可在对应 MCP 渠道设置中绑定。
+          </p>
           <ul v-else>
-            <li v-for="reference in drawer.refs" :key="reference">{{ reference }}</li>
+            <li v-for="reference in drawer.refs" :key="reference">
+              {{ reference }}
+            </li>
           </ul>
         </section>
       </div>
@@ -550,15 +577,31 @@ onMounted(() => {
         <header>
           <div>
             <span class="eyebrow">STATION CORE · PROXY</span>
-            <h2>{{ modal === 'add' ? '添加代理' : modal === 'edit' ? '编辑代理' : modal === 'import' ? '批量导入代理' : '删除代理' }}</h2>
+            <h2>
+              {{
+                modal === "add"
+                  ? "添加代理"
+                  : modal === "edit"
+                    ? "编辑代理"
+                    : modal === "import"
+                      ? "批量导入代理"
+                      : "删除代理"
+              }}
+            </h2>
           </div>
           <button class="drawer-close" @click="modal = null">×</button>
         </header>
 
         <form v-if="modal === 'add' || modal === 'edit'" @submit.prevent="save">
           <div class="form-grid">
-            <label class="full">名称<input v-model="form.name" required placeholder="例如：Google Omni 出口"></label>
-            <label>协议
+            <label class="full"
+              >名称<input
+                v-model="form.name"
+                required
+                placeholder="例如：Google Omni 出口"
+            /></label>
+            <label
+              >协议
               <select v-model="form.protocol">
                 <option>HTTP</option>
                 <option>HTTPS</option>
@@ -566,30 +609,66 @@ onMounted(() => {
                 <option>SOCKS5H</option>
               </select>
             </label>
-            <label>主机<input v-model="form.host" required placeholder="proxy.example.net"></label>
-            <label>端口<input v-model="form.port" required type="number" placeholder="8080"></label>
-            <label>出口位置<input v-model="form.region" placeholder="由 Core 探测填写"></label>
-            <p class="secret full">凭据由 Station Secret Store 加密保存。密码只写入，不回显已有明文。</p>
-            <label>用户名<input v-model="form.username" placeholder="proxy-user"></label>
-            <label>密码<input v-model="form.password" type="password" placeholder="输入新密码以轮换"></label>
-            <label>有效期
+            <label
+              >主机<input
+                v-model="form.host"
+                required
+                placeholder="proxy.example.net"
+            /></label>
+            <label
+              >端口<input
+                v-model="form.port"
+                required
+                type="number"
+                placeholder="8080"
+            /></label>
+            <label
+              >出口位置<input
+                v-model="form.region"
+                placeholder="由 Core 探测填写"
+            /></label>
+            <p class="secret full">
+              凭据由 Station Secret Store 加密保存。密码只写入，不回显已有明文。
+            </p>
+            <label
+              >用户名<input v-model="form.username" placeholder="proxy-user"
+            /></label>
+            <label
+              >密码<input
+                v-model="form.password"
+                type="password"
+                placeholder="输入新密码以轮换"
+            /></label>
+            <label
+              >有效期
               <select v-model="form.expiry">
                 <option>长期有效</option>
                 <option>30 天后到期</option>
                 <option>90 天后到期</option>
               </select>
             </label>
-            <label>标签<input v-model="form.tag" placeholder="google, primary"></label>
-            <label class="full">备注<textarea v-model="form.note"></textarea></label>
+            <label
+              >标签<input v-model="form.tag" placeholder="google, primary"
+            /></label>
+            <label class="full"
+              >备注<textarea v-model="form.note"></textarea>
+            </label>
           </div>
           <footer>
-            <button type="button" class="btn" @click="modal = null">取消</button>
+            <button type="button" class="btn" @click="modal = null">
+              取消
+            </button>
             <button class="btn primary">保存代理</button>
           </footer>
         </form>
 
         <div v-else-if="modal === 'import'" class="import-body">
-          <label>粘贴代理 URL（每行一条）<textarea v-model="importText" placeholder="http://user:password@proxy.example.net:8080"></textarea></label>
+          <label
+            >粘贴代理 URL（每行一条）<textarea
+              v-model="importText"
+              placeholder="http://user:password@proxy.example.net:8080"
+            ></textarea>
+          </label>
           <p v-if="importPreview" class="preview">{{ importPreview }}</p>
           <footer>
             <button class="btn" @click="modal = null">取消</button>
@@ -599,7 +678,11 @@ onMounted(() => {
         </div>
 
         <div v-else class="delete-body">
-          <p>确定删除 <b>{{ rows.find((row) => row.id === editingId)?.name }}</b> 吗？删除后不能恢复。</p>
+          <p>
+            确定删除
+            <b>{{ rows.find((row) => row.id === editingId)?.name }}</b>
+            吗？删除后不能恢复。
+          </p>
           <small>已引用代理不能直接删除。</small>
           <footer>
             <button class="btn" @click="modal = null">取消</button>
@@ -818,7 +901,7 @@ onMounted(() => {
   background: var(--shell-button);
 }
 
-.table-wrap input[type=checkbox] {
+.table-wrap input[type="checkbox"] {
   accent-color: var(--accent);
 }
 
@@ -865,10 +948,18 @@ onMounted(() => {
   font-size: 11px;
 }
 
-.status.active { color: var(--accent); }
-.status.pending { color: var(--amber); }
-.status.off { color: var(--muted); }
-.status.testing { color: var(--blue); }
+.status.active {
+  color: var(--accent);
+}
+.status.pending {
+  color: var(--amber);
+}
+.status.off {
+  color: var(--muted);
+}
+.status.testing {
+  color: var(--blue);
+}
 
 .status .dot {
   width: 6px;
@@ -939,7 +1030,7 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 20;
-  background: rgba(21, 35, 30, .28);
+  background: rgba(21, 35, 30, 0.28);
   backdrop-filter: blur(2px);
 }
 
@@ -954,7 +1045,7 @@ onMounted(() => {
   border-left: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
-  box-shadow: 0 20px 70px rgba(21, 35, 30, .22);
+  box-shadow: 0 20px 70px rgba(21, 35, 30, 0.22);
 }
 
 .proxy-drawer header,
@@ -975,7 +1066,9 @@ onMounted(() => {
 
 .proxy-drawer header small {
   color: var(--muted);
-  font: 10px ui-monospace, monospace;
+  font:
+    10px ui-monospace,
+    monospace;
 }
 
 .drawer-close {
@@ -1069,7 +1162,7 @@ onMounted(() => {
   border-radius: 14px;
   background: var(--panel);
   color: var(--ink);
-  box-shadow: 0 24px 80px rgba(21, 35, 30, .2);
+  box-shadow: 0 24px 80px rgba(21, 35, 30, 0.2);
 }
 
 .proxy-modal form,
@@ -1162,10 +1255,10 @@ onMounted(() => {
   background: var(--paper);
   color: var(--button-ink);
   font-size: 11px;
-  box-shadow: 0 15px 45px rgba(0, 0, 0, .16);
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.16);
 }
 
-@media(max-width: 900px) {
+@media (max-width: 900px) {
   .proxy-metrics {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -1175,7 +1268,7 @@ onMounted(() => {
   }
 }
 
-@media(max-width: 680px) {
+@media (max-width: 680px) {
   .proxy-metrics {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;

@@ -3,9 +3,11 @@ import { mountImage } from './image-embed'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
 import { mergeCatalogWithLive } from './catalog'
+import { useHostStore } from '../platform/hostStore'
 
 // Studio Market interaction adapter aligned with verdantflare_studio_market_v1.1.html
 export function mountMarket() {
+  const hostStore = useHostStore();
   const controller = new AbortController();
   const listen = (target, event, handler) => target.addEventListener(event, handler, { signal: controller.signal });
 
@@ -113,10 +115,12 @@ export function mountMarket() {
     image.close();
     connected = false;
     identity = {};
+    hostStore.setIdentity({});
     operations.clear();
     apps = mergeCatalogWithLive([]);
     render();
-    if (!$('loginDialog').open) $('loginDialog').showModal();
+    const dlg = $('loginDialog');
+    if (dlg && !dlg.open) dlg.showModal();
   }
 
   async function api(path, options = {}) {
@@ -154,18 +158,7 @@ export function mountMarket() {
     if ($('activeCount')) $('activeCount').textContent = connected ? apps.filter(active).length : '—';
     if ($('resultCount')) $('resultCount').textContent = connected ? `${shown.length} 个应用` : '等待连接';
 
-    // Left Sidebar Host Pod
-    const clusterPill = document.querySelector('.side-cluster-pill');
-    if (clusterPill) clusterPill.textContent = connected ? '在线' : '未连接';
-    const clusterDot = document.querySelector('.side-cluster-lead i.dot');
-    if (clusterDot) clusterDot.className = `dot ${connected ? 'on' : ''}`;
-    const clusterMeta = document.querySelector('.side-cluster-meta');
-    if (clusterMeta) clusterMeta.textContent = connected ? 'Core 就绪 · 2 卡 RTX 5090' : '等待连接 Station';
-
-    const userName = document.querySelector('.side-user-name');
-    if (userName) userName.textContent = identity.user_id || 'admin';
-    const userTeam = document.querySelector('.side-user-team');
-    if (userTeam) userTeam.textContent = identity.organization_name || '青岚创意工作室';
+    // Left Sidebar Nav highlights handled reactively by HostSidebar.vue
 
     // Tabs & Filters
     document.querySelectorAll('[data-group]').forEach(b => b.classList.toggle('active', b.dataset.group === group));
@@ -537,6 +530,9 @@ export function mountMarket() {
 
       // 1. KPI Pillar 1: GPU Cluster
       if (s) {
+        if (s.total_gpus) {
+          hostStore.setGpuCount(s.total_gpus);
+        }
         const totalVramGb = Math.round(s.total_vram_mb / 1024) || 64;
         const usedVramGb = (s.used_vram_mb / 1024).toFixed(1);
         const vramPercent = Math.min(100, Math.round((s.used_vram_mb / (s.total_vram_mb || 65536)) * 100));
@@ -771,6 +767,8 @@ export function mountMarket() {
       const nextIdentity = await api('me');
       const changed = identity.user_id !== nextIdentity.user_id || identity.organization_id !== nextIdentity.organization_id || identity.station_id !== nextIdentity.station_id;
       identity = nextIdentity;
+      hostStore.setIdentity(nextIdentity);
+      hostStore.fetchCluster();
       if (changed) {
         operations.clear();
         restoreOperations();
@@ -961,28 +959,12 @@ export function mountMarket() {
     $('overlay').style.display = 'none';
   }
 
-  $('loginDialog').addEventListener('cancel', e => e.preventDefault());
-  $('loginForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    const form = e.currentTarget, b = form.querySelector('button');
-    b.disabled = true;
-    $('loginError').textContent = '';
-    try {
-      await api('login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: form.elements.username.value, password: form.elements.password.value })
-      });
-      form.elements.password.value = '';
-      $('toast').classList.remove('show');
-      $('loginDialog').close();
-      await refresh();
-      await video.sync();
-    } catch (err) {
-      $('loginError').textContent = err.message;
-    } finally {
-      b.disabled = false;
-    }
+  listen(window, 'studio:login-success', async () => {
+    await refresh();
+    await video.sync();
+  });
+  listen(window, 'studio:logout', () => {
+    login();
   });
 
   if ($('reset')) $('reset').onclick = refresh;
@@ -1005,24 +987,6 @@ export function mountMarket() {
   if ($('vfSideLogo')) {
     const vfSrc = brandMarks.vf.match(/src="([^"]+)"/);
     if (vfSrc) $('vfSideLogo').src = vfSrc[1];
-  }
-
-  const userCard = $('sideUserCard');
-  if (userCard) {
-    userCard.style.cursor = 'pointer';
-    userCard.onclick = async () => {
-      if (confirm('是否退出当前登录状态？')) {
-        try {
-          await api('logout', { method: 'POST' });
-          closeDetail();
-          operations.clear();
-          sessionStorage.removeItem('studio.operations');
-          login();
-        } catch (e) {
-          notice(e.message);
-        }
-      }
-    };
   }
 
   if ($('newTask')) {

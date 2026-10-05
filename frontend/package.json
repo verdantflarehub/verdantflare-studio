@@ -1,10 +1,11 @@
 {
   "name": "verdantflare-studio-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.33",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:mock": "vite --host 127.0.0.1 --mode mock",
     "build": "vue-tsc --noEmit && vite build"
   },
   "dependencies": {
