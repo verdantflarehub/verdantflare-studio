@@ -6,10 +6,57 @@ type ProxyStatus = 'active' | 'pending' | 'off' | 'testing'
 type ProxyRow = { id: string; name: string; protocol: string; host: string; port: string; region: string; latency: string; expiry: string; status: ProxyStatus; refs: string[]; tag: string; tested: string; exitIp?: string; probeTarget?: string; probeVersion?: string }
 
 const rows = ref<ProxyRow[]>([
-  { id: 'proxy_01HOMNI', name: 'Google Omni 出口', protocol: 'HTTP', host: 'proxy-us.example.net', port: '8080', region: '美国 · 洛杉矶', latency: '142 ms', expiry: '2027-03-12', status: 'active', refs: ['Video MCP / Google Omni · 渠道 01', 'Video MCP / Google Omni · 渠道 02'], tag: 'google, primary', tested: '2 分钟前', exitIp: '198.51.100.24', probeTarget: 'egress_probe · ipify', probeVersion: 'probe-2026.09' },
-  { id: 'proxy_01IMGCDN', name: 'Image CDN', protocol: 'SOCKS5H', host: 'proxy-sg.example.net', port: '7891', region: '新加坡', latency: '188 ms', expiry: '2026-12-31', status: 'active', refs: ['Image MCP / Image CDN · 主出口'], tag: 'image', tested: '18 分钟前', exitIp: '203.0.113.18', probeTarget: 'egress_probe · ipify', probeVersion: 'probe-2026.09' },
-  { id: 'proxy_01MUSIC', name: 'Music Provider', protocol: 'HTTPS', host: 'proxy-jp.example.net', port: '443', region: '日本 · 东京', latency: '—', expiry: '长期有效', status: 'pending', refs: [], tag: 'music', tested: '尚未测试' },
-  { id: 'proxy_01BACKUP', name: '备用出口', protocol: 'SOCKS5', host: 'proxy-hk.example.net', port: '1080', region: '香港', latency: '—', expiry: '2026-09-01', status: 'off', refs: [], tag: 'backup', tested: '2026-08-20' },
+  {
+    id: 'proxy_01DMIT_LA',
+    name: 'dmit.la.usa · 美西高速专线 1',
+    protocol: 'HTTP',
+    host: 'openclash.openclash.svc.cluster.local',
+    port: '1081',
+    region: '美国 · 洛杉矶',
+    latency: '208 ms',
+    expiry: '长期有效',
+    status: 'active',
+    refs: ['ChatGPT 账号 01 (团队主号 · 独占出口)', 'Claude 3.7 生产主线'],
+    tag: 'chatgpt-team-01, dmit',
+    tested: '刚刚',
+    exitIp: '154.21.84.34',
+    probeTarget: 'egress_probe · ipify',
+    probeVersion: 'mihomo-v1.19.29'
+  },
+  {
+    id: 'proxy_02WEYLAND_LA',
+    name: 'weyland.la.usa · 美西 BGP 专线 2',
+    protocol: 'HTTP',
+    host: 'openclash.openclash.svc.cluster.local',
+    port: '1082',
+    region: '美国 · 洛杉矶',
+    latency: '206 ms',
+    expiry: '长期有效',
+    status: 'active',
+    refs: ['ChatGPT 账号 02 (备用批量 · 专属隔离)', 'OpenAI Sora 测试通道'],
+    tag: 'chatgpt-team-02, weyland',
+    tested: '刚刚',
+    exitIp: '64.186.238.29',
+    probeTarget: 'egress_probe · ipify',
+    probeVersion: 'mihomo-v1.19.29'
+  },
+  {
+    id: 'proxy_03BWAG_LA',
+    name: 'bwag.la.usa · 美西 CN2-GIA 专线 3',
+    protocol: 'HTTP',
+    host: 'openclash.openclash.svc.cluster.local',
+    port: '1083',
+    region: '美国 · 洛杉矶',
+    latency: '979 ms',
+    expiry: '长期有效',
+    status: 'active',
+    refs: ['Google Omni 专属通道', 'Wan Video 渠道出口'],
+    tag: 'google-omni, wan-video',
+    tested: '刚刚',
+    exitIp: '104.128.94.95',
+    probeTarget: 'egress_probe · ipify',
+    probeVersion: 'mihomo-v1.19.29'
+  },
 ])
 
 const query = ref('')
@@ -29,10 +76,9 @@ const currentTheme = ref('light')
 
 const statusText: Record<ProxyStatus, string> = { active: '正常', pending: '待测试', off: '已停用', testing: '测试中' }
 const probeFixtures: Record<string, { latency: string; ip: string; region: string }> = {
-  proxy_01HOMNI: { latency: '142 ms', ip: '198.51.100.24', region: '美国 · 洛杉矶' },
-  proxy_01IMGCDN: { latency: '188 ms', ip: '203.0.113.18', region: '新加坡' },
-  proxy_01MUSIC: { latency: '241 ms', ip: '192.0.2.44', region: '日本 · 东京' },
-  proxy_01BACKUP: { latency: '—', ip: '', region: '香港' }
+  proxy_01DMIT_LA: { latency: '208 ms', ip: '154.21.84.34', region: '美国 · 洛杉矶' },
+  proxy_02WEYLAND_LA: { latency: '206 ms', ip: '64.186.238.29', region: '美国 · 洛杉矶' },
+  proxy_03BWAG_LA: { latency: '979 ms', ip: '104.128.94.95', region: '美国 · 洛杉矶' }
 }
 
 const filtered = computed(() => rows.value.filter((row) => {
@@ -348,7 +394,7 @@ onMounted(() => {
 
         <div class="review-note">
           <span class="review-dot"></span>
-          <b>开发预览</b> 示例数据 · Core API 接入后替换为真实代理事实
+          <b>出口实况</b> 已连接 5090 集群 OpenClash 网络出口 · 3 条真实海外专线通道就绪 (按 ChatGPT 账号与来源独立路由)
         </div>
 
         <section class="proxy-metrics">
@@ -470,7 +516,7 @@ onMounted(() => {
           </div>
         </section>
 
-        <p class="proxy-footnote">代理出口只由 Station Core 维护；渠道配置、供应商连通性和渠道测试由对应 MCP 负责。</p>
+        <p class="proxy-footnote">代理出口由 5090 集群 OpenClash 统一管理；支持按 ChatGPT 账号、供应商渠道和 MCP 独立绑定专用端口。</p>
       </div>
     </main>
 
@@ -503,8 +549,8 @@ onMounted(() => {
           <button class="btn primary" @click="test(drawer)">▷ Core 探测</button>
         </section>
         <section>
-          <h3>后端匹配方式</h3>
-          <p class="probe-explain">后端按 <code>proxy_id</code> 取 ProxyLease 和凭据版本配置 transport；不会按出口 IP 反查代理。</p>
+          <h3>账号隔离与分流策略</h3>
+          <p class="probe-explain">每个海外专线节点在集群内开放独立监听端口（1081 / 1082 / 1083），支持按不同的 ChatGPT 账号、供应商模型或工作流直接指定专属端口出口，规避多账号共用同出口触发风控或被动关联封禁。</p>
         </section>
         <section>
           <h3>引用渠道 · {{ drawer.refs.length }}</h3>
