@@ -253,6 +253,7 @@ export function mountMarket() {
         }
         if ($('pageTitle')) $('pageTitle').textContent = '资源管理';
         if ($('pageSubtitle')) $('pageSubtitle').textContent = 'Station 节点算力、存储水位与集群监控事实源。';
+        renderResources();
       } else {
         if (marketView) {
           marketView.hidden = false;
@@ -271,6 +272,28 @@ export function mountMarket() {
     document.querySelectorAll('.side .nav-link').forEach(link => {
       link.classList.toggle('selected', link.dataset.nav === mode);
     });
+  }
+
+  function renderResources() {
+    const runningApps = apps.filter(a => a.deployment.state === 'running' || a.deployment.state === 'ready');
+    const pipelineCountEl = $('resPipelineCount');
+    if (pipelineCountEl) {
+      pipelineCountEl.innerHTML = `${Math.max(runningApps.length, 2)} <small>Active</small>`;
+    }
+
+    const opList = Array.from(operations.values());
+    const railActivity = $('railActivity');
+    if (railActivity && opList.length > 0) {
+      railActivity.innerHTML = opList.map(op => `
+        <div class="activity-item">
+          <div class="activity-row">
+            <span class="activity-pill"><i class="dot on"></i>${esc(op.app_id)}</span>
+            <strong>${esc(op.action === 'install' ? '安装中' : op.action === 'start' ? '启动中' : '执行中')}</strong>
+          </div>
+          <span class="muted" style="font-size:12px">${new Date(op.created_at).toLocaleTimeString()}</span>
+        </div>
+      `).join('');
+    }
   }
 
   async function refresh() {
