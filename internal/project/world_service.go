@@ -386,6 +386,12 @@ func (s *Service) publishWorld(ctx context.Context, p Principal, c worldCommit) 
 		return WorldResult{}, e
 	}
 	defer tx.Rollback(context.Background())
+	// Keep dependency grants stable until publication; retention is not a grant.
+	for _, a := range c.Plan.Manifest.DependsOn {
+		if _, e = assetReferences(ctx, tx, p, a, true); e != nil {
+			return WorldResult{}, e
+		}
+	}
 	var member string
 	e = tx.QueryRow(ctx, "SELECT role FROM studio.project_members WHERE organization_id=$1 AND project_id=$2 AND subject_id=$3 FOR SHARE", p.OrganizationID, c.Plan.Manifest.Source.ProjectID, p.SubjectID).Scan(&member)
 	if errors.Is(e, pgx.ErrNoRows) {

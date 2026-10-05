@@ -117,7 +117,7 @@ type worldPlan struct {
 }
 
 func (m AssetManifest) Validate() error {
-	if m.SchemaVersion != 1 || m.Kind != "asset-version" || !ValidID(m.AssetID) || !validText(m.Name) || !tokenPattern.MatchString(m.AssetType) || m.Subjects == nil || m.DependsOn == nil || len(m.Subjects) > 256 || len(m.Files) == 0 || len(m.Files) > MaxFiles {
+	if m.SchemaVersion != 1 || m.Kind != "asset-version" || !ValidID(m.AssetID) || !validText(m.Name) || !tokenPattern.MatchString(m.AssetType) || m.Subjects == nil || m.DependsOn == nil || len(m.DependsOn) > MaxFiles || len(m.Subjects) > 256 || len(m.Files) == 0 || len(m.Files) > MaxFiles {
 		return ErrInvalid
 	}
 	if !ValidID(m.Source.ProjectID) || !ValidID(m.Source.RevisionID) || (m.Source.Relation != "produced_in" && m.Source.Relation != "curated_in") || (m.Source.ReviewFileID != "" && !ValidID(m.Source.ReviewFileID)) {

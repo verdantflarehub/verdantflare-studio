@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/verdantflarehub/verdantflare-studio/internal/artifactclient"
+	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 	"github.com/verdantflarehub/verdantflare-studio/migrations"
 )
@@ -74,9 +77,61 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("Studio Project listener unavailable")
 	}
 	defer listener.Close()
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 10 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	mcpHandler, e := service.MCPHandler(token, authorityToken)
+	if e != nil {
+		return errors.New("Project MCP initialization failed")
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", mcpHandler)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","service":"studio-project-world"}`))
+	})
+	mux.Handle("/", handler)
+	server := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 10 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()
+	defer server.Close()
+	if address := os.Getenv("STUDIO_PROJECT_MCP_ADVERTISE_URL"); address != "" {
+		u, err := url.Parse(address)
+		if err != nil || u.Path != "/mcp" {
+			return errors.New("invalid Project MCP advertised address")
+		}
+		endpoints := []string{}
+		for _, ep := range strings.Split(os.Getenv("ETCD_ENDPOINTS"), ",") {
+			if strings.TrimSpace(ep) != "" {
+				endpoints = append(endpoints, strings.TrimSpace(ep))
+			}
+		}
+		if len(endpoints) == 0 {
+			return errors.New("ETCD_ENDPOINTS required for Project MCP registration")
+		}
+		registry, err := mcp.NewGateway(endpoints)
+		if err != nil {
+			return err
+		}
+		defer registry.Close()
+		u.Path = "/health"
+		version := os.Getenv("STUDIO_PROJECT_SERVICE_VERSION")
+		if version == "" {
+			version = "0.1.0"
+		}
+		regs := []mcp.ServiceRegistration{}
+		for _, domain := range []string{"project", "world"} {
+			reg := mcp.ServiceRegistration{Domain: domain, Endpoint: address, HealthEndpoint: u.String(), Version: version, Tools: []mcp.ToolDefinition{}}
+			for _, tool := range project.MCPTools() {
+				if strings.HasPrefix(tool.Name, domain+".") {
+					reg.Tools = append(reg.Tools, mcp.ToolDefinition{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema})
+				}
+			}
+			regs = append(regs, reg)
+		}
+		publication, err := mcp.Register(ctx, registry.Client(), regs)
+		if err != nil {
+			return err
+		}
+		defer publication.Close()
+	}
 	select {
 	case e := <-done:
 		if errors.Is(e, http.ErrServerClosed) {

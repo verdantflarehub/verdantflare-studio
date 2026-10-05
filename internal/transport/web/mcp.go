@@ -1,204 +1,90 @@
 package web
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
-	"io"
-	"net/http"
-	"os"
-	"strings"
+	"mime"
 
 	"github.com/gin-gonic/gin"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
+	"github.com/verdantflarehub/verdantflare-studio/internal/mcprpc"
 )
 
-type jsonRPCRequest struct {
-	JSONRPC string         `json:"jsonrpc"`
-	ID      any            `json:"id"`
-	Method  string         `json:"method"`
-	Params  map[string]any `json:"params"`
-}
-
-func generateRequestID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-func (s *Server) SetMCPGateway(gw *mcp.Gateway) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mcpGateway = gw
-}
+func (s *Server) SetMCPGateway(gw *mcp.Gateway) { s.mu.Lock(); defer s.mu.Unlock(); s.mcpGateway = gw }
 
 func (s *Server) mcpHandler(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
-
-	// 1. Authentication
-	authHeader := c.GetHeader("Authorization")
-	configuredToken := os.Getenv("STUDIO_BEARER_TOKEN")
-
-	var authenticated bool
-	var userID = c.GetHeader("X-User-Id")
-	var projectID = c.GetHeader("X-Project-Id")
-
-	if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if configuredToken == "" || token == configuredToken {
-			authenticated = true
-		}
-	}
-
-	if !authenticated {
-		// Fallback to cookie session
-		sid, _ := c.Cookie(cookieName)
-		if _, valid := s.getSession(c.Request.Context(), sid); valid {
-			authenticated = true
-		}
-	}
-
-	if !authenticated {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"jsonrpc": "2.0",
-			"error": gin.H{
-				"code":    -32000,
-				"message": "Unauthorized: valid Bearer token or Studio session required",
-			},
-		})
+	var empty mcprpc.Request
+	mt, _, e := mime.ParseMediaType(c.GetHeader("Content-Type"))
+	if e != nil || mt != "application/json" || c.Request.URL.RawQuery != "" || c.GetHeader("Content-Encoding") != "" {
+		mcprpc.Reject(c.Writer, c.Request, empty, 400, -32600, "Invalid request")
 		return
 	}
-
-	if userID == "" {
-		userID = "usr_studio_default"
-	}
-	if projectID == "" {
-		projectID = "prj_studio_default"
-	}
-
-	reqID := c.GetHeader("X-Request-Id")
-	if reqID == "" {
-		reqID = generateRequestID()
-	}
-	c.Header("X-Request-Id", reqID)
-
-	// 2. Decode JSON-RPC 2.0 Request
-	var rpcReq jsonRPCRequest
-	bodyBytes, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 1024*1024))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"jsonrpc": "2.0",
-			"error": gin.H{
-				"code":    -32700,
-				"message": "Parse error: request body too large or invalid",
-			},
-		})
+	principal, legacy, ok := s.authenticateMCP(c, true)
+	if !ok {
 		return
 	}
-
-	if err := json.Unmarshal(bodyBytes, &rpcReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"jsonrpc": "2.0",
-			"error": gin.H{
-				"code":    -32700,
-				"message": "Parse error: invalid JSON",
-			},
-		})
+	id := c.Writer.Header().Get("X-Request-Id")
+	request, e := mcprpc.Decode(c.Request.Body)
+	if e != nil {
+		mcprpc.Reject(c.Writer, c.Request, empty, 400, -32700, "Invalid JSON-RPC request")
 		return
 	}
-
+	if mcprpc.Common(c.Writer, request, "verdantflare-studio", "0.1.0") {
+		return
+	}
 	s.mu.Lock()
-	gw := s.mcpGateway
+	gateway := s.mcpGateway
 	s.mu.Unlock()
-
-	// 3. Dispatch Methods
-	switch rpcReq.Method {
+	switch request.Method {
 	case "tools/list":
-		var tools []mcp.ToolDefinition
-		if gw != nil {
-			tools = gw.ListTools()
+		if len(request.ID) == 0 {
+			mcprpc.Reject(c.Writer, c.Request, request, 400, -32600, "Request ID required")
+			return
 		}
-		if tools == nil {
-			tools = []mcp.ToolDefinition{}
+		tools := []mcp.ToolDefinition{}
+		if gateway != nil {
+			for _, tool := range gateway.ListTools() {
+				if !legacy || !mcp.Managed(tool.Name) {
+					tools = append(tools, tool)
+				}
+			}
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"jsonrpc": "2.0",
-			"id":      rpcReq.ID,
-			"result": gin.H{
-				"tools": tools,
-			},
-		})
-		return
-
+		mcprpc.Result(c.Writer, request, map[string]any{"tools": tools})
 	case "tools/call":
-		if gw == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"jsonrpc": "2.0",
-				"id":      rpcReq.ID,
-				"error": gin.H{
-					"code":    -32001,
-					"message": "Service Unavailable: MCP Gateway discovery is not ready",
-				},
-			})
+		name, args, _, e := request.Call()
+		if e != nil {
+			mcprpc.Reject(c.Writer, c.Request, request, 400, -32602, "Invalid tool parameters")
 			return
 		}
-
-		toolName, _ := rpcReq.Params["name"].(string)
-		if toolName == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"jsonrpc": "2.0",
-				"id":      rpcReq.ID,
-				"error": gin.H{
-					"code":    -32602,
-					"message": "Invalid params: 'name' is required in params",
-				},
-			})
+		if legacy && mcp.Managed(name) {
+			mcprpc.Reject(c.Writer, c.Request, request, 403, -32000, "A verified Core session is required for this tool")
 			return
 		}
-
-		arguments, _ := rpcReq.Params["arguments"].(map[string]any)
-		if arguments == nil {
-			arguments = make(map[string]any)
-		}
-
-		headers := map[string]string{
-			"X-User-Id":    userID,
-			"X-Project-Id": projectID,
-			"X-Request-Id": reqID,
-		}
-		if authHeader != "" {
-			headers["Authorization"] = authHeader
-		}
-
-		result, status, err := gw.CallTool(c.Request.Context(), toolName, arguments, headers)
-		if err != nil {
-			c.JSON(status, gin.H{
-				"jsonrpc": "2.0",
-				"id":      rpcReq.ID,
-				"error": gin.H{
-					"code":    -32603,
-					"message": err.Error(),
-				},
-			})
+		if gateway == nil {
+			mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Service discovery unavailable")
 			return
 		}
-
-		c.JSON(status, gin.H{
-			"jsonrpc": "2.0",
-			"id":      rpcReq.ID,
-			"result":  result,
-		})
-		return
-
+		var result any
+		var status int
+		if legacy {
+			user, projectID := c.GetHeader("X-User-Id"), c.GetHeader("X-Project-Id")
+			if user == "" {
+				user = "usr_studio_default"
+			}
+			if projectID == "" {
+				projectID = "prj_studio_default"
+			}
+			result, status, e = gateway.CallTool(c.Request.Context(), name, args, map[string]string{"X-User-Id": user, "X-Project-Id": projectID, "X-Request-Id": id})
+		} else {
+			result, status, e = gateway.CallVerified(c.Request.Context(), name, args, principal, c.GetHeader("X-Project-Id"))
+		}
+		if e != nil {
+			mcprpc.Reject(c.Writer, c.Request, request, status, -32603, e.Error())
+			return
+		}
+		c.Status(status)
+		mcprpc.Result(c.Writer, request, result)
 	default:
-		c.JSON(http.StatusNotFound, gin.H{
-			"jsonrpc": "2.0",
-			"id":      rpcReq.ID,
-			"error": gin.H{
-				"code":    -32601,
-				"message": "Method not found: " + rpcReq.Method,
-			},
-		})
+		mcprpc.Reject(c.Writer, c.Request, request, 404, -32601, "Method not found")
 	}
 }

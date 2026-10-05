@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/testdb"
+	"github.com/verdantflarehub/verdantflare-studio/migrations"
 )
 
 func TestProjectServerMigrationAndLifecycle(t *testing.T) {
@@ -38,7 +39,7 @@ func TestProjectServerMigrationAndLifecycle(t *testing.T) {
 		t.Fatal(e)
 	}
 	var count int
-	if e := db.QueryRow(ctx, "SELECT count(*) FROM studio.schema_migrations").Scan(&count); e != nil || count != 1 {
+	if e := db.QueryRow(ctx, "SELECT count(*) FROM studio.schema_migrations").Scan(&count); e != nil || count != migrations.Version {
 		t.Fatal("migration missed isolated database")
 	}
 	if e := run(ctx, []string{"migrate"}); e != nil {

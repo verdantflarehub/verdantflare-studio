@@ -48,12 +48,24 @@ func main() {
 		} else {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			if err := gw.StartDiscovery(ctx); err != nil {
-				log.Printf("[MCP Gateway Warning] failed to start discovery: %v", err)
-			} else {
-				log.Printf("[MCP Gateway] Connected to etcd %v and started discovery", etcdEndpoints)
-				webServer.SetMCPGateway(gw)
-			}
+			defer gw.Close()
+			// Mount the empty gateway before serving. A registry startup race must
+			// recover without restarting Studio or replacing the handler pointer.
+			webServer.SetMCPGateway(gw)
+			go func() {
+				for ctx.Err() == nil {
+					if err := gw.StartDiscovery(ctx); err == nil {
+						log.Printf("[MCP Gateway] Registry discovery started")
+						return
+					}
+					log.Printf("[MCP Gateway Warning] Registry unavailable; retrying discovery")
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(time.Second):
+					}
+				}
+			}()
 			if cli := gw.Client(); cli != nil {
 				log.Printf("[Session] Connected to etcd for persistent sessions")
 				webServer.SetEtcdClient(cli)

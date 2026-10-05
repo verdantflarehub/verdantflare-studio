@@ -15,6 +15,8 @@ import (
 //go:embed *.sql
 var files embed.FS
 
+const Version = 2
+
 func Apply(ctx context.Context, db *pgxpool.Pool) error { return run(ctx, db, true) }
 func Check(ctx context.Context, db *pgxpool.Pool) error { return run(ctx, db, false) }
 func run(ctx context.Context, db *pgxpool.Pool, apply bool) error {
@@ -34,6 +36,9 @@ func run(ctx context.Context, db *pgxpool.Pool, apply bool) error {
 	names, err := fs.Glob(files, "*.sql")
 	if err != nil {
 		return err
+	}
+	if len(names) != Version {
+		return errors.New("Studio migration source version mismatch")
 	}
 	rows, err := tx.Query(ctx, "SELECT version,name,checksum FROM studio.schema_migrations ORDER BY version")
 	if err != nil {

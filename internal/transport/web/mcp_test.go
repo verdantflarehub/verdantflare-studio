@@ -13,6 +13,7 @@ import (
 )
 
 func TestMCP_Endpoint(t *testing.T) {
+	t.Setenv("STUDIO_BEARER_TOKEN", "test_bearer_token")
 	station, _ := application.NewStation("http://127.0.0.1:5050")
 	router, s := NewServer(station, "https://studio.example", fstest.MapFS{})
 
@@ -22,6 +23,7 @@ func TestMCP_Endpoint(t *testing.T) {
 	// 1. Unauthorized request
 	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://studio.example")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {

@@ -2,12 +2,57 @@ package migrations_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/testdb"
 	"github.com/verdantflarehub/verdantflare-studio/migrations"
 )
+
+func TestUpgradeProjectDatabaseToWorld(t *testing.T) {
+	db := testdb.New(t)
+	ctx := context.Background()
+	base, e := os.ReadFile("0001_project_revisions.sql")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec(ctx, `CREATE SCHEMA studio; CREATE TABLE studio.schema_migrations(version integer PRIMARY KEY,name text NOT NULL,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec(ctx, string(base)); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Exec(ctx, "INSERT INTO studio.schema_migrations(version,name,checksum) VALUES(1,$1,$2)", "0001_project_revisions.sql", fmt.Sprintf("%x", sha256.Sum256(base))); e != nil {
+		t.Fatal(e)
+	}
+	project, org, owner := uuid.Must(uuid.NewV7()).String(), uuid.Must(uuid.NewV7()).String(), uuid.Must(uuid.NewV7()).String()
+	if _, e = db.Exec(ctx, "INSERT INTO studio.projects(project_id,organization_id,owner_id,name,category) VALUES($1,$2,$3,'existing project','music')", project, org, owner); e != nil {
+		t.Fatal(e)
+	}
+	if migrations.Check(ctx, db) == nil {
+		t.Fatal("old schema reported current")
+	}
+	if e = migrations.Apply(ctx, db); e != nil {
+		t.Fatal(e)
+	}
+	if e = migrations.Apply(ctx, db); e != nil {
+		t.Fatal(e)
+	}
+	if e = migrations.Check(ctx, db); e != nil {
+		t.Fatal(e)
+	}
+	var name string
+	if e = db.QueryRow(ctx, "SELECT name FROM studio.projects WHERE project_id=$1", project).Scan(&name); e != nil || name != "existing project" {
+		t.Fatal("upgrade lost existing project", e)
+	}
+	var count int
+	if e = db.QueryRow(ctx, "SELECT count(*) FROM studio.world_assets").Scan(&count); e != nil || count != 0 {
+		t.Fatal("World tables unavailable", e)
+	}
+}
 
 func TestStudioOwnershipAndMigrationHistory(t *testing.T) {
 	db := testdb.New(t)

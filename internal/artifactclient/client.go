@@ -210,6 +210,38 @@ func (c *Client) Read(ctx context.Context, p project.Principal, ref project.Cont
 	}
 	return data, nil
 }
+
+// Download streams an authorized immutable version into a caller-owned staging
+// writer. The caller must not expose partial output when this returns an error.
+func (c *Client) Download(ctx context.Context, p project.Principal, ref project.ContentRef, a project.Access, dst io.Writer, max int64) error {
+	if dst == nil || max < 0 || max > 1<<50 {
+		return project.ErrInvalid
+	}
+	v, e := c.Metadata(ctx, p, ref, a)
+	if e != nil {
+		return e
+	}
+	if v.Size > max {
+		return project.ErrInvalid
+	}
+	r, e := c.request(ctx, p, "GET", path(ref, a, true), nil)
+	if e != nil {
+		return e
+	}
+	defer r.Body.Close()
+	if r.StatusCode != 200 {
+		return project.ErrDependency
+	}
+	h := sha256.New()
+	n, e := io.Copy(io.MultiWriter(dst, h), io.LimitReader(r.Body, v.Size+1))
+	if e != nil {
+		return e
+	}
+	if n != v.Size || hex.EncodeToString(h.Sum(nil)) != v.SHA256 {
+		return project.ErrNotReady
+	}
+	return nil
+}
 func (c *Client) Retain(ctx context.Context, p project.Principal, o project.RetentionOwner, refs []project.ContentRef) error {
 	req := struct {
 		project.RetentionOwner

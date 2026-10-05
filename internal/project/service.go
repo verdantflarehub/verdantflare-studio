@@ -452,6 +452,11 @@ func (s *Service) publish(ctx context.Context, p Principal, c commitRecord) (Res
 		return Result{}, e
 	}
 	defer tx.Rollback(context.Background())
+	for _, a := range c.Plan.Manifest.AssetRefs {
+		if _, e = assetReferences(ctx, tx, p, a, true); e != nil {
+			return Result{}, e
+		}
+	}
 	// Lock membership too: revocation cannot commit between this check and head publication.
 	var member string
 	e = tx.QueryRow(ctx, "SELECT role FROM studio.project_members WHERE organization_id=$1 AND project_id=$2 AND subject_id=$3 FOR SHARE", p.OrganizationID, c.ProjectID, p.SubjectID).Scan(&member)

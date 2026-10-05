@@ -10,6 +10,10 @@ import (
 // References resolves the exact dependency closure without reading or granting
 // access to source-project manifests. Retention verifies physical bytes later.
 func (s *Service) References(ctx context.Context, p Principal, a AssetRef) ([]ContentRef, error) {
+	return assetReferences(ctx, s.db, p, a, false)
+}
+
+func assetReferences(ctx context.Context, q queryer, p Principal, a AssetRef, lock bool) ([]ContentRef, error) {
 	if !p.Valid() || !ValidID(a.AssetID) || !ValidID(a.VersionID) || !validText(a.Purpose) {
 		return nil, ErrInvalid
 	}
@@ -34,10 +38,19 @@ func (s *Service) References(ctx context.Context, p Principal, a AssetRef) ([]Co
 		if len(seen) > 10000 {
 			return nil, ErrInvalid
 		}
-		if _, e := assetRole(ctx, s.db, p, key.AssetID); e != nil {
+		if lock {
+			var role string
+			e := q.QueryRow(ctx, "SELECT role FROM studio.world_asset_grants WHERE organization_id=$1 AND asset_id=$2 AND subject_id=$3 FOR SHARE", p.OrganizationID, key.AssetID, p.SubjectID).Scan(&role)
+			if errors.Is(e, pgx.ErrNoRows) {
+				return nil, ErrForbidden
+			}
+			if e != nil {
+				return nil, e
+			}
+		} else if _, e := assetRole(ctx, q, p, key.AssetID); e != nil {
 			return nil, e
 		}
-		m, ref, e := assetVersion(ctx, s.db, p.OrganizationID, key.AssetID, key.VersionID)
+		m, ref, e := assetVersion(ctx, q, p.OrganizationID, key.AssetID, key.VersionID)
 		if e != nil {
 			return nil, e
 		}

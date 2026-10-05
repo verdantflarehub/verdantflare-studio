@@ -32,6 +32,7 @@ func id() string { return uuid.Must(uuid.NewV7()).String() }
 type interruptContent struct {
 	project.Artifact
 	loseWrite, loseRetain atomic.Bool
+	afterRetain           func()
 }
 
 func (c *interruptContent) Write(ctx context.Context, p project.Principal, id string, w project.TextWrite) (project.ContentVersion, error) {
@@ -41,8 +42,20 @@ func (c *interruptContent) Write(ctx context.Context, p project.Principal, id st
 	}
 	return v, e
 }
+func (c *interruptContent) WriteAssetManifest(ctx context.Context, p project.Principal, asset, version string, w project.TextWrite) (project.ContentVersion, error) {
+	v, e := c.Artifact.WriteAssetManifest(ctx, p, asset, version, w)
+	if e == nil && c.loseWrite.Swap(false) {
+		return project.ContentVersion{}, project.ErrDependency
+	}
+	return v, e
+}
 func (c *interruptContent) Retain(ctx context.Context, p project.Principal, o project.RetentionOwner, refs []project.ContentRef) error {
 	e := c.Artifact.Retain(ctx, p, o, refs)
+	if e == nil && c.afterRetain != nil {
+		callback := c.afterRetain
+		c.afterRetain = nil
+		callback()
+	}
 	if e == nil && c.loseRetain.Swap(false) {
 		return project.ErrDependency
 	}
