@@ -289,9 +289,9 @@ export function mountMarket() {
 
       if (summaryRes?.summary) {
         const s = summaryRes.summary;
-        const totalGb = Math.round(s.total_vram_mb / 1024) || 256;
+        const totalGb = Math.round(s.total_vram_mb / 1024) || 64;
         const usedGb = (s.used_vram_mb / 1024).toFixed(1);
-        const percent = Math.min(100, Math.round((s.used_vram_mb / (s.total_vram_mb || 1)) * 100));
+        const percent = Math.min(100, Math.round((s.used_vram_mb / (s.total_vram_mb || 65536)) * 100));
 
         const vramTotalEl = $('resVramTotal');
         if (vramTotalEl) {
@@ -313,6 +313,14 @@ export function mountMarket() {
       }
 
       if (gpusRes?.gpus && gpusRes.gpus.length > 0) {
+        const gpuCountEl = $('resGpuCount');
+        if (gpuCountEl) {
+          gpuCountEl.innerHTML = `${gpusRes.gpus.length}× <small>RTX 5090</small>`;
+        }
+        const topologyTitleEl = $('resTopologyTitle');
+        if (topologyTitleEl) {
+          topologyTitleEl.textContent = `RTX 5090 集群拓扑卡片 (${gpusRes.gpus.length}-GPU Node)`;
+        }
         const gpuGrid = document.querySelector('.gpu-grid');
         if (gpuGrid) {
           gpuGrid.innerHTML = gpusRes.gpus.map((g, idx) => {
