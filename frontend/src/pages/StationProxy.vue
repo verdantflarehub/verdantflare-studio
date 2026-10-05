@@ -33,27 +33,10 @@ const rows = ref<ProxyRow[]>([
     latency: '206 ms',
     expiry: '长期有效',
     status: 'active',
-    refs: ['ChatGPT 账号 02 (备用批量 · 专属隔离)', 'OpenAI Sora 测试通道'],
+    refs: ['ChatGPT 账号 02 (备用批量 · 专属隔离)', 'Google Omni / Wan Video 专属通道'],
     tag: 'chatgpt-team-02, weyland',
     tested: '刚刚',
     exitIp: '64.186.238.29',
-    probeTarget: 'egress_probe · ipify',
-    probeVersion: 'mihomo-v1.19.29'
-  },
-  {
-    id: 'proxy_03BWAG_LA',
-    name: 'bwag.la.usa · 美西 CN2-GIA 专线 3',
-    protocol: 'HTTP',
-    host: 'openclash.openclash.svc.cluster.local',
-    port: '1083',
-    region: '美国 · 洛杉矶',
-    latency: '979 ms',
-    expiry: '长期有效',
-    status: 'active',
-    refs: ['Google Omni 专属通道', 'Wan Video 渠道出口'],
-    tag: 'google-omni, wan-video',
-    tested: '刚刚',
-    exitIp: '104.128.94.95',
     probeTarget: 'egress_probe · ipify',
     probeVersion: 'mihomo-v1.19.29'
   },
@@ -77,8 +60,7 @@ const currentTheme = ref('light')
 const statusText: Record<ProxyStatus, string> = { active: '正常', pending: '待测试', off: '已停用', testing: '测试中' }
 const probeFixtures: Record<string, { latency: string; ip: string; region: string }> = {
   proxy_01DMIT_LA: { latency: '208 ms', ip: '154.21.84.34', region: '美国 · 洛杉矶' },
-  proxy_02WEYLAND_LA: { latency: '206 ms', ip: '64.186.238.29', region: '美国 · 洛杉矶' },
-  proxy_03BWAG_LA: { latency: '979 ms', ip: '104.128.94.95', region: '美国 · 洛杉矶' }
+  proxy_02WEYLAND_LA: { latency: '206 ms', ip: '64.186.238.29', region: '美国 · 洛杉矶' }
 }
 
 const filtered = computed(() => rows.value.filter((row) => {
@@ -394,7 +376,7 @@ onMounted(() => {
 
         <div class="review-note">
           <span class="review-dot"></span>
-          <b>出口实况</b> 已连接 5090 集群 OpenClash 网络出口 · 3 条真实海外专线通道就绪 (按 ChatGPT 账号与来源独立路由)
+          <b>出口实况</b> 已连接 5090 集群 OpenClash 网络出口 · 2 条真实海外专线通道就绪 (按 ChatGPT 账号与来源独立路由)
         </div>
 
         <section class="proxy-metrics">
@@ -550,7 +532,7 @@ onMounted(() => {
         </section>
         <section>
           <h3>账号隔离与分流策略</h3>
-          <p class="probe-explain">每个海外专线节点在集群内开放独立监听端口（1081 / 1082 / 1083），支持按不同的 ChatGPT 账号、供应商模型或工作流直接指定专属端口出口，规避多账号共用同出口触发风控或被动关联封禁。</p>
+          <p class="probe-explain">每个海外专线节点在集群内开放独立监听端口（1081 / 1082），支持按不同的 ChatGPT 账号、供应商模型或工作流直接指定专属端口出口，规避多账号共用同出口触发风控或被动关联封禁。</p>
         </section>
         <section>
           <h3>引用渠道 · {{ drawer.refs.length }}</h3>
