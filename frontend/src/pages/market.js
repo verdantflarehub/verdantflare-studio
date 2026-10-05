@@ -249,7 +249,7 @@ export function mountMarket() {
         }
         if (resourceView) {
           resourceView.hidden = false;
-          resourceView.style.display = 'block';
+          resourceView.style.display = 'flex';
         }
         if ($('pageTitle')) $('pageTitle').textContent = '资源管理';
         if ($('pageSubtitle')) $('pageSubtitle').textContent = 'Station 节点算力、存储水位与集群监控事实源。';
