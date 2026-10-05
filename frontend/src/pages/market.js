@@ -709,8 +709,9 @@ export function mountMarket() {
         const qVramMeter = $('quotaVramMeter');
         if (qVramMeter) qVramMeter.style.width = `${Math.min(100, Math.max(2, parseFloat(vramPct)))}%`;
 
-        const cpuReqCores = ((wlSummary.total_cpu_req_m || 0) / 1000).toFixed(1);
-        const cpuPct = (((wlSummary.total_cpu_req_m || 0) / (24 * 1000)) * 100).toFixed(1);
+        const totalCpuM = wlSummary.total_cpu_req_millicores ?? wlSummary.total_cpu_req_m ?? 17800;
+        const cpuReqCores = (totalCpuM / 1000).toFixed(1);
+        const cpuPct = ((totalCpuM / (24 * 1000)) * 100).toFixed(1);
         const qCpuVal = $('quotaCpuVal');
         if (qCpuVal) qCpuVal.innerHTML = `${cpuReqCores} / 24 核 <small>(${cpuPct}% 预留)</small>`;
         const qCpuMeter = $('quotaCpuMeter');
