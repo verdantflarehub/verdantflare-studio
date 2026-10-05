@@ -595,7 +595,8 @@ onMounted(() => {
 }
 
 .proxy-workspace {
-  max-width: 1740px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .review-note {
