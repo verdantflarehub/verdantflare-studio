@@ -76,6 +76,12 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 		path = "/catalog/apps"
 	case in.Method == "GET" && appPath.MatchString(in.Path):
 		path = "/catalog/" + in.Path
+	case in.Method == "GET" && in.Path == "resources/gpu":
+		path = "/api/v1/resources/gpu"
+	case in.Method == "GET" && in.Path == "resources/node":
+		path = "/api/v1/resources/node"
+	case in.Method == "GET" && in.Path == "resources/summary":
+		path = "/api/v1/resources/summary"
 	default:
 		return Error(404, "NOT_FOUND")
 	}

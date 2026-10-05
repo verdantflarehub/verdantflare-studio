@@ -274,12 +274,84 @@ export function mountMarket() {
     });
   }
 
-  function renderResources() {
-    const runningApps = apps.filter(a => a.deployment.state === 'running' || a.deployment.state === 'ready');
+  async function renderResources() {
+    const runningApps = apps.filter(a => a.deployment?.state === 'running' || a.deployment?.state === 'ready');
     const pipelineCountEl = $('resPipelineCount');
     if (pipelineCountEl) {
-      pipelineCountEl.innerHTML = `${Math.max(runningApps.length, 2)} <small>Active</small>`;
+      pipelineCountEl.innerHTML = `${runningApps.length} <small>Active</small>`;
     }
+
+    try {
+      const [summaryRes, gpusRes] = await Promise.all([
+        api('resources/summary').catch(() => null),
+        api('resources/gpu').catch(() => null)
+      ]);
+
+      if (summaryRes?.summary) {
+        const s = summaryRes.summary;
+        const totalGb = Math.round(s.total_vram_mb / 1024) || 256;
+        const usedGb = (s.used_vram_mb / 1024).toFixed(1);
+        const percent = Math.min(100, Math.round((s.used_vram_mb / (s.total_vram_mb || 1)) * 100));
+
+        const vramTotalEl = $('resVramTotal');
+        if (vramTotalEl) {
+          vramTotalEl.innerHTML = `${usedGb} <small>/ ${totalGb} GB</small>`;
+        }
+        const vramMeter = document.querySelector('.res-metric-card:nth-child(2) .res-metric-meter-fill');
+        if (vramMeter) {
+          vramMeter.style.width = `${percent}%`;
+        }
+        const vramSub = document.querySelector('.res-metric-card:nth-child(2) .res-metric-sub');
+        if (vramSub) {
+          vramSub.textContent = `动态显存池 · ${percent}% 水位 · 2GB 防爆余量`;
+        }
+
+        const hostMemSub = document.querySelector('.res-metric-card:nth-child(3) .res-metric-sub');
+        if (hostMemSub && s.host_cpu_utilization != null) {
+          hostMemSub.textContent = `CPU ${Math.round(s.host_cpu_utilization)}% · RAM ${Math.round(s.host_mem_used_percent)}% · 现场自测`;
+        }
+      }
+
+      if (gpusRes?.gpus && gpusRes.gpus.length > 0) {
+        const gpuGrid = document.querySelector('.gpu-grid');
+        if (gpuGrid) {
+          gpuGrid.innerHTML = gpusRes.gpus.map((g, idx) => {
+            const totalGb = (g.total_vram_mb / 1024).toFixed(0);
+            const usedGb = (g.used_vram_mb / 1024).toFixed(1);
+            const percent = Math.min(100, Math.round((g.used_vram_mb / (g.total_vram_mb || 32768)) * 100));
+            const isBusy = g.utilization > 5 || g.used_vram_mb > 2048;
+            const temp = Math.round(g.temperature_c) || 45;
+            const power = Math.round(g.power_watts) || 120;
+            const modelName = g.model_name || 'NVIDIA GeForce RTX 5090';
+
+            let workloadText = '待机就绪 (2GB 防爆余量就绪)';
+            if (runningApps[idx]) {
+              workloadText = `承载：${esc(runningApps[idx].display_name)}`;
+            } else if (isBusy) {
+              workloadText = '承载：活动模型推理任务';
+            }
+
+            return `
+            <div class="gpu-card" data-gpu="${g.index}">
+              <div class="gpu-card-head">
+                <span class="gpu-id">GPU ${g.index}</span>
+                <span class="gpu-name">${esc(modelName)} · ${totalGb}GB</span>
+                <span class="gpu-state ${isBusy ? 'active' : ''}"><i class="gpu-dot"></i>${isBusy ? '运行中' : '空闲'}</span>
+              </div>
+              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: ${percent}%;"></div></div>
+              <div class="gpu-stat-row">
+                <span class="gpu-stat-vram">显存 <strong>${usedGb}</strong> / ${totalGb} GB</span>
+                <span class="gpu-stat-telemetry"><span class="gpu-temp">${temp}°C</span> · <span class="gpu-power">${power}W</span></span>
+              </div>
+              <div class="gpu-workload">
+                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <span>${workloadText}</span>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      }
+    } catch { }
 
     const opList = Array.from(operations.values());
     const railActivity = $('railActivity');
@@ -695,11 +767,17 @@ export function mountMarket() {
     }
   }, 30000);
   const operationTimer = setInterval(pollOperations, 2000);
+  const resourceTimer = setInterval(() => {
+    if (mode === 'resources' && !$('loginDialog')?.open) {
+      renderResources();
+    }
+  }, 3000);
 
   return () => {
     video.dispose();
     image.dispose();
     clearInterval(operationTimer);
+    clearInterval(resourceTimer);
     clearInterval(polling);
     controller.abort();
   };

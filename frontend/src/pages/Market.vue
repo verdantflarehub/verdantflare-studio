@@ -270,7 +270,7 @@ onBeforeUnmount(() => dispose?.())
                 </svg>
               </div>
             </div>
-            <div class="res-metric-val">8× <small>RTX 5090</small></div>
+            <div class="res-metric-val" id="resGpuCount">2× <small>RTX 5090</small></div>
             <div class="res-metric-sub">
               <span class="dot on"></span>
               <span>单节点 · dev.verdantflarehub.com</span>
@@ -285,9 +285,9 @@ onBeforeUnmount(() => dispose?.())
                 </svg>
               </div>
             </div>
-            <div class="res-metric-val" id="resVramTotal">92 <small>/ 256 GB</small></div>
-            <div class="res-metric-meter"><div class="res-metric-meter-fill" style="width: 36%;"></div></div>
-            <div class="res-metric-sub">动态显存池 · 36% 水位</div>
+            <div class="res-metric-val" id="resVramTotal">7.3 <small>/ 64 GB</small></div>
+            <div class="res-metric-meter"><div class="res-metric-meter-fill" style="width: 11%;"></div></div>
+            <div class="res-metric-sub">动态显存池 · 11% 水位 · 2GB 防爆余量</div>
           </article>
           <article class="res-metric-card">
             <div class="res-metric-top">
@@ -321,11 +321,11 @@ onBeforeUnmount(() => dispose?.())
           </article>
         </section>
 
-        <!-- GPU 5090 8-Card Topology Cards -->
+        <!-- GPU 5090 Topology Cards -->
         <section class="res-section">
           <div class="res-section-title">
             <div class="res-section-title-left">
-              <span>RTX 5090 集群拓扑卡片 (8-GPU Node)</span>
+              <span id="resTopologyTitle">RTX 5090 集群拓扑卡片 (2-GPU Node)</span>
               <span class="res-section-badge">PCIe 5.0 ×16 · P2P DMA 就绪</span>
             </div>
             <span class="eyebrow">NVIDIA System Management Interface</span>
@@ -337,126 +337,30 @@ onBeforeUnmount(() => dispose?.())
                 <span class="gpu-name">RTX 5090 · 32GB</span>
                 <span class="gpu-state active"><i class="gpu-dot"></i>运行中</span>
               </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 72%;"></div></div>
+              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 21%;"></div></div>
               <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>23.0</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">58°C</span> · <span class="gpu-power">340W</span></span>
+                <span class="gpu-stat-vram">显存 <strong>6.6</strong> / 32 GB</span>
+                <span class="gpu-stat-telemetry"><span class="gpu-temp">48°C</span> · <span class="gpu-power">120W</span></span>
               </div>
               <div class="gpu-workload">
                 <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span>承载：MiniMax H3 VDN (实例 0)</span>
+                <span>承载：活动模型推理任务</span>
               </div>
             </div>
             <div class="gpu-card" data-gpu="1">
               <div class="gpu-card-head">
                 <span class="gpu-id">GPU 1</span>
                 <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state active"><i class="gpu-dot"></i>运行中</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 72%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>23.0</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">56°C</span> · <span class="gpu-power">335W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span>承载：MiniMax H3 VDN (实例 1)</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="2">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 2</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state active"><i class="gpu-dot"></i>运行中</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 58%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>18.5</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">52°C</span> · <span class="gpu-power">280W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span>承载：Wan 2.1 Video 推理</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="3">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 3</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state active"><i class="gpu-dot"></i>运行中</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 45%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>14.4</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">49°C</span> · <span class="gpu-power">210W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span>承载：ComfyUI 渲染管线</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="4">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 4</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
                 <span class="gpu-state standby"><i class="gpu-dot"></i>就绪待命</span>
               </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 8%;"></div></div>
+              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 2%;"></div></div>
               <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>2.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">38°C</span> · <span class="gpu-power">45W</span></span>
+                <span class="gpu-stat-vram">显存 <strong>0.6</strong> / 32 GB</span>
+                <span class="gpu-stat-telemetry"><span class="gpu-temp">42°C</span> · <span class="gpu-power">45W</span></span>
               </div>
               <div class="gpu-workload">
                 <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                <span>承载：系统待命 (零延迟调度就绪)</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="5">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 5</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state standby"><i class="gpu-dot"></i>就绪待命</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 8%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>2.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">37°C</span> · <span class="gpu-power">42W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                <span>承载：系统待命 (零延迟调度就绪)</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="6">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 6</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state standby"><i class="gpu-dot"></i>就绪待命</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 8%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>2.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">39°C</span> · <span class="gpu-power">45W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                <span>承载：系统待命 (零延迟调度就绪)</span>
-              </div>
-            </div>
-            <div class="gpu-card" data-gpu="7">
-              <div class="gpu-card-head">
-                <span class="gpu-id">GPU 7</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
-                <span class="gpu-state standby"><i class="gpu-dot"></i>就绪待命</span>
-              </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 8%;"></div></div>
-              <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>2.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">36°C</span> · <span class="gpu-power">40W</span></span>
-              </div>
-              <div class="gpu-workload">
-                <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                <span>承载：系统待命 (零延迟调度就绪)</span>
+                <span>承载：待机就绪 (2GB 防爆余量就绪)</span>
               </div>
             </div>
           </div>
