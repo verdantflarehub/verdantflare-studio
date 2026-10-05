@@ -257,9 +257,10 @@ onBeforeUnmount(() => dispose?.())
 
       <!-- Resource Management Dashboard (Decoupled Rail into Dedicated View) -->
       <div id="resourceView" class="resource-dashboard" hidden>
-        <!-- KPI Row -->
+        <!-- 1. The 4 Hardware Resource Pillars (Top KPI Row) -->
         <section class="res-metric-grid">
-          <article class="res-metric-card">
+          <!-- Card 1: GPU Cluster -->
+          <article class="res-metric-card" id="kpiGpu">
             <div class="res-metric-top">
               <span class="res-metric-label">GPU 集群算力</span>
               <div class="res-metric-icon">
@@ -271,27 +272,45 @@ onBeforeUnmount(() => dispose?.())
               </div>
             </div>
             <div class="res-metric-val" id="resGpuCount">2× <small>RTX 5090</small></div>
-            <div class="res-metric-sub">
-              <span class="dot on"></span>
-              <span>单节点 · dev.verdantflarehub.com</span>
-            </div>
+            <div class="res-metric-meter"><div class="res-metric-meter-fill" id="resGpuMeter" style="width: 9%;"></div></div>
+            <div class="res-metric-sub" id="resGpuSub">显存 5.8 / 64 GB · PCIe 5.0 P2P</div>
           </article>
-          <article class="res-metric-card">
+
+          <!-- Card 2: CPU Compute -->
+          <article class="res-metric-card" id="kpiCpu">
             <div class="res-metric-top">
-              <span class="res-metric-label">显存使用率</span>
+              <span class="res-metric-label">CPU 处理器算力</span>
               <div class="res-metric-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                  <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                  <path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3"></path>
                 </svg>
               </div>
             </div>
-            <div class="res-metric-val" id="resVramTotal">7.3 <small>/ 64 GB</small></div>
-            <div class="res-metric-meter"><div class="res-metric-meter-fill" style="width: 11%;"></div></div>
-            <div class="res-metric-sub">动态显存池 · 11% 水位 · 2GB 防爆余量</div>
+            <div class="res-metric-val" id="resCpuVal">1.4% <small>/ 24 vCPUs</small></div>
+            <div class="res-metric-meter"><div class="res-metric-meter-fill" id="resCpuMeter" style="width: 2%;"></div></div>
+            <div class="res-metric-sub" id="resCpuSub">Load 0.19 · 24 核心高频运算</div>
           </article>
-          <article class="res-metric-card">
+
+          <!-- Card 3: System RAM -->
+          <article class="res-metric-card" id="kpiRam">
             <div class="res-metric-top">
-              <span class="res-metric-label">本地模型缓存</span>
+              <span class="res-metric-label">系统运行内存</span>
+              <div class="res-metric-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 7h20v10H2zM6 7v10M10 7v10M14 7v10M18 7v10"></path>
+                </svg>
+              </div>
+            </div>
+            <div class="res-metric-val" id="resRamVal">16.0 <small>/ 256 GB</small></div>
+            <div class="res-metric-meter"><div class="res-metric-meter-fill" id="resRamMeter" style="width: 6.4%;"></div></div>
+            <div class="res-metric-sub" id="resRamSub">可用 233 GB · 水位 6.4% 零换页</div>
+          </article>
+
+          <!-- Card 4: NVMe Fast Storage -->
+          <article class="res-metric-card" id="kpiStorage">
+            <div class="res-metric-top">
+              <span class="res-metric-label">NVMe 本地存储</span>
               <div class="res-metric-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
@@ -300,83 +319,154 @@ onBeforeUnmount(() => dispose?.())
                 </svg>
               </div>
             </div>
-            <div class="res-metric-val">184 <small>GB / 1.8 TB</small></div>
-            <div class="res-metric-meter"><div class="res-metric-meter-fill" style="width: 10%;"></div></div>
-            <div class="res-metric-sub">Fast-NVMe · 8 项模型就绪</div>
-          </article>
-          <article class="res-metric-card">
-            <div class="res-metric-top">
-              <span class="res-metric-label">活跃生成管道</span>
-              <div class="res-metric-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                </svg>
-              </div>
-            </div>
-            <div class="res-metric-val" id="resPipelineCount">2 <small>Active</small></div>
-            <div class="res-metric-sub">
-              <span class="dot on"></span>
-              <span>MiniMax H3 · Wan Video 并发</span>
-            </div>
+            <div class="res-metric-val" id="resStorageVal">546 GB <small>/ 7.3 TB</small></div>
+            <div class="res-metric-meter"><div class="res-metric-meter-fill" id="resStorageMeter" style="width: 8%;"></div></div>
+            <div class="res-metric-sub" id="resStorageSub">/data 3.7TB + / 3.5TB 就绪</div>
           </article>
         </section>
 
-        <!-- GPU 5090 Topology Cards -->
+        <!-- 2. GPU 5090 Topology & Live Telemetry -->
         <section class="res-section">
           <div class="res-section-title">
             <div class="res-section-title-left">
-              <span id="resTopologyTitle">RTX 5090 集群拓扑卡片 (2-GPU Node)</span>
+              <span id="resTopologyTitle">RTX 5090 双卡拓扑架构 (2-GPU Node)</span>
               <span class="res-section-badge">PCIe 5.0 ×16 · P2P DMA 就绪</span>
+              <span class="res-section-badge highlight">2GB 安全防爆余量</span>
             </div>
-            <span class="eyebrow">NVIDIA System Management Interface</span>
+            <span class="eyebrow">NVIDIA System Management Interface (DCGM)</span>
           </div>
           <div class="gpu-grid">
+            <!-- GPU cards dynamically populated by market.js -->
             <div class="gpu-card" data-gpu="0">
               <div class="gpu-card-head">
                 <span class="gpu-id">GPU 0</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
+                <span class="gpu-name">NVIDIA GeForce RTX 5090 · 32GB</span>
                 <span class="gpu-state active"><i class="gpu-dot"></i>运行中</span>
               </div>
-              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 21%;"></div></div>
+              <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 18%;"></div></div>
               <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>6.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">48°C</span> · <span class="gpu-power">120W</span></span>
+                <span class="gpu-stat-vram">显存 <strong>5.8</strong> / 32 GB</span>
+                <span class="gpu-stat-telemetry"><span class="gpu-temp">48°C</span> · <span class="gpu-power">23W</span></span>
               </div>
               <div class="gpu-workload">
                 <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span>承载：活动模型推理任务</span>
+                <span>承载：Image MCP (活跃模型推理就绪)</span>
               </div>
             </div>
             <div class="gpu-card" data-gpu="1">
               <div class="gpu-card-head">
                 <span class="gpu-id">GPU 1</span>
-                <span class="gpu-name">RTX 5090 · 32GB</span>
+                <span class="gpu-name">NVIDIA GeForce RTX 5090 · 32GB</span>
                 <span class="gpu-state standby"><i class="gpu-dot"></i>就绪待命</span>
               </div>
               <div class="gpu-bar-wrap"><div class="gpu-bar-fill" style="width: 2%;"></div></div>
               <div class="gpu-stat-row">
-                <span class="gpu-stat-vram">显存 <strong>0.6</strong> / 32 GB</span>
-                <span class="gpu-stat-telemetry"><span class="gpu-temp">42°C</span> · <span class="gpu-power">45W</span></span>
+                <span class="gpu-stat-vram">显存 <strong>0.0</strong> / 32 GB</span>
+                <span class="gpu-stat-telemetry"><span class="gpu-temp">41°C</span> · <span class="gpu-power">6W</span></span>
               </div>
               <div class="gpu-workload">
                 <svg class="workload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                <span>承载：待机就绪 (2GB 防爆余量就绪)</span>
+                <span>承载：Video MCP (待机就绪)</span>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Storage & Volume Watermarks -->
+        <!-- 3. Host Compute & Memory System (CPU + RAM 2-Column Split) -->
+        <section class="res-section">
+          <div class="res-section-title">
+            <div class="res-section-title-left">
+              <span>主机运算与系统内存</span>
+              <span class="res-section-badge">24 vCPUs · 256 GB ECC DDR5</span>
+            </div>
+            <span class="eyebrow">Host Architecture & Kernel Telemetry</span>
+          </div>
+          <div class="res-host-grid">
+            <!-- Left: CPU Details -->
+            <div class="host-detail-card" id="cpuDetailCard">
+              <div class="host-detail-head">
+                <div class="host-detail-title-wrap">
+                  <div class="host-icon-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3"></path></svg>
+                  </div>
+                  <div>
+                    <div class="host-detail-name">CPU 处理器运算单元</div>
+                    <div class="host-detail-desc">24 核心 / 线程 · x86_64 Linux 6.12</div>
+                  </div>
+                </div>
+                <div class="host-detail-stat" id="cpuLivePct">1.4% <small>利用率</small></div>
+              </div>
+              <div class="res-metric-meter host-meter"><div class="res-metric-meter-fill" id="cpuLiveBar" style="width: 2%;"></div></div>
+              <div class="host-meta-grid">
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">计算规格</span>
+                  <strong class="host-meta-val" id="cpuCoresVal">24 vCPUs</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">系统负载 (1m/5m/15m)</span>
+                  <strong class="host-meta-val" id="cpuLoadVal">0.19, 0.17, 0.21</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">操作系统内核</span>
+                  <strong class="host-meta-val">Linux 6.12 (Debian)</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">调度排队状态</span>
+                  <strong class="host-meta-val highlight-green">零排队延迟 · 就绪</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Memory Details -->
+            <div class="host-detail-card" id="ramDetailCard">
+              <div class="host-detail-head">
+                <div class="host-detail-title-wrap">
+                  <div class="host-icon-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 7h20v10H2zM6 7v10M10 7v10M14 7v10M18 7v10"></path></svg>
+                  </div>
+                  <div>
+                    <div class="host-detail-name">系统运行内存池 (RAM)</div>
+                    <div class="host-detail-desc">256 GB 高速通道 · 零换页开销</div>
+                  </div>
+                </div>
+                <div class="host-detail-stat" id="ramLiveVal">16.0 <small>/ 256 GB (6.4%)</small></div>
+              </div>
+              <div class="res-metric-meter host-meter"><div class="res-metric-meter-fill" id="ramLiveBar" style="width: 6.4%;"></div></div>
+              <div class="host-meta-grid">
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">活跃占用 (Used)</span>
+                  <strong class="host-meta-val" id="ramUsedVal">16.0 GB</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">文件系统缓存 (Buff/Cache)</span>
+                  <strong class="host-meta-val" id="ramCacheVal">27.4 GB</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">剩余可用 (Available)</span>
+                  <strong class="host-meta-val highlight-green" id="ramAvailVal">233.1 GB</strong>
+                </div>
+                <div class="host-meta-item">
+                  <span class="host-meta-lbl">虚拟内存交换 (Swap)</span>
+                  <strong class="host-meta-val">0 GB (零换页抖动)</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Storage Systems & NVMe Volumes -->
         <section class="res-section">
           <div class="res-section-title">
             <div class="res-section-title-left">
               <span>存储系统与持久化卷</span>
-              <span class="res-section-badge">Ceph + NVMe Local Storage</span>
+              <span class="res-section-badge">NVMe PCIe 4.0/5.0 直通</span>
+              <span class="res-section-badge">7.2 GB/s 读带宽</span>
             </div>
             <span class="eyebrow">Local Fast-Tier & S3 Sync</span>
           </div>
           <div class="res-storage-cards">
-            <div class="storage-card">
+            <!-- /data Partition -->
+            <div class="storage-card" id="storageDataCard">
               <div class="storage-head">
                 <div class="storage-mount-wrap">
                   <svg class="storage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -385,18 +475,20 @@ onBeforeUnmount(() => dispose?.())
                     <line x1="6" y1="6" x2="6.01" y2="6"></line>
                     <line x1="6" y1="18" x2="6.01" y2="18"></line>
                   </svg>
-                  <span class="storage-mount">/data/models</span>
-                  <span class="storage-badge">Fast-NVMe PCIe 5.0</span>
+                  <span class="storage-mount">/data</span>
+                  <span class="storage-badge">AI 模型与制品高速卷 · Ext4</span>
                 </div>
-                <span class="storage-val">184 GB <small>/ 1.8 TB (10%)</small></span>
+                <span class="storage-val" id="storageDataVal">266 GB <small>/ 3.7 TB (7%)</small></span>
               </div>
-              <div class="storage-bar"><div class="storage-fill" style="width: 10%;"></div></div>
+              <div class="storage-bar"><div class="storage-fill" id="storageDataBar" style="width: 7%;"></div></div>
               <div class="storage-meta">
-                <span>已缓存 8 个模型权重文件</span>
-                <span class="storage-status-ok"><i class="gpu-dot"></i>健康 (7.2 GB/s 顺序读)</span>
+                <span>承载：/data/models (模型缓存) + /data/artifacts (制品库)</span>
+                <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：3.48 TB</span>
               </div>
             </div>
-            <div class="storage-card">
+
+            <!-- / Root Partition -->
+            <div class="storage-card" id="storageRootCard">
               <div class="storage-head">
                 <div class="storage-mount-wrap">
                   <svg class="storage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -404,21 +496,21 @@ onBeforeUnmount(() => dispose?.())
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
                   </svg>
-                  <span class="storage-mount">/data/artifacts</span>
-                  <span class="storage-badge">Local SSD + Ceph RBD</span>
+                  <span class="storage-mount">/</span>
+                  <span class="storage-badge">宿主系统盘 · Ext4</span>
                 </div>
-                <span class="storage-val">420 GB <small>/ 3.6 TB (12%)</small></span>
+                <span class="storage-val" id="storageRootVal">280 GB <small>/ 3.5 TB (8%)</small></span>
               </div>
-              <div class="storage-bar"><div class="storage-fill" style="width: 12%;"></div></div>
+              <div class="storage-bar"><div class="storage-fill" id="storageRootBar" style="width: 8%;"></div></div>
               <div class="storage-meta">
-                <span>归档策略：成都 S3 历史异步归档</span>
-                <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：3.18 TB</span>
+                <span>承载：Containerd 容器镜像层 + Pod 临时存储</span>
+                <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：3.28 TB</span>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Deployment Activity Queue -->
+        <!-- 5. Deployment Activity Queue -->
         <section class="res-section">
           <div class="res-section-title">
             <div class="res-section-title-left">
@@ -444,6 +536,7 @@ onBeforeUnmount(() => dispose?.())
                 <span class="activity-pill"><i class="dot on"></i>video-mcp-server: 就绪</span>
                 <span class="activity-pill"><i class="dot on"></i>image-mcp-server: 就绪</span>
                 <span class="activity-pill"><i class="dot on"></i>station-core: 运行中</span>
+                <span class="activity-pill"><i class="dot on"></i>station-runtime: 运行中</span>
               </div>
             </div>
           </div>
