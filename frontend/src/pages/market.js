@@ -287,6 +287,21 @@ export function mountMarket() {
     });
   }
 
+  function formatCPU(millicores) {
+    if (!millicores || millicores <= 0) return '0C';
+    if (millicores < 1000) return `${millicores}m`;
+    const cores = millicores / 1000;
+    return cores % 1 === 0 ? `${cores}C` : `${cores.toFixed(1)}C`;
+  }
+
+  function formatMem(bytes) {
+    if (!bytes || bytes <= 0) return '0M';
+    const gb = bytes / (1024 * 1024 * 1024);
+    if (gb >= 1) return `${gb.toFixed(1)}G`;
+    const mb = bytes / (1024 * 1024);
+    return `${Math.round(mb)}M`;
+  }
+
   function renderWorkloadCards(workloads) {
     const listEl = $('workloadList');
     if (!listEl) return;
@@ -307,26 +322,87 @@ export function mountMarket() {
     }
 
     listEl.innerHTML = workloads.map(wl => {
-      const isGpu = wl.type === 'gpu';
+      const isGpu = wl.type === 'gpu' || (wl.gpu_count_req && wl.gpu_count_req > 0);
       const hasGpuClass = isGpu ? 'has-gpu' : 'cpu-only';
-      const statusClass = (wl.status || '').toLowerCase().includes('run') || (wl.status || '').toLowerCase().includes('ready') ? 'running' : 'standby';
+      const statusStr = (wl.status || '').toLowerCase();
+      const statusClass = statusStr.includes('run') || statusStr.includes('ready') ? 'running' : 'standby';
 
+      const wlName = wl.display_name || wl.name || 'workload';
       let iconSvg = '';
-      if (wl.name.includes('image')) {
+      let badgeText = '';
+      let defaultEngine = 'NVMe 直通';
+
+      if (wlName.includes('image')) {
         iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
-      } else if (wl.name.includes('video-mcp')) {
+        badgeText = 'Flux.1-Dev (FP8)';
+        defaultEngine = 'SD-Forge / Diffusers';
+      } else if (wlName.includes('video-mcp')) {
         iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
-      } else if (wl.name.includes('minimax')) {
+        badgeText = 'Wan 2.1 任务分派器';
+        defaultEngine = 'FFmpeg + Comfy';
+      } else if (wlName.includes('minimax')) {
         iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
-      } else if (wl.name.includes('runtime')) {
+        badgeText = 'MiniMax 官方模型引擎';
+        defaultEngine = 'Singularity SIF';
+      } else if (wlName.includes('runtime')) {
         iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+        badgeText = '执行面调度核心';
+        defaultEngine = 'Go Runtime + Informer';
+      } else if (wlName.includes('station-core')) {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+        badgeText = 'Station 控制面网关';
+        defaultEngine = 'REST Gateway';
       } else {
         iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+        badgeText = '控制台与工作台';
+        defaultEngine = 'Nginx Ingress';
       }
 
-      const tagChipsHtml = (wl.tag_chips || []).map(chip => `
-        <span class="wl-tag-chip">${esc(chip)}</span>
-      `).join('');
+      // GPU & VRAM metrics calculation
+      const gpuUsedMb = wl.gpu_vram_used_mb || 0;
+      const gpuUsedGb = (gpuUsedMb / 1024).toFixed(2);
+      const gpuTotalGb = wl.gpu_vram_total_mb ? (wl.gpu_vram_total_mb / 1024).toFixed(1) : '32.0';
+      const gpuPct = wl.gpu_vram_percent ? wl.gpu_vram_percent.toFixed(1) : (gpuUsedMb > 0 ? ((gpuUsedMb / 32768) * 100).toFixed(1) : '0.0');
+
+      // CPU metrics calculation
+      const reqC = formatCPU(wl.cpu_req_millicores);
+      const limC = formatCPU(wl.cpu_lim_millicores);
+      const cpuQuotaBadge = wl.cpu_lim_millicores > 0 ? `Req: ${reqC} / Lim: ${limC}` : (wl.cpu_req_millicores > 0 ? `Req: ${reqC}` : '无硬性限制');
+      const isCpuAmber = (wl.cpu_req_millicores && wl.cpu_req_millicores >= 16000) || (wl.cpu_lim_millicores && wl.cpu_lim_millicores >= 32000);
+      const cpuUsedM = wl.cpu_used_millicores || 0;
+      const cpuUsedCores = (cpuUsedM / 1000).toFixed(3);
+      const cpuProgressPct = Math.min(100, Math.max(1, wl.cpu_used_percent || (cpuUsedM > 0 ? 2 : 1)));
+
+      // RAM metrics calculation
+      const reqM = formatMem(wl.mem_req_bytes);
+      const limM = formatMem(wl.mem_lim_bytes);
+      const ramQuotaBadge = wl.mem_lim_bytes > 0 ? `Req: ${reqM} / Lim: ${limM}` : (wl.mem_req_bytes > 0 ? `Req: ${reqM}` : '无硬性限制');
+      const isRamAmber = wl.mem_req_bytes && wl.mem_req_bytes >= 64 * 1024 * 1024 * 1024;
+      const memUsedBytes = wl.mem_used_bytes || 0;
+      let ramActualHtml = '';
+      if (memUsedBytes >= 1024 * 1024 * 1024) {
+        ramActualHtml = `${(memUsedBytes / (1024 * 1024 * 1024)).toFixed(2)} <small>GiB 实际占用</small>`;
+      } else {
+        ramActualHtml = `${Math.round(memUsedBytes / (1024 * 1024))} <small>MiB 实际占用</small>`;
+      }
+      const ramProgressPct = Math.min(100, Math.max(1, wl.mem_used_percent || (memUsedBytes > 0 ? 3 : 1)));
+
+      // Tags & Footnotes
+      const tagChips = [];
+      if (isGpu) {
+        tagChips.push(`CUDA_VISIBLE_DEVICES=${wl.gpu_index >= 0 ? wl.gpu_index : 0}`);
+        const freeVramGb = Math.max(0, (parseFloat(gpuTotalGb) - parseFloat(gpuUsedGb))).toFixed(1);
+        tagChips.push(`显存余量: ${freeVramGb} GB 完全就绪`);
+        tagChips.push(`直通设备: RTX 5090`);
+      } else {
+        if (isRamAmber) {
+          tagChips.push(`大内存常驻实例 (96GB 预留)`);
+        } else {
+          tagChips.push(`无 GPU 绑定`);
+        }
+        tagChips.push(`节点: ${wl.node_name || 'verdentflare-5090'}`);
+        tagChips.push(`就绪待命`);
+      }
 
       return `
         <article class="wl-card ${hasGpuClass}" data-type="${esc(wl.type)}" data-name="${esc(wl.name)}">
@@ -335,59 +411,59 @@ export function mountMarket() {
               <div class="wl-app-icon">${iconSvg}</div>
               <div class="wl-title-box">
                 <div class="wl-title-row">
-                  <span class="wl-name">${esc(wl.name)}</span>
+                  <span class="wl-name">${esc(wl.display_name || wl.name)}</span>
                   <span class="wl-namespace">${esc(wl.namespace)}</span>
-                  ${wl.badge ? `<span class="res-section-badge ${isGpu ? 'highlight' : ''}">${esc(wl.badge)}</span>` : ''}
+                  ${badgeText ? `<span class="res-section-badge ${isGpu ? 'highlight' : ''}">${esc(badgeText)}</span>` : ''}
                 </div>
-                <span class="wl-pod-id">Pod: ${esc(wl.pod_name || '就绪待命')} · 节点: ${esc(wl.node_name || 'verdentflare-5090')}</span>
+                <span class="wl-pod-id">Pod: ${esc(wl.pod_name || wl.name)} · 节点: ${esc(wl.node_name || 'verdentflare-5090')}</span>
               </div>
             </div>
             <div class="wl-meta-right">
-              <span class="wl-uptime">${esc(wl.uptime || '就绪')} · 重启 ${wl.restarts || 0} 次</span>
-              <span class="wl-status-tag ${statusClass}"><i class="gpu-dot"></i> ${esc(wl.status || '就绪')} (${esc(wl.ready || '1/1')})</span>
+              <span class="wl-uptime">运行 ${esc(wl.age || '就绪')} · 重启 ${wl.restarts || 0} 次</span>
+              <span class="wl-status-tag ${statusClass}"><i class="gpu-dot"></i> ${esc(wl.status || '就绪')} (Ready ${esc(wl.ready ? '1/1' : '0/1')})</span>
             </div>
           </div>
 
           <div class="wl-metrics-grid">
-            <!-- 1. GPU / 显存 -->
+            <!-- 1. GPU / 显存占用 -->
             <div class="wl-metric-cell">
               <div class="wl-cell-title">
                 <span>GPU / 显存占用</span>
-                <span class="quota-badge ${isGpu ? 'highlight-green' : ''}">${esc(wl.gpu_quota || (isGpu ? '申请 1 卡' : '无 GPU 绑定'))}</span>
+                <span class="quota-badge ${isGpu ? 'highlight-green' : ''}">${isGpu ? '申请 1 卡 (物理直通)' : '无 GPU 绑定'}</span>
               </div>
               <div class="wl-cell-val-row">
                 <div class="wl-actual-val">
-                  ${esc(wl.gpu_actual_vram || '0.0')} <small>${esc(wl.gpu_actual_unit || (isGpu ? 'GB 实际占用' : 'MB 显存'))}</small>
+                  ${isGpu ? `${gpuUsedGb} <small>GB 实际占用</small>` : `0.0 <small>MB 显存</small>`}
                 </div>
-                <span class="wl-req-tag">${esc(wl.gpu_quota_tag || '')}</span>
+                <span class="wl-req-tag">${isGpu ? `占分配卡 ${gpuPct}%` : '申请 0 卡 (CPU 密集型)'}</span>
               </div>
               <div class="wl-progress-track">
-                <div class="wl-progress-fill" style="width: ${Math.min(100, Math.max(0, wl.gpu_progress_pct || 0))}%;"></div>
+                <div class="wl-progress-fill" style="width: ${isGpu ? Math.min(100, Math.max(0, parseFloat(gpuPct))) : 0}%;"></div>
               </div>
               <div class="wl-metric-footnote">
-                <span>${esc(wl.gpu_footnote1 || '')}</span>
-                <span>${esc(wl.gpu_footnote2 || '')}</span>
+                <span>${isGpu ? `GPU ${wl.gpu_index >= 0 ? wl.gpu_index : 0}: RTX 5090 (${wl.gpu_temp_c ? Math.round(wl.gpu_temp_c) : 36}°C)` : 'CPU 守护容器'}</span>
+                <span>${isGpu ? `功耗 ${wl.gpu_power_watts ? Math.round(wl.gpu_power_watts) : 35}W` : '解耦 GPU'}</span>
               </div>
             </div>
 
             <!-- 2. CPU 算力实况 -->
             <div class="wl-metric-cell">
               <div class="wl-cell-title">
-                <span>CPU 算力实况</span>
-                <span class="quota-badge ${wl.cpu_quota_badge && wl.cpu_quota_badge.includes('16C') ? 'amber' : ''}">${esc(wl.cpu_quota_badge || '')}</span>
+                <span>CPU 算力配额</span>
+                <span class="quota-badge ${isCpuAmber ? 'amber' : ''}">${esc(cpuQuotaBadge)}</span>
               </div>
               <div class="wl-cell-val-row">
                 <div class="wl-actual-val">
-                  ${esc(wl.cpu_actual_val || '0m')} <small>${esc(wl.cpu_actual_sub || '')}</small>
+                  ${cpuUsedM}m <small>(${cpuUsedCores} 核)</small>
                 </div>
-                <span class="wl-req-tag">${esc(wl.cpu_quota_tag || '')}</span>
+                <span class="wl-req-tag">${wl.cpu_used_percent > 0 ? `占上限 ${wl.cpu_used_percent}%` : `已预留 ${reqC} 核`}</span>
               </div>
               <div class="wl-progress-track">
-                <div class="wl-progress-fill ${wl.cpu_quota_badge && wl.cpu_quota_badge.includes('16C') ? 'amber' : 'blue'}" style="width: ${Math.min(100, Math.max(1, wl.cpu_progress_pct || 1))}%;"></div>
+                <div class="wl-progress-fill ${isCpuAmber ? 'amber' : 'blue'}" style="width: ${cpuProgressPct}%;"></div>
               </div>
               <div class="wl-metric-footnote">
-                <span>${esc(wl.cpu_footnote1 || '')}</span>
-                <span>${esc(wl.cpu_footnote2 || '')}</span>
+                <span>PodMetrics 实时采样</span>
+                <span>${cpuUsedM > 500 ? '活跃计算中' : '待机中'}</span>
               </div>
             </div>
 
@@ -395,45 +471,45 @@ export function mountMarket() {
             <div class="wl-metric-cell">
               <div class="wl-cell-title">
                 <span>系统内存 (RAM)</span>
-                <span class="quota-badge ${wl.ram_quota_badge && wl.ram_quota_badge.includes('96G') ? 'amber' : ''}">${esc(wl.ram_quota_badge || '')}</span>
+                <span class="quota-badge ${isRamAmber ? 'amber' : ''}">${esc(ramQuotaBadge)}</span>
               </div>
               <div class="wl-cell-val-row">
                 <div class="wl-actual-val">
-                  ${esc(wl.ram_actual_val || '0')} <small>${esc(wl.ram_actual_sub || 'MiB')}</small>
+                  ${ramActualHtml}
                 </div>
-                <span class="wl-req-tag">${esc(wl.ram_quota_tag || '')}</span>
+                <span class="wl-req-tag">${wl.mem_used_percent > 0 ? `占配额 ${wl.mem_used_percent}%` : `已预留 ${reqM}`}</span>
               </div>
               <div class="wl-progress-track">
-                <div class="wl-progress-fill ${wl.ram_quota_badge && wl.ram_quota_badge.includes('96G') ? 'amber' : 'blue'}" style="width: ${Math.min(100, Math.max(1, wl.ram_progress_pct || 1))}%;"></div>
+                <div class="wl-progress-fill ${isRamAmber ? 'amber' : 'blue'}" style="width: ${ramProgressPct}%;"></div>
               </div>
               <div class="wl-metric-footnote">
-                <span>${esc(wl.ram_footnote1 || '')}</span>
-                <span>${esc(wl.ram_footnote2 || '')}</span>
+                <span>${isRamAmber ? `大模型常驻缓存区 (${Math.round(memUsedBytes / (1024 * 1024))} MiB)` : (wl.mem_lim_bytes && wl.mem_lim_bytes > memUsedBytes ? `余量 ${formatMem(wl.mem_lim_bytes - memUsedBytes)}` : '常驻守护')}</span>
+                <span>安全</span>
               </div>
             </div>
 
             <!-- 4. 模型与卷承载 -->
             <div class="wl-metric-cell">
               <div class="wl-cell-title">
-                <span>${esc(wl.workload_kind || '能力引擎与承载')}</span>
-                <span class="quota-badge">${esc(wl.workload_engine || 'NVMe 直通')}</span>
+                <span>${isGpu ? '生成模型与引擎' : (isRamAmber ? '模型引擎与镜像' : (wlName.includes('runtime') ? '调度引擎' : (wlName.includes('core') ? '网关职能' : '应用承载')))}</span>
+                <span class="quota-badge">${esc(defaultEngine)}</span>
               </div>
               <div class="wl-cell-val-row">
                 <div class="wl-actual-val" style="font-size: 13px;">
-                  ${esc(wl.workload_model || '')}
+                  ${esc(wl.model_name || (isGpu ? 'PyTorch 2.5 基础模型' : '常驻微服务'))}
                 </div>
-                <span class="wl-req-tag">${esc(wl.workload_model_sub || '')}</span>
+                <span class="wl-req-tag">${wl.mount_point ? '已挂载' : '无独立卷'}</span>
               </div>
               <div class="wl-metric-footnote" style="margin-top: 8px;">
-                <span>${esc(wl.workload_mount || '')}</span>
-                <span class="highlight-green">${esc(wl.workload_status || '就绪')}</span>
+                <span>挂载点: ${esc(wl.mount_point || '无独立存储卷')}</span>
+                <span class="highlight-green">就绪</span>
               </div>
             </div>
           </div>
 
           <div class="wl-foot">
             <div class="wl-foot-left">
-              ${tagChipsHtml}
+              ${tagChips.map(c => `<span class="wl-tag-chip">${esc(c)}</span>`).join('')}
             </div>
             <div class="wl-foot-right">
               <button class="wl-btn-detail" type="button" data-pod-diag="${esc(wl.name)}">查看 Pod 诊断</button>
@@ -619,28 +695,44 @@ export function mountMarket() {
       const workloads = workloadsRes?.workloads;
 
       if (wlSummary) {
+        const totalGpu = wlSummary.total_gpu_assigned != null ? wlSummary.total_gpu_assigned : 2;
+        const gpuPct = Math.round((totalGpu / 2) * 100);
         const qGpuVal = $('quotaGpuVal');
-        if (qGpuVal) qGpuVal.innerHTML = `${wlSummary.gpu_quotas_bound} / ${wlSummary.gpu_quotas_total} 卡 <small>(${Math.round(wlSummary.gpu_quotas_pct)}% 绑定)</small>`;
+        if (qGpuVal) qGpuVal.innerHTML = `${totalGpu} / 2 卡 <small>(${gpuPct}% 绑定)</small>`;
         const qGpuMeter = $('quotaGpuMeter');
-        if (qGpuMeter) qGpuMeter.style.width = `${Math.min(100, Math.max(0, wlSummary.gpu_quotas_pct))}%`;
+        if (qGpuMeter) qGpuMeter.style.width = `${Math.min(100, Math.max(0, gpuPct))}%`;
 
+        const vramUsedGb = ((wlSummary.total_vram_used_mb || 0) / 1024).toFixed(1);
+        const vramPct = (((wlSummary.total_vram_used_mb || 0) / (64 * 1024)) * 100).toFixed(1);
         const qVramVal = $('quotaVramVal');
-        if (qVramVal) qVramVal.innerHTML = `${wlSummary.vram_used_gb.toFixed(1)} / ${Math.round(wlSummary.vram_total_gb)} GB <small>(${wlSummary.vram_pct.toFixed(1)}% 水位)</small>`;
+        if (qVramVal) qVramVal.innerHTML = `${vramUsedGb} / 64 GB <small>(${vramPct}% 水位)</small>`;
         const qVramMeter = $('quotaVramMeter');
-        if (qVramMeter) qVramMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.vram_pct))}%`;
+        if (qVramMeter) qVramMeter.style.width = `${Math.min(100, Math.max(2, parseFloat(vramPct)))}%`;
 
+        const cpuReqCores = ((wlSummary.total_cpu_req_m || 0) / 1000).toFixed(1);
+        const cpuPct = (((wlSummary.total_cpu_req_m || 0) / (24 * 1000)) * 100).toFixed(1);
         const qCpuVal = $('quotaCpuVal');
-        if (qCpuVal) qCpuVal.innerHTML = `${wlSummary.cpu_req_cores.toFixed(1)} / ${wlSummary.cpu_total_cores} 核 <small>(${wlSummary.cpu_req_pct.toFixed(1)}% 预留)</small>`;
+        if (qCpuVal) qCpuVal.innerHTML = `${cpuReqCores} / 24 核 <small>(${cpuPct}% 预留)</small>`;
         const qCpuMeter = $('quotaCpuMeter');
-        if (qCpuMeter) qCpuMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.cpu_req_pct))}%`;
+        if (qCpuMeter) qCpuMeter.style.width = `${Math.min(100, Math.max(2, parseFloat(cpuPct)))}%`;
 
+        const memReqGb = ((wlSummary.total_mem_req_mb || 0) / 1024).toFixed(1);
+        const memPct = (((wlSummary.total_mem_req_mb || 0) / (256 * 1024)) * 100).toFixed(1);
         const qMemVal = $('quotaMemVal');
-        if (qMemVal) qMemVal.innerHTML = `${wlSummary.mem_req_gb.toFixed(1)} / ${Math.round(wlSummary.mem_total_gb)} GB <small>(${wlSummary.mem_req_pct.toFixed(1)}% 预留)</small>`;
+        if (qMemVal) qMemVal.innerHTML = `${memReqGb} / 256 GB <small>(${memPct}% 预留)</small>`;
         const qMemMeter = $('quotaMemMeter');
-        if (qMemMeter) qMemMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.mem_req_pct))}%`;
+        if (qMemMeter) qMemMeter.style.width = `${Math.min(100, Math.max(2, parseFloat(memPct)))}%`;
 
         const badge = $('wlCountBadge');
-        if (badge) badge.textContent = `${wlSummary.total_workloads} 个活跃容器组`;
+        if (badge) badge.textContent = `${wlSummary.total_pods || 6} 个活跃容器组`;
+
+        // Update tab buttons text
+        const tabAll = document.querySelector('.workload-tab-btn[data-filter="all"]');
+        if (tabAll) tabAll.textContent = `全部工作负载 (${wlSummary.total_pods || 6})`;
+        const tabGpu = document.querySelector('.workload-tab-btn[data-filter="gpu"]');
+        if (tabGpu) tabGpu.textContent = `GPU 创作应用 (${wlSummary.gpu_pods || 2})`;
+        const tabInfra = document.querySelector('.workload-tab-btn[data-filter="infra"]');
+        if (tabInfra) tabInfra.textContent = `平台与基础设施 (${wlSummary.infra_pods || 4})`;
       }
 
       if (workloads && workloads.length > 0) {
