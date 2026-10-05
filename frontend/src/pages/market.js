@@ -630,12 +630,15 @@ export function mountMarket() {
       if (document.getElementById('imageHost') && !document.getElementById('imageHost').hidden) location.hash = '/market';
       if (b.dataset.nav === 'resources') {
         mode = 'resources';
+        location.hash = '/market?mode=resources';
       } else if (b.dataset.nav === 'models') {
         mode = 'models';
+        location.hash = '/market?mode=models';
         tab = 'all';
         group = 'all';
       } else if (b.dataset.nav === 'market' || b.dataset.nav === 'workbench') {
         mode = 'market';
+        location.hash = '/market';
         tab = 'all';
         group = 'all';
       }
@@ -646,6 +649,27 @@ export function mountMarket() {
 
   if ($('overlay')) $('overlay').style.display = 'none';
 
+  function syncModeFromHash() {
+    if (location.hash.includes('mode=resources')) {
+      mode = 'resources';
+    } else if (location.hash.includes('mode=models')) {
+      mode = 'models';
+    } else if (!location.hash.includes('video=') && !location.hash.includes('image=')) {
+      mode = 'market';
+    }
+  }
+
+  listen(window, 'hashchange', () => {
+    if (location.hash.includes('video=')) {
+      video.sync();
+    } else if (location.hash.includes('image=')) {
+      image.sync();
+    } else {
+      syncModeFromHash();
+      render();
+    }
+  });
+
   // First-Paint Immediate Route Resolution (Zero Market Flash)
   const isVideoRoute = location.hash.includes('video=');
   const isImageRoute = location.hash.includes('image=');
@@ -654,6 +678,7 @@ export function mountMarket() {
   } else if (isImageRoute) {
     image.sync();
   } else {
+    syncModeFromHash();
     render();
   }
 
