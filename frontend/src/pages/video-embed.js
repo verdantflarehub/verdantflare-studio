@@ -46,14 +46,57 @@ export function mountVideo({listen, api, notice, login}) {
  if (frame) {
   frame.addEventListener('load', () => setTimeout(hideLoader, 150));
  }
- function close(){hideLoader();currentUrl=null;generation++;active=false;pending.clear();if(frame)frame.removeAttribute('src');if(host){host.hidden=true;host.style.display='none'}const m=getMarket();if(m){m.hidden=false;m.style.display=''}const t=document.getElementById('pageTitle');if(t)t.textContent='应用市场';const s=document.getElementById('pageSubtitle');if(s)s.textContent='为 Station 安装创作应用，管理模型与运行状态。';const main=document.querySelector('.main');if(main)main.classList.remove('embed-active');}
- async function sync(){
-  const path=route();if(!path){hideLoader();close();return}
-  const [url,hash]=path.split('#');
-  if(active&&currentUrl===url&&frame){
-   breadcrumbs(path);
-   frame.contentWindow?.postMessage({channel:'vf-studio',type:'route',hash:hash||'tasks'},'*');
-   return;
+ function close() {
+  hideLoader();
+  const wasActive = active || currentUrl !== null;
+  currentUrl = null;
+  generation++;
+  active = false;
+  pending.clear();
+  if (frame) frame.removeAttribute('src');
+  if (host) {
+    host.hidden = true;
+    host.style.display = 'none';
+  }
+  if (!wasActive) return;
+  if (location.hash.includes('image=')) return;
+
+  const m = getMarket();
+  if (m) {
+    m.hidden = false;
+    m.style.display = '';
+  }
+  const t = document.getElementById('pageTitle');
+  if (t) t.textContent = '应用市场';
+  const s = document.getElementById('pageSubtitle');
+  if (s) s.textContent = '为 Station 安装创作应用，管理模型与运行状态。';
+  const main = document.querySelector('.main');
+  if (main) main.classList.remove('embed-active');
+ }
+
+ async function sync() {
+  const path = route();
+  if (!path) {
+    hideLoader();
+    close();
+    return;
+  }
+  const [url, hash] = path.split('#');
+  if (active && currentUrl === url && frame) {
+    const m = getMarket(), res = getResource(), imgHost = document.getElementById('imageHost');
+    if (m) { m.hidden = true; m.style.display = 'none'; }
+    if (res) { res.hidden = true; res.style.display = 'none'; }
+    if (imgHost) { imgHost.hidden = true; imgHost.style.display = 'none'; }
+    if (host) { host.hidden = false; host.style.display = 'flex'; }
+    const main = document.querySelector('.main');
+    if (main) main.classList.add('embed-active');
+    const t = document.getElementById('pageTitle');
+    if (t) t.textContent = 'Video MCP';
+    const s = document.getElementById('pageSubtitle');
+    if (s) s.textContent = '视频任务、模型与 MCP 服务工作区';
+    breadcrumbs(path);
+    frame.contentWindow?.postMessage({ channel: 'vf-studio', type: 'route', hash: hash || 'tasks' }, '*');
+    return;
   }
   currentUrl=url;
   const epoch=++generation;pending.clear();

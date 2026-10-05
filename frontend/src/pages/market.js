@@ -642,7 +642,7 @@ export function mountMarket() {
     if (!$('loginDialog').open) {
       refresh().then(() => {
         if (location.hash.includes('video=')) video.sync();
-        if (location.hash.includes('image=')) image.sync();
+        else if (location.hash.includes('image=')) image.sync();
       });
     }
   }, 30000);

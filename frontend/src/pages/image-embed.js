@@ -63,6 +63,7 @@ export function mountImage({ listen, api, notice, login }) {
 
   function close() {
     hideLoader();
+    const wasActive = active || currentUrl !== null;
     currentUrl = null;
     generation++;
     active = false;
@@ -72,6 +73,9 @@ export function mountImage({ listen, api, notice, login }) {
       host.hidden = true;
       host.style.display = 'none';
     }
+    if (!wasActive) return;
+    if (location.hash.includes('video=')) return;
+
     const m = getMarket();
     if (m) {
       m.hidden = false;
@@ -94,6 +98,17 @@ export function mountImage({ listen, api, notice, login }) {
     }
     const [url, hash] = path.split('#');
     if (active && currentUrl === url && frame) {
+      const m = getMarket(), res = getResource(), vHost = getVideo();
+      if (m) { m.hidden = true; m.style.display = 'none'; }
+      if (res) { res.hidden = true; res.style.display = 'none'; }
+      if (vHost) { vHost.hidden = true; vHost.style.display = 'none'; }
+      if (host) { host.hidden = false; host.style.display = 'flex'; }
+      const main = document.querySelector('.main');
+      if (main) main.classList.add('embed-active');
+      const t = document.getElementById('pageTitle');
+      if (t) t.textContent = 'Image MCP';
+      const s = document.getElementById('pageSubtitle');
+      if (s) s.textContent = '图像生成、模型图层与 MCP 规约工作台';
       breadcrumbs(path);
       frame.contentWindow?.postMessage({ channel: 'vf-studio', type: 'route', hash: hash || 'tasks' }, '*');
       return;
