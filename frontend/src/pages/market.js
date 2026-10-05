@@ -274,12 +274,185 @@ export function mountMarket() {
     });
   }
 
+  let currentWorkloadFilter = 'all';
+
+  function filterWorkloadCards() {
+    const q = $('workloadSearchInput')?.value.toLowerCase().trim() || '';
+    const cards = document.querySelectorAll('.wl-card');
+    cards.forEach(card => {
+      const type = card.dataset.type;
+      const typeMatch = currentWorkloadFilter === 'all' || type === currentWorkloadFilter;
+      const textMatch = !q || card.textContent.toLowerCase().includes(q);
+      card.style.display = (typeMatch && textMatch) ? 'flex' : 'none';
+    });
+  }
+
+  function renderWorkloadCards(workloads) {
+    const listEl = $('workloadList');
+    if (!listEl) return;
+    if (!workloads || workloads.length === 0) {
+      listEl.innerHTML = `
+        <div class="activity-empty">
+          <div class="activity-empty-shield">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M9 12l2 2 4-4"></path>
+            </svg>
+          </div>
+          <div class="activity-empty-title">所有已纳管工作负载健康运行中</div>
+          <p class="activity-empty-sub">正在与 Kubernetes Informer 和 Prometheus DCGM 同频遥测数据…</p>
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = workloads.map(wl => {
+      const isGpu = wl.type === 'gpu';
+      const hasGpuClass = isGpu ? 'has-gpu' : 'cpu-only';
+      const statusClass = (wl.status || '').toLowerCase().includes('run') || (wl.status || '').toLowerCase().includes('ready') ? 'running' : 'standby';
+
+      let iconSvg = '';
+      if (wl.name.includes('image')) {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
+      } else if (wl.name.includes('video-mcp')) {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
+      } else if (wl.name.includes('minimax')) {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+      } else if (wl.name.includes('runtime')) {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+      } else {
+        iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+      }
+
+      const tagChipsHtml = (wl.tag_chips || []).map(chip => `
+        <span class="wl-tag-chip">${esc(chip)}</span>
+      `).join('');
+
+      return `
+        <article class="wl-card ${hasGpuClass}" data-type="${esc(wl.type)}" data-name="${esc(wl.name)}">
+          <div class="wl-head">
+            <div class="wl-id-group">
+              <div class="wl-app-icon">${iconSvg}</div>
+              <div class="wl-title-box">
+                <div class="wl-title-row">
+                  <span class="wl-name">${esc(wl.name)}</span>
+                  <span class="wl-namespace">${esc(wl.namespace)}</span>
+                  ${wl.badge ? `<span class="res-section-badge ${isGpu ? 'highlight' : ''}">${esc(wl.badge)}</span>` : ''}
+                </div>
+                <span class="wl-pod-id">Pod: ${esc(wl.pod_name || '就绪待命')} · 节点: ${esc(wl.node_name || 'verdentflare-5090')}</span>
+              </div>
+            </div>
+            <div class="wl-meta-right">
+              <span class="wl-uptime">${esc(wl.uptime || '就绪')} · 重启 ${wl.restarts || 0} 次</span>
+              <span class="wl-status-tag ${statusClass}"><i class="gpu-dot"></i> ${esc(wl.status || '就绪')} (${esc(wl.ready || '1/1')})</span>
+            </div>
+          </div>
+
+          <div class="wl-metrics-grid">
+            <!-- 1. GPU / 显存 -->
+            <div class="wl-metric-cell">
+              <div class="wl-cell-title">
+                <span>GPU / 显存占用</span>
+                <span class="quota-badge ${isGpu ? 'highlight-green' : ''}">${esc(wl.gpu_quota || (isGpu ? '申请 1 卡' : '无 GPU 绑定'))}</span>
+              </div>
+              <div class="wl-cell-val-row">
+                <div class="wl-actual-val">
+                  ${esc(wl.gpu_actual_vram || '0.0')} <small>${esc(wl.gpu_actual_unit || (isGpu ? 'GB 实际占用' : 'MB 显存'))}</small>
+                </div>
+                <span class="wl-req-tag">${esc(wl.gpu_quota_tag || '')}</span>
+              </div>
+              <div class="wl-progress-track">
+                <div class="wl-progress-fill" style="width: ${Math.min(100, Math.max(0, wl.gpu_progress_pct || 0))}%;"></div>
+              </div>
+              <div class="wl-metric-footnote">
+                <span>${esc(wl.gpu_footnote1 || '')}</span>
+                <span>${esc(wl.gpu_footnote2 || '')}</span>
+              </div>
+            </div>
+
+            <!-- 2. CPU 算力实况 -->
+            <div class="wl-metric-cell">
+              <div class="wl-cell-title">
+                <span>CPU 算力实况</span>
+                <span class="quota-badge ${wl.cpu_quota_badge && wl.cpu_quota_badge.includes('16C') ? 'amber' : ''}">${esc(wl.cpu_quota_badge || '')}</span>
+              </div>
+              <div class="wl-cell-val-row">
+                <div class="wl-actual-val">
+                  ${esc(wl.cpu_actual_val || '0m')} <small>${esc(wl.cpu_actual_sub || '')}</small>
+                </div>
+                <span class="wl-req-tag">${esc(wl.cpu_quota_tag || '')}</span>
+              </div>
+              <div class="wl-progress-track">
+                <div class="wl-progress-fill ${wl.cpu_quota_badge && wl.cpu_quota_badge.includes('16C') ? 'amber' : 'blue'}" style="width: ${Math.min(100, Math.max(1, wl.cpu_progress_pct || 1))}%;"></div>
+              </div>
+              <div class="wl-metric-footnote">
+                <span>${esc(wl.cpu_footnote1 || '')}</span>
+                <span>${esc(wl.cpu_footnote2 || '')}</span>
+              </div>
+            </div>
+
+            <!-- 3. 系统内存 RAM -->
+            <div class="wl-metric-cell">
+              <div class="wl-cell-title">
+                <span>系统内存 (RAM)</span>
+                <span class="quota-badge ${wl.ram_quota_badge && wl.ram_quota_badge.includes('96G') ? 'amber' : ''}">${esc(wl.ram_quota_badge || '')}</span>
+              </div>
+              <div class="wl-cell-val-row">
+                <div class="wl-actual-val">
+                  ${esc(wl.ram_actual_val || '0')} <small>${esc(wl.ram_actual_sub || 'MiB')}</small>
+                </div>
+                <span class="wl-req-tag">${esc(wl.ram_quota_tag || '')}</span>
+              </div>
+              <div class="wl-progress-track">
+                <div class="wl-progress-fill ${wl.ram_quota_badge && wl.ram_quota_badge.includes('96G') ? 'amber' : 'blue'}" style="width: ${Math.min(100, Math.max(1, wl.ram_progress_pct || 1))}%;"></div>
+              </div>
+              <div class="wl-metric-footnote">
+                <span>${esc(wl.ram_footnote1 || '')}</span>
+                <span>${esc(wl.ram_footnote2 || '')}</span>
+              </div>
+            </div>
+
+            <!-- 4. 模型与卷承载 -->
+            <div class="wl-metric-cell">
+              <div class="wl-cell-title">
+                <span>${esc(wl.workload_kind || '能力引擎与承载')}</span>
+                <span class="quota-badge">${esc(wl.workload_engine || 'NVMe 直通')}</span>
+              </div>
+              <div class="wl-cell-val-row">
+                <div class="wl-actual-val" style="font-size: 13px;">
+                  ${esc(wl.workload_model || '')}
+                </div>
+                <span class="wl-req-tag">${esc(wl.workload_model_sub || '')}</span>
+              </div>
+              <div class="wl-metric-footnote" style="margin-top: 8px;">
+                <span>${esc(wl.workload_mount || '')}</span>
+                <span class="highlight-green">${esc(wl.workload_status || '就绪')}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="wl-foot">
+            <div class="wl-foot-left">
+              ${tagChipsHtml}
+            </div>
+            <div class="wl-foot-right">
+              <button class="wl-btn-detail" type="button" data-pod-diag="${esc(wl.name)}">查看 Pod 诊断</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    filterWorkloadCards();
+  }
+
   async function renderResources() {
     try {
-      const [summaryRes, gpusRes, nodeRes] = await Promise.all([
+      const [summaryRes, gpusRes, nodeRes, workloadsRes] = await Promise.all([
         api('resources/summary').catch(() => null),
         api('resources/gpu').catch(() => null),
-        api('resources/node').catch(() => null)
+        api('resources/node').catch(() => null),
+        api('resources/workloads').catch(() => null)
       ]);
 
       const s = summaryRes?.summary;
@@ -440,20 +613,58 @@ export function mountMarket() {
           }).join('');
         }
       }
+
+      // 7. Workloads Quota & Real Telemetry Section
+      const wlSummary = workloadsRes?.summary;
+      const workloads = workloadsRes?.workloads;
+
+      if (wlSummary) {
+        const qGpuVal = $('quotaGpuVal');
+        if (qGpuVal) qGpuVal.innerHTML = `${wlSummary.gpu_quotas_bound} / ${wlSummary.gpu_quotas_total} 卡 <small>(${Math.round(wlSummary.gpu_quotas_pct)}% 绑定)</small>`;
+        const qGpuMeter = $('quotaGpuMeter');
+        if (qGpuMeter) qGpuMeter.style.width = `${Math.min(100, Math.max(0, wlSummary.gpu_quotas_pct))}%`;
+
+        const qVramVal = $('quotaVramVal');
+        if (qVramVal) qVramVal.innerHTML = `${wlSummary.vram_used_gb.toFixed(1)} / ${Math.round(wlSummary.vram_total_gb)} GB <small>(${wlSummary.vram_pct.toFixed(1)}% 水位)</small>`;
+        const qVramMeter = $('quotaVramMeter');
+        if (qVramMeter) qVramMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.vram_pct))}%`;
+
+        const qCpuVal = $('quotaCpuVal');
+        if (qCpuVal) qCpuVal.innerHTML = `${wlSummary.cpu_req_cores.toFixed(1)} / ${wlSummary.cpu_total_cores} 核 <small>(${wlSummary.cpu_req_pct.toFixed(1)}% 预留)</small>`;
+        const qCpuMeter = $('quotaCpuMeter');
+        if (qCpuMeter) qCpuMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.cpu_req_pct))}%`;
+
+        const qMemVal = $('quotaMemVal');
+        if (qMemVal) qMemVal.innerHTML = `${wlSummary.mem_req_gb.toFixed(1)} / ${Math.round(wlSummary.mem_total_gb)} GB <small>(${wlSummary.mem_req_pct.toFixed(1)}% 预留)</small>`;
+        const qMemMeter = $('quotaMemMeter');
+        if (qMemMeter) qMemMeter.style.width = `${Math.min(100, Math.max(2, wlSummary.mem_req_pct))}%`;
+
+        const badge = $('wlCountBadge');
+        if (badge) badge.textContent = `${wlSummary.total_workloads} 个活跃容器组`;
+      }
+
+      if (workloads && workloads.length > 0) {
+        renderWorkloadCards(workloads);
+      }
     } catch { }
 
     const opList = Array.from(operations.values());
     const railActivity = $('railActivity');
-    if (railActivity && opList.length > 0) {
-      railActivity.innerHTML = opList.map(op => `
-        <div class="activity-item">
-          <div class="activity-row">
-            <span class="activity-pill"><i class="dot on"></i>${esc(op.app_id)}</span>
-            <strong>${esc(op.action === 'install' ? '安装中' : op.action === 'start' ? '启动中' : '执行中')}</strong>
+    if (railActivity) {
+      if (opList.length > 0) {
+        railActivity.style.display = 'block';
+        railActivity.innerHTML = opList.map(op => `
+          <div class="activity-item">
+            <div class="activity-row">
+              <span class="activity-pill"><i class="dot on"></i>${esc(op.app_id)}</span>
+              <strong>${esc(op.action === 'install' ? '安装中' : op.action === 'start' ? '启动中' : '执行中')}</strong>
+            </div>
+            <span class="muted" style="font-size:12px">${new Date(op.created_at).toLocaleTimeString()}</span>
           </div>
-          <span class="muted" style="font-size:12px">${new Date(op.created_at).toLocaleTimeString()}</span>
-        </div>
-      `).join('');
+        `).join('');
+      } else {
+        railActivity.style.display = 'none';
+      }
     }
   }
 
@@ -727,6 +938,7 @@ export function mountMarket() {
   }
 
   if ($('search')) $('search').addEventListener('input', render);
+  if ($('workloadSearchInput')) $('workloadSearchInput').addEventListener('input', filterWorkloadCards);
   if ($('closeDrawer')) $('closeDrawer').onclick = closeDetail;
   if ($('overlay')) $('overlay').onclick = e => { if (e.target === $('overlay')) closeDetail() };
 
@@ -736,6 +948,16 @@ export function mountMarket() {
     const b = e.target.closest('button,a');
     if (!b || b.disabled) return;
 
+    if (b.dataset.filter) {
+      document.querySelectorAll('.workload-tab-btn').forEach(btn => btn.classList.toggle('active', btn === b));
+      currentWorkloadFilter = b.dataset.filter;
+      filterWorkloadCards();
+      return;
+    }
+    if (b.dataset.podDiag) {
+      notice(`已获取 Pod [${b.dataset.podDiag}] 调度就绪指标`);
+      return;
+    }
     if (b.dataset.openVideo) {
       e.preventDefault();
       const app = apps.find(a => a.app_id === 'video-mcp-server');

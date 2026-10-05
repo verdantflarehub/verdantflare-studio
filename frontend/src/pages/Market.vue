@@ -510,34 +510,77 @@ onBeforeUnmount(() => dispose?.())
           </div>
         </section>
 
-        <!-- 5. Deployment Activity Queue -->
-        <section class="res-section">
+        <!-- 5. Workload Quota & Real Telemetry Section (Section 5) -->
+        <section class="res-section" id="workloadSection">
           <div class="res-section-title">
             <div class="res-section-title-left">
-              <span>部署流水线与任务状态</span>
-              <span class="res-section-badge">
-                <span class="dot on" style="display:inline-block; width:6px; height:6px; margin-right:4px;"></span>
-                Informer 实时同频
-              </span>
+              <span>已部署工作负载与算力配额对账</span>
+              <span class="res-section-badge highlight" id="wlCountBadge">5 个活跃容器组</span>
+              <span class="res-section-badge">DCGM + cAdvisor 实时同频</span>
+              <span class="res-section-badge amber" style="background:rgba(181,128,50,0.12); color:#b58032; border-color:rgba(181,128,50,0.3);">动态防爆审计就绪</span>
             </div>
-            <span class="eyebrow">Cluster Pods & Workloads</span>
+            <span class="eyebrow">CONTAINER LEVEL QUOTA & ACTUAL IN-USE</span>
           </div>
-          <div id="railActivity">
-            <div class="activity-empty">
-              <div class="activity-empty-shield">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  <path d="M9 12l2 2 4-4"></path>
-                </svg>
+
+          <div class="workloads-container">
+            <!-- 总体配额与预留对账总览条 -->
+            <div class="quota-summary-strip" id="quotaSummaryStrip">
+              <div class="quota-item">
+                <span class="quota-item-lbl">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                  GPU 卡分配率 (Quotas)
+                </span>
+                <div class="quota-item-val" id="quotaGpuVal">2 / 2 卡 <small>(100% 绑定)</small></div>
+                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" id="quotaGpuMeter" style="width: 100%;"></div></div>
               </div>
-              <div class="activity-empty-title">所有已纳管创作工作负载健康运行中</div>
-              <p class="activity-empty-sub">暂无阻塞或排队中的部署任务 · Station Core 与集群 Informer 实时同频</p>
-              <div class="activity-workloads">
-                <span class="activity-pill"><i class="dot on"></i>video-mcp-server: 就绪</span>
-                <span class="activity-pill"><i class="dot on"></i>image-mcp-server: 就绪</span>
-                <span class="activity-pill"><i class="dot on"></i>station-core: 运行中</span>
-                <span class="activity-pill"><i class="dot on"></i>station-runtime: 运行中</span>
+
+              <div class="quota-item">
+                <span class="quota-item-lbl">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                  显存实际占用 (In-Use VRAM)
+                </span>
+                <div class="quota-item-val" id="quotaVramVal">5.8 / 64 GB <small>(9.1% 水位)</small></div>
+                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" id="quotaVramMeter" style="width: 9.1%;"></div></div>
               </div>
+
+              <div class="quota-item">
+                <span class="quota-item-lbl">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+                  CPU 申请配额 (Requests)
+                </span>
+                <div class="quota-item-val" id="quotaCpuVal">18.7 / 24 核 <small>(77.9% 预留)</small></div>
+                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" id="quotaCpuMeter" style="width: 77.9%;"></div></div>
+              </div>
+
+              <div class="quota-item">
+                <span class="quota-item-lbl">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7h20v10H2z"></path></svg>
+                  内存申请配额 (Requests)
+                </span>
+                <div class="quota-item-val" id="quotaMemVal">98.2 / 256 GB <small>(38.4% 预留)</small></div>
+                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" id="quotaMemMeter" style="width: 38.4%;"></div></div>
+              </div>
+            </div>
+
+            <!-- 过滤器与搜索栏 -->
+            <div class="workload-filters">
+              <div class="workload-tabs">
+                <button type="button" class="workload-tab-btn active" data-filter="all">全部工作负载 (5)</button>
+                <button type="button" class="workload-tab-btn" data-filter="gpu">GPU 创作应用 (2)</button>
+                <button type="button" class="workload-tab-btn" data-filter="infra">平台与基础设施 (3)</button>
+              </div>
+              <div class="workload-search">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="workloadSearchInput" placeholder="过滤 Pod、应用名称或命名空间...">
+              </div>
+            </div>
+
+            <!-- 正在进行的流水线操作通知 (如果存在) -->
+            <div id="railActivity" style="display:none;"></div>
+
+            <!-- 工作负载真实遥测卡片列表 -->
+            <div class="workload-list" id="workloadList">
+              <!-- Initial placeholders rendered here, will be refreshed dynamically via API -->
             </div>
           </div>
         </section>

@@ -82,6 +82,8 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 		path = "/api/v1/resources/node"
 	case in.Method == "GET" && in.Path == "resources/summary":
 		path = "/api/v1/resources/summary"
+	case in.Method == "GET" && in.Path == "resources/workloads":
+		path = "/api/v1/resources/workloads"
 	default:
 		return Error(404, "NOT_FOUND")
 	}
