@@ -12,6 +12,7 @@ COPY scripts/build.sh scripts/build.sh
 RUN go mod download
 COPY cmd/web/ cmd/web/
 COPY internal/ internal/
+COPY migrations/ migrations/
 COPY frontend/assets.go frontend/assets.go
 COPY --from=frontend /src/frontend/dist/ frontend/dist/
 RUN bash scripts/build.sh web --backend-only
