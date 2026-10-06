@@ -2,6 +2,7 @@ import { mockIdentity } from './identity'
 import { mockResourcesSummary, mockGpus, mockNode, mockWorkloads, mockHealth } from './telemetry'
 import { mockLiveApps } from './apps'
 import { mockProxies } from './proxies'
+import { mockAssets, mockAssetGet, mockCreatedProjectID, mockProjectOpen, mockProjects } from './project-world'
 
 export interface MockRequestInput {
   path: string
@@ -27,6 +28,36 @@ export async function handleMockRequest(input: MockRequestInput): Promise<Respon
   const method = (input.method || 'GET').toUpperCase()
   const rawPath = input.path.replace(/^\/+/, '')
   const [basePath, queryStr] = rawPath.split('?')
+
+  // Project / World MCP tool calls used by the live Studio pages.
+  if (basePath === 'mcp' && method === 'POST') {
+    const payload = input.body as { id?: string; params?: { name?: string; arguments?: Record<string, unknown> } } | undefined
+    const name = payload?.params?.name
+    const args = payload?.params?.arguments || {}
+    let result: unknown
+    if (name === 'project.list') {
+      result = { items: mockProjects, next_cursor: '' }
+    } else if (name === 'project.open') {
+      result = mockProjectOpen(String(args.project_id || ''))
+    } else if (name === 'project.create') {
+      if (!mockProjects.some(item => item.project_id === mockCreatedProjectID)) {
+        mockProjects.unshift({ project_id: mockCreatedProjectID, head_revision_id: '0192f3d4-4333-7aaa-8bbb-1234567890ab', name: String(args.name || '新建项目'), category: String(args.category || 'music'), status: 'draft', created_at: new Date().toISOString() })
+      }
+      result = mockProjectOpen(mockCreatedProjectID)
+    } else if (name === 'project.use_asset') {
+      const opened = mockProjectOpen(String(args.project_id || ''))
+      opened.manifest.asset_refs = [{ asset_id: String(args.asset_id || ''), asset_version_id: String(args.asset_version_id || ''), purpose: String(args.purpose || 'asset-reference') }]
+      result = opened
+    } else if (name === 'world.list') {
+      const wanted = typeof args.asset_type === 'string' ? args.asset_type : ''
+      result = { items: mockAssets.filter(item => !wanted || item.asset_type === wanted), next_cursor: '' }
+    } else if (name === 'world.get') {
+      result = mockAssetGet(String(args.asset_id || ''), String(args.asset_version_id || ''))
+    } else {
+      return jsonResponse({ jsonrpc: '2.0', id: payload?.id, error: { code: -32601, message: 'Unknown mock tool' } }, 404)
+    }
+    return jsonResponse({ jsonrpc: '2.0', id: payload?.id, result })
+  }
 
   // 1. Identity & Session
   if (basePath === 'me') {

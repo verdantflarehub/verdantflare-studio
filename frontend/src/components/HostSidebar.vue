@@ -13,7 +13,7 @@ onMounted(() => {
   hostStore.init()
 })
 
-const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'workbench'>(() => {
+const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'workbench' | 'projects' | 'world'>(() => {
   if (route.path.startsWith('/station/proxies')) {
     return 'proxies'
   }
@@ -25,6 +25,12 @@ const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'work
   }
   if (route.path.startsWith('/workbench')) {
     return 'workbench'
+  }
+  if (route.path.startsWith('/projects') && route.query.mode === 'world') {
+    return 'world'
+  }
+  if (route.path.startsWith('/projects')) {
+    return 'projects'
   }
   if (route.path.startsWith('/market')) {
     return 'market'
@@ -43,6 +49,10 @@ function navTo(target: string) {
     router.push('/market')
   } else if (target === 'proxies') {
     router.push('/station/proxies')
+  } else if (target === 'projects') {
+    router.push('/projects')
+  } else if (target === 'world') {
+    router.push({ path: '/projects', query: { mode: 'world' } })
   }
 }
 
@@ -120,6 +130,33 @@ function handleHelpClick() {
         </svg>
       </span>
       <span>工作台</span>
+    </a>
+
+    <a class="nav-link"
+       :class="{ selected: activeNav === 'projects' }"
+       href="#/projects"
+       data-nav="projects"
+       @click.prevent="navTo('projects')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7h7l2 2h9v10H3zM3 7V4h8l2 2h8v3" />
+        </svg>
+      </span>
+      <span>项目</span>
+    </a>
+
+    <a class="nav-link"
+       :class="{ selected: activeNav === 'world' }"
+       href="#/projects?mode=world"
+       data-nav="world"
+       @click.prevent="navTo('world')">
+      <span class="nav-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18" />
+        </svg>
+      </span>
+      <span>数字世界</span>
     </a>
 
     <a class="nav-link"

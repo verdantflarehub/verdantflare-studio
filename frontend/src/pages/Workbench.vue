@@ -145,7 +145,7 @@ function launchApp(type: 'video' | 'image' | 'music') {
 }
 
 function openProject(p: ProjectItem) {
-  showToast(`已载入项目上下文：${p.name}`)
+  router.push('/projects')
 }
 
 onMounted(() => {

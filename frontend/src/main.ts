@@ -7,6 +7,7 @@ import Market from './pages/Market.vue'
 import Models from './pages/Models.vue'
 import Resources from './pages/Resources.vue'
 import StationProxy from './pages/StationProxy.vue'
+import ProjectWorld from './pages/ProjectWorld.vue'
 import './theme/market.css'
 
 const router = createRouter({
@@ -14,6 +15,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/market' },
     { path: '/workbench', component: Workbench },
+    { path: '/projects', component: ProjectWorld },
     { path: '/market', component: Market },
     { path: '/models', component: Models },
     { path: '/resources', component: Resources },
@@ -23,4 +25,3 @@ const router = createRouter({
 })
 
 createApp(App).use(createPinia()).use(router).mount('#app')
-
