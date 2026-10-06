@@ -102,6 +102,14 @@ func (s *Service) MCPHandler(token, authorityToken string) (http.Handler, error)
 				mcprpc.Reject(w, r, request, 503, -32603, "Service response unavailable")
 				return
 			}
+			// Preserve the business HTTP status from the internal handler. The
+			// structured MCP result remains available to callers, while the
+			// aggregate gateway can keep authentication, conflict and dependency
+			// errors observable to Web and desktop clients.
+			if out.status >= 400 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(out.status)
+			}
 			mcprpc.Result(w, request, map[string]any{"content": []map[string]string{{"type": "text", "text": out.body.String()}}, "structuredContent": data, "isError": out.status >= 400})
 		default:
 			mcprpc.Reject(w, r, request, 404, -32601, "Method not found")

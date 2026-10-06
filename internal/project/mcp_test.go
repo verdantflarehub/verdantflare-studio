@@ -24,6 +24,7 @@ func TestInternalMCPAuthenticationAndNoNotificationWrites(t *testing.T) {
 		{"notification write", `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"project.create","arguments":{}}}`, strings.Repeat("s", 32), 400},
 		{"duplicate argument", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"project.create","arguments":{"name":"a","name":"b"}}}`, strings.Repeat("s", 32), 400},
 		{"unregistered action", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"project.delete","arguments":{}}}`, strings.Repeat("s", 32), 404},
+		{"business error status", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"project.commit","arguments":{"project_id":"0199b501-0000-7000-8000-000000000001","expected_revision_id":"bad","commit_id":"0199b501-0000-7000-8000-000000000002","changes":{}}}}`, strings.Repeat("s", 32), 400},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			r := httptest.NewRequest("POST", "/mcp", strings.NewReader(test.body))

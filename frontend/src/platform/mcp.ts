@@ -11,6 +11,12 @@ interface MCPEnvelope<T> {
   error?: MCPError
 }
 
+interface MCPToolResult<T> {
+  structuredContent?: T
+  isError?: boolean
+  content?: Array<{ type?: string; text?: string }>
+}
+
 interface DesktopMCPResult {
   status: number
   data: unknown
@@ -102,5 +108,17 @@ export async function callTool<T>(name: string, arguments_: Record<string, unkno
   if (envelope.result === undefined) {
     throw new MCPRequestError('Studio MCP response has no result', response.status)
   }
-  return envelope.result
+  // Managed downstream services return the standard MCP tool envelope. The
+  // Studio page consumes structuredContent as its typed result, while keeping
+  // compatibility with older direct-result services during migration.
+  const tool = envelope.result as unknown as MCPToolResult<T> | T
+  if (tool && typeof tool === 'object' && 'structuredContent' in tool) {
+    const wrapped = tool as MCPToolResult<T>
+    if (wrapped.isError) {
+      const details = wrapped.structuredContent as { message?: string } | undefined
+      throw new MCPRequestError(details?.message || 'MCP tool request failed', response.status >= 400 ? response.status : 400)
+    }
+    return wrapped.structuredContent as T
+  }
+  return envelope.result as T
 }
