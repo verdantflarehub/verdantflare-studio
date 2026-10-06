@@ -2,7 +2,7 @@ import { mockIdentity } from './identity'
 import { mockResourcesSummary, mockGpus, mockNode, mockWorkloads, mockHealth } from './telemetry'
 import { mockLiveApps } from './apps'
 import { mockProxies } from './proxies'
-import { mockAssets, mockAssetGet, mockCreatedProjectID, mockProjectOpen, mockProjects } from './project-world'
+import { mockAssets, mockAssetGet, mockCreatedProjectID, mockEntryTexts, mockProjectOpen, mockProjects, mockSavedRevision } from './project-world'
 
 export interface MockRequestInput {
   path: string
@@ -42,8 +42,17 @@ export async function handleMockRequest(input: MockRequestInput): Promise<Respon
     } else if (name === 'project.create') {
       if (!mockProjects.some(item => item.project_id === mockCreatedProjectID)) {
         mockProjects.unshift({ project_id: mockCreatedProjectID, head_revision_id: '0192f3d4-4333-7aaa-8bbb-1234567890ab', name: String(args.name || '新建项目'), category: String(args.category || 'music'), status: 'draft', created_at: new Date().toISOString() })
+        mockEntryTexts.set(mockCreatedProjectID, String(args.entry_text || '# 制作审核记录'))
       }
       result = mockProjectOpen(mockCreatedProjectID)
+    } else if (name === 'project.commit') {
+      const projectID = String(args.project_id || '')
+      const changes = args.changes as { upsert_files?: Array<{ file_id?: string; text?: string }> } | undefined
+      const text = changes?.upsert_files?.find(file => typeof file.text === 'string')?.text
+      if (text !== undefined) mockEntryTexts.set(projectID, text)
+      const project = mockProjects.find(item => item.project_id === projectID)
+      if (project) project.head_revision_id = mockSavedRevision
+      result = mockProjectOpen(projectID)
     } else if (name === 'project.use_asset') {
       const opened = mockProjectOpen(String(args.project_id || ''))
       opened.manifest.asset_refs = [{ asset_id: String(args.asset_id || ''), asset_version_id: String(args.asset_version_id || ''), purpose: String(args.purpose || 'asset-reference') }]
@@ -53,6 +62,10 @@ export async function handleMockRequest(input: MockRequestInput): Promise<Respon
       result = { items: mockAssets.filter(item => !wanted || item.asset_type === wanted), next_cursor: '' }
     } else if (name === 'world.get') {
       result = mockAssetGet(String(args.asset_id || ''), String(args.asset_version_id || ''))
+    } else if (name === 'artifact.read') {
+      const access = args.access as { project_id?: string } | undefined
+      const text = mockEntryTexts.get(String(access?.project_id || '')) || '# 制作审核记录'
+      result = { mode: 'text', version: { content_ref: args.content_ref }, text }
     } else {
       return jsonResponse({ jsonrpc: '2.0', id: payload?.id, error: { code: -32601, message: 'Unknown mock tool' } }, 404)
     }

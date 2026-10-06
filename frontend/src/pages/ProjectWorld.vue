@@ -23,7 +23,7 @@ interface ProjectOpen {
   project_id: string
   revision_id: string
   head_revision_id: string
-  manifest: { files: Array<{ file_id: string; path: string; role: string }>; asset_refs: Array<{ asset_id: string; asset_version_id: string; purpose: string }>; domain_documents: Array<{ document_type: string; file_id: string }> }
+  manifest: { entry_document_id: string; files: Array<{ file_id: string; path: string; role: string; content_ref: { store_id: string; artifact_id: string; version_id: string } }>; asset_refs: Array<{ asset_id: string; asset_version_id: string; purpose: string }>; domain_documents: Array<{ document_type: string; file_id: string }> }
 }
 interface AssetOpen {
   asset_id: string
@@ -46,6 +46,9 @@ const createName = ref('')
 const createCategory = ref('music')
 const createEntryPath = ref('review.md')
 const createEntryText = ref('# 制作审核记录\n\n## 目标\n')
+const entryText = ref('')
+const entryLoading = ref(false)
+const entrySaving = ref(false)
 
 const assetTypes = [
   { value: '', label: '全部类型' },
@@ -105,9 +108,47 @@ async function openProject(item: ProjectItem) {
   error.value = ''
   try {
     selectedProject.value = await callTool<ProjectOpen>('project.open', { project_id: item.project_id, revision_id: item.head_revision_id }, item.project_id)
+    const entry = selectedProject.value.manifest.files.find(file => file.file_id === selectedProject.value?.manifest.entry_document_id)
+    if (entry) {
+      entryLoading.value = true
+      const read = await callTool<{ text?: string }>('artifact.read', {
+        mode: 'text',
+        content_ref: entry.content_ref,
+        access: { project_id: selectedProject.value.project_id, project_revision_id: selectedProject.value.revision_id }
+      }, selectedProject.value.project_id)
+      entryText.value = read.text || ''
+    }
     router.replace({ query: { ...route.query, project: item.project_id } })
   } catch (cause) {
     error.value = errorText(cause)
+  } finally {
+    entryLoading.value = false
+  }
+}
+
+async function saveEntry() {
+  if (!selectedProject.value) return
+  const project = selectedProject.value
+  const entry = project.manifest.files.find(file => file.file_id === project.manifest.entry_document_id)
+  if (!entry) return
+  entrySaving.value = true
+  error.value = ''
+  try {
+    await callTool('project.commit', {
+      project_id: project.project_id,
+      expected_revision_id: project.revision_id,
+      commit_id: uuidv7(),
+      changes: {
+        upsert_files: [{ file_id: entry.file_id, path: entry.path, role: entry.role, text: entryText.value, mime: 'text/markdown' }]
+      }
+    }, project.project_id)
+    await loadProjects()
+    const item = projects.value.find(value => value.project_id === project.project_id)
+    if (item) await openProject(item)
+  } catch (cause) {
+    error.value = errorText(cause)
+  } finally {
+    entrySaving.value = false
   }
 }
 
@@ -228,6 +269,10 @@ onMounted(() => { if (mode.value === 'projects') void loadProjects(); else void 
               <div class="section-title"><span>工程修订</span><span class="version-pill">{{ shortID(selectedProject.revision_id) }}</span></div>
               <dl class="facts"><dt>Project ID</dt><dd>{{ selectedProject.project_id }}</dd><dt>当前 head</dt><dd>{{ shortID(selectedProject.head_revision_id) }}</dd><dt>入口与文件</dt><dd>{{ selectedProject.manifest.files.length }} 个文件</dd><dt>固定资产</dt><dd>{{ selectedProject.manifest.asset_refs.length }} 个版本</dd></dl>
               <div class="subheading">文件清单</div><ul class="plain-list"><li v-for="file in selectedProject.manifest.files" :key="file.file_id"><span>{{ file.path }}</span><small>{{ file.role }} · {{ shortID(file.file_id) }}</small></li></ul>
+              <div class="subheading">入口 MD</div>
+              <div v-if="entryLoading" class="inline-state">正在按当前修订读取入口文档…</div>
+              <textarea v-else v-model="entryText" class="entry-editor" rows="9" aria-label="入口 MD" />
+              <div class="entry-actions"><span>保存会创建新修订，并使用当前修订做并发检查。</span><button class="btn primary" :disabled="entryLoading || entrySaving" @click="saveEntry">{{ entrySaving ? '保存中…' : '保存入口 MD' }}</button></div>
               <div v-if="selectedProject.manifest.asset_refs.length" class="subheading">已固定引用</div><ul v-if="selectedProject.manifest.asset_refs.length" class="plain-list"><li v-for="asset in selectedProject.manifest.asset_refs" :key="asset.asset_id + asset.purpose"><span>{{ asset.purpose }}</span><small>{{ shortID(asset.asset_id) }} · {{ shortID(asset.asset_version_id) }}</small></li></ul>
               <div v-if="selectedAsset" class="reuse-panel"><strong>待带入：{{ selectedAsset.manifest.name }}</strong><span>提交后只增加当前项目的固定版本引用，来源资产和原项目不移动。</span><button class="btn primary" :disabled="loading" @click="useSelectedAsset">固定此版本到当前项目</button></div>
             </template>
@@ -280,6 +325,9 @@ textarea { resize: vertical; margin-top: 12px; }
 .subheading { margin: 16px 0 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .plain-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .plain-list li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.entry-editor { margin-top: 0; min-height: 160px; line-height: 1.55; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.entry-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; color: var(--muted); font-size: 11px; }
+.inline-state { padding: 18px 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 12px; }
 .detail-action { margin-top: 18px; width: 100%; }
 .reuse-panel { display: grid; gap: 7px; margin-top: 20px; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 7%, var(--shell-panel)); color: var(--ink); font-size: 12px; }
 .reuse-panel span { color: var(--muted); line-height: 1.5; }

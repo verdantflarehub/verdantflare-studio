@@ -7,6 +7,7 @@ const assetVoice = '0192f3d4-5111-7aaa-8bbb-1234567890ab'
 const assetCharacter = '0192f3d4-5222-7aaa-8bbb-1234567890ab'
 const assetVersionVoice = '0192f3d4-6111-7aaa-8bbb-1234567890ab'
 const assetVersionCharacter = '0192f3d4-6222-7aaa-8bbb-1234567890ab'
+export const mockSavedRevision = '0192f3d4-7444-7aaa-8bbb-1234567890ab'
 
 export const mockProjects = [
   { project_id: projectA, head_revision_id: revisionA, name: '《空心》声音制作', category: 'music', status: 'active', created_at: '2026-10-01T08:00:00Z' },
@@ -17,6 +18,11 @@ export const mockAssets = [
   { asset_id: assetVoice, head_asset_version_id: assetVersionVoice, name: 'Mengsk 声音模型', asset_type: 'voice-model', subjects: ['Mengsk'], created_at: '2026-10-01T08:00:00Z' },
   { asset_id: assetCharacter, head_asset_version_id: assetVersionCharacter, name: '小月人物形象', asset_type: 'character-image', subjects: ['小月'], created_at: '2026-10-04T08:00:00Z' }
 ]
+
+export const mockEntryTexts = new Map<string, string>([
+  [projectA, '# 制作审核记录\n\n## 《空心》\n\n入口文档来自服务端 Project 修订。'],
+  [projectB, '# 小月舞蹈镜头\n\n## 当前目标\n\n使用固定人物形象版本。']
+])
 
 export function mockProjectOpen(projectID: string) {
   const project = mockProjects.find(item => item.project_id === projectID) || mockProjects[0]
