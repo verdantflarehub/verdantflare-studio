@@ -52,7 +52,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
-	content, e := artifactclient.New(os.Getenv("STUDIO_ARTIFACT_URL"), os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN"))
+	content, e := artifactclient.NewWithCA(os.Getenv("STUDIO_ARTIFACT_URL"), os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN"), strings.TrimSpace(os.Getenv("STUDIO_ARTIFACT_CA_FILE")))
 	if e != nil {
 		return errors.New("invalid Studio Artifact configuration")
 	}
@@ -72,6 +72,13 @@ func run(ctx context.Context, args []string) error {
 	if addr == "" {
 		addr = "127.0.0.1:8095"
 	}
+	certFile, keyFile := strings.TrimSpace(os.Getenv("STUDIO_PROJECT_TLS_CERT_FILE")), strings.TrimSpace(os.Getenv("STUDIO_PROJECT_TLS_KEY_FILE"))
+	if (certFile == "") != (keyFile == "") {
+		return errors.New("STUDIO_PROJECT_TLS_CERT_FILE and STUDIO_PROJECT_TLS_KEY_FILE must be provided together")
+	}
+	if certFile == "" && nonLoopbackListen(addr) {
+		return errors.New("Studio Project non-loopback listener requires TLS")
+	}
 	listener, e := net.Listen("tcp", addr)
 	if e != nil {
 		return errors.New("Studio Project listener unavailable")
@@ -90,7 +97,11 @@ func run(ctx context.Context, args []string) error {
 	mux.Handle("/", handler)
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 10 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	done := make(chan error, 1)
-	go func() { done <- server.Serve(listener) }()
+	if certFile != "" {
+		go func() { done <- server.ServeTLS(listener, certFile, keyFile) }()
+	} else {
+		go func() { done <- server.Serve(listener) }()
+	}
 	defer server.Close()
 	if address := os.Getenv("STUDIO_PROJECT_MCP_ADVERTISE_URL"); address != "" {
 		u, err := url.Parse(address)
@@ -147,4 +158,13 @@ func run(ctx context.Context, args []string) error {
 		}
 		return nil
 	}
+}
+
+func nonLoopbackListen(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip == nil || !ip.IsLoopback()
 }

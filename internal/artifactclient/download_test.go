@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -97,3 +98,17 @@ func TestStreamedDownloadEnforcesAuthorizationAndIntegrity(t *testing.T) {
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestArtifactCAFileMustBeReadableAndPEM(t *testing.T) {
+	token := strings.Repeat("s", 32)
+	if _, err := NewWithCA("http://127.0.0.1:8094", token, t.TempDir()+"/missing.pem"); err == nil {
+		t.Fatal("accepted missing Artifact CA file")
+	}
+	path := t.TempDir() + "/invalid.pem"
+	if err := os.WriteFile(path, []byte("not a certificate"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewWithCA("https://artifact.internal", token, path); err == nil {
+		t.Fatal("accepted invalid Artifact CA bundle")
+	}
+}

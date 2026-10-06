@@ -5,12 +5,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -24,6 +27,13 @@ type Client struct {
 }
 
 func New(base, token string) (*Client, error) {
+	return NewWithCA(base, token, "")
+}
+
+// NewWithCA optionally extends the system trust store for an internal HTTPS
+// Artifact endpoint. The endpoint and bearer token remain independently
+// validated; the CA file is never sent to the service.
+func NewWithCA(base, token, caFile string) (*Client, error) {
 	u, e := url.Parse(base)
 	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || len(token) < 32 || strings.ContainsAny(token, " \t\r\n") {
 		return nil, project.ErrInvalid
@@ -34,6 +44,20 @@ func New(base, token string) (*Client, error) {
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, project.ErrInvalid
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil || !pool.AppendCertsFromPEM(pem) {
+			return nil, project.ErrInvalid
+		}
+		if transport.TLSClientConfig == nil {
+			transport.TLSClientConfig = &tls.Config{}
+		}
+		transport.TLSClientConfig.RootCAs = pool
+	}
 	return &Client{base: strings.TrimRight(base, "/"), token: token, http: &http.Client{Transport: transport, Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (c *Client) request(ctx context.Context, p project.Principal, method, path string, body []byte) (*http.Response, error) {
