@@ -17,18 +17,25 @@ bash scripts/build.sh desktop
 
 # 网站镜像
 bash scripts/build.sh image
+
+# Project/World 内部服务（不依赖前端构建）
+bash scripts/build.sh project
+./build/studio-project migrate
+./build/studio-project serve
 ```
 
 Windows 下可通过 Git Bash 执行脚本，程序带 `.exe` 后缀。脚本自动完成依赖安装、前端构建和 Go 编译。
 
 网站默认访问 `http://127.0.0.1:8000/`（自动重定向兼容旧 `/studio/`）。通过 `STATION_CORE_URL` 指定 Station，`STUDIO_PUBLIC_ORIGIN`、`STUDIO_LISTEN` 配置网站访问来源与监听地址；`STUDIO_IMAGE` 指定镜像名称。
 
-`image` 目标通过默认 Dockerfile 构建 Gin/Vue 网站镜像。
+`image` 目标通过默认 Dockerfile 构建 Studio 镜像，包含 `/studio-web` 和
+`/studio-project`。默认入口仍为 `/studio-web`；Project/World 作为独立进程部署，
+使用 `--entrypoint /studio-project <image> migrate` 或 `serve`，不会随 Web 自动启动或迁移。
 
-Project 业务服务可单独构建：`go build -o <output-path> ./cmd/project`，提供
-`migrate` / `serve`。配置、接口及权限事实源在中央设计仓库的
+Project 业务服务提供 `migrate` / `serve`。配置、接口及权限事实源在中央设计仓库的
 `docs/design/studio/details/07-studio-project-design.revisions.md`；该内部入口
-尚未接到公网 Gateway 或 UI。
+通过现有 Gateway 服务发现接入 Project/World UI；实际可用性取决于数据库迁移、
+Artifact、内部 TLS 和受控凭据的部署，构建镜像不代表服务已上线。
 
 本地检查：`go test ./...`、`go vet ./internal/project ./internal/artifactclient ./migrations ./cmd/project`。
 数据库测试需要 `STUDIO_TEST_DATABASE_URL` 指向可创建数据库的本机临时 PostgreSQL；
