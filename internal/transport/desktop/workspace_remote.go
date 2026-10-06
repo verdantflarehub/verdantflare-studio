@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
+	"github.com/verdantflarehub/verdantflare-studio/internal/workspace"
 )
 
 // gatewayRemote adapts the verified Studio Gateway to the local workspace
@@ -179,4 +180,65 @@ func (r *gatewayRemote) Commit(ctx context.Context, req project.CommitRequest) (
 	}
 	err = r.call(ctx, "project.commit", args, req.ProjectID, &out)
 	return out, err
+}
+
+// Upload implements the binary extension of the local workspace Remote. The
+// Artifact prepare, controlled PUT, and commit calls all use the same project
+// scope and authenticated principal; the browser never receives the upload
+// path or service credential.
+func (r *gatewayRemote) Upload(ctx context.Context, req workspace.UploadRequest, src io.Reader) (project.ContentVersion, error) {
+	if src == nil || !project.ValidID(req.ProjectID) || !project.ValidID(req.WriteID) || req.Size < 0 || req.Size > 1<<50 || len(req.SHA256) != 64 {
+		return project.ContentVersion{}, project.ErrInvalid
+	}
+	var prepared struct {
+		Upload struct {
+			UploadID    string `json:"upload_id"`
+			VersionID   string `json:"version_id"`
+			ArtifactID  string `json:"artifact_id"`
+			State       string `json:"state"`
+			ContentPath string `json:"content_path"`
+		} `json:"upload"`
+	}
+	err := r.call(ctx, "artifact.write", map[string]any{
+		"mode":     "prepare",
+		"write_id": req.WriteID,
+		"source":   req.Source,
+		"mime":     req.MIME,
+		"size":     req.Size,
+		"sha256":   req.SHA256,
+	}, req.ProjectID, &prepared)
+	if err != nil {
+		return project.ContentVersion{}, err
+	}
+	upload := prepared.Upload
+	if !project.ValidID(upload.UploadID) || !project.ValidID(upload.VersionID) || !project.ValidID(upload.ArtifactID) || upload.State != "prepared" || upload.ContentPath != "/v2/artifacts/uploads/"+upload.UploadID+"/content" {
+		return project.ContentVersion{}, project.ErrDependency
+	}
+	p, gateway, err := r.principal(ctx)
+	if err != nil {
+		return project.ContentVersion{}, err
+	}
+	response, status, err := gateway.Transfer(ctx, p, "PUT", upload.ContentPath, "", src, req.Size)
+	if err != nil {
+		return project.ContentVersion{}, gatewayError(status)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return project.ContentVersion{}, gatewayError(response.StatusCode)
+	}
+	if _, err = io.Copy(io.Discard, io.LimitReader(response.Body, 4096)); err != nil {
+		return project.ContentVersion{}, project.ErrDependency
+	}
+	var committed struct {
+		Version project.ContentVersion `json:"version"`
+	}
+	err = r.call(ctx, "artifact.write", map[string]any{"mode": "commit", "upload_id": upload.UploadID}, req.ProjectID, &committed)
+	if err != nil {
+		return project.ContentVersion{}, err
+	}
+	v := committed.Version
+	if v.SchemaVersion != 2 || !v.ContentRef.Valid() || v.ArtifactID != upload.ArtifactID || v.VersionID != upload.VersionID || v.Size != req.Size || v.SHA256 != req.SHA256 || v.MIME != req.MIME || v.Source != req.Source {
+		return project.ContentVersion{}, project.ErrDependency
+	}
+	return v, nil
 }

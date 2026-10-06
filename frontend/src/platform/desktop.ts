@@ -23,6 +23,13 @@ export interface DesktopWorkspaceEnvelope {
   request_id: string
 }
 
+export interface DesktopWorkspaceFileInput {
+  file_id?: string
+  path: string
+  role: string
+  mime: string
+}
+
 function isDesktopHost(): boolean {
   return new URLSearchParams(location.search).get('host') === 'desktop'
 }
@@ -99,6 +106,13 @@ export function saveWorkspaceTexts(workspaceID: string, fileIDs: string[]) {
   return callHost<{ workspace_id: string; result: unknown }>('WorkspaceSaveTexts', {
     workspace_id: workspaceID,
     file_ids: fileIDs
+  })
+}
+
+export function saveWorkspaceFiles(workspaceID: string, files: DesktopWorkspaceFileInput[]) {
+  return callHost<{ workspace_id: string; result: unknown }>('WorkspaceSaveFiles', {
+    workspace_id: workspaceID,
+    files
   })
 }
 

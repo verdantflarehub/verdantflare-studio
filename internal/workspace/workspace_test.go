@@ -102,6 +102,19 @@ func (f *fakeRemote) Download(ctx context.Context, ref project.ContentRef, _ pro
 	}
 	return nil
 }
+func (f *fakeRemote) Upload(_ context.Context, req UploadRequest, src io.Reader) (project.ContentVersion, error) {
+	b, e := io.ReadAll(src)
+	if e != nil || int64(len(b)) != req.Size {
+		return project.ContentVersion{}, project.ErrDependency
+	}
+	h := sha256.Sum256(b)
+	if hex.EncodeToString(h[:]) != req.SHA256 {
+		return project.ContentVersion{}, project.ErrNotReady
+	}
+	ref := project.ContentRef{StoreID: id(), ArtifactID: id(), VersionID: id()}
+	f.contents[ref] = b
+	return project.ContentVersion{SchemaVersion: 2, ContentRef: ref, Size: req.Size, SHA256: req.SHA256, MIME: req.MIME, Source: req.Source}, nil
+}
 func (f *fakeRemote) Commit(_ context.Context, r project.CommitRequest) (project.Result, error) {
 	if f.denied {
 		return project.Result{}, project.ErrForbidden
@@ -115,8 +128,19 @@ func (f *fakeRemote) Commit(_ context.Context, r project.CommitRequest) (project
 	result := f.head.Result
 	result.Manifest.Files = append([]project.File{}, result.Manifest.Files...)
 	for _, update := range *r.Changes.UpsertFiles {
+		if update.ID == "" {
+			if update.Content == nil {
+				continue
+			}
+			result.Manifest.Files = append(result.Manifest.Files, project.File{ID: id(), Path: update.Path, Role: update.Role, Content: *update.Content})
+			continue
+		}
 		for i, file := range result.Manifest.Files {
 			if file.ID == update.ID {
+				if update.Content != nil {
+					result.Manifest.Files[i].Content = *update.Content
+					continue
+				}
 				ref := project.ContentRef{StoreID: id(), ArtifactID: id(), VersionID: id()}
 				f.contents[ref] = []byte(*update.Text)
 				result.Manifest.Files[i].Content = ref
@@ -264,6 +288,45 @@ func TestSaveLostResponsePinsRequestAndPreservesLaterEdit(t *testing.T) {
 	s, e = resumed.Status(ctx)
 	if e != nil || s[0].State != "clean" {
 		t.Fatal(s, e)
+	}
+}
+
+func TestSaveFilesUploadsExplicitNewAndExistingContent(t *testing.T) {
+	f := fixture()
+	w, dir := openFixture(t, f)
+	defer w.Close()
+	ctx := context.Background()
+	media := f.head.Manifest.Files[1]
+	if e := os.MkdirAll(filepath.Join(dir, "images"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "images", "reference.bin"), []byte("new-media"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := w.SaveFiles(ctx, []FileInput{{FileID: media.ID, Path: media.Path, Role: media.Role, MIME: "application/octet-stream"}}); e != nil {
+		t.Fatal("existing media replacement failed", e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "new-reference.png"), []byte("new-file"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	result, e := w.SaveFiles(ctx, []FileInput{{Path: "new-reference.png", Role: "reference", MIME: "image/png"}})
+	if e != nil {
+		t.Fatal("new media import failed", e)
+	}
+	if len(result.Manifest.Files) != 3 {
+		t.Fatalf("new file not committed: %d files", len(result.Manifest.Files))
+	}
+	status, e := w.Status(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, file := range status {
+		if file.Path == "new-reference.png" && file.State != "clean" {
+			t.Fatalf("new file status %s", file.State)
+		}
+	}
+	if _, e := w.SaveFiles(ctx, []FileInput{{Path: "review.md", Role: "review", MIME: "text/markdown"}}); !errors.Is(e, ErrConflict) {
+		t.Fatalf("path-only replacement was accepted: %v", e)
 	}
 }
 

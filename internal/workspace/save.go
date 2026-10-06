@@ -104,15 +104,37 @@ func (w *Workspace) resume(ctx context.Context) (project.Result, error) {
 		known[f.ID] = f
 	}
 	seen := map[string]bool{}
+	paths := map[string]bool{}
+	for _, file := range base.Files {
+		paths[project.PathKey(file.Path)] = true
+	}
 	for _, f := range *r.Changes.UpsertFiles {
 		old, ok := known[f.ID]
-		mt, _, err := mime.ParseMediaType(f.MIME)
-		if !ok || seen[f.ID] || f.Path != old.Path || f.Role != old.Role || f.Text == nil || f.Content != nil || len(*f.Text) > 1<<20 || !utf8.ValidString(*f.Text) || err != nil || (mt != "text/plain" && mt != "text/markdown" && mt != "application/json") || (mt == "application/json" && !json.Valid([]byte(*f.Text))) {
+		if f.ID != "" && (!ok || seen[f.ID] || f.Path != old.Path || f.Role != old.Role) {
 			return project.Result{}, ErrInvalid
 		}
-		seen[f.ID] = true
+		if f.ID == "" && paths[project.PathKey(f.Path)] {
+			return project.Result{}, ErrInvalid
+		}
+		if f.ID != "" {
+			seen[f.ID] = true
+		}
+		if (f.Text == nil) == (f.Content == nil) {
+			return project.Result{}, ErrInvalid
+		}
+		if f.Content != nil {
+			if f.MIME != "" || !f.Content.Valid() {
+				return project.Result{}, ErrInvalid
+			}
+			paths[project.PathKey(f.Path)] = true
+			continue
+		}
+		mt, _, err := mime.ParseMediaType(f.MIME)
+		if f.ID == "" || len(*f.Text) > 1<<20 || !utf8.ValidString(*f.Text) || err != nil || (mt != "text/plain" && mt != "text/markdown" && mt != "application/json") || (mt == "application/json" && !json.Valid([]byte(*f.Text))) {
+			return project.Result{}, ErrInvalid
+		}
 	}
-	if len(seen) == 0 {
+	if len(seen) == 0 && len(*r.Changes.UpsertFiles) == 0 {
 		return project.Result{}, ErrInvalid
 	}
 	result, e := w.remote.Commit(ctx, r)

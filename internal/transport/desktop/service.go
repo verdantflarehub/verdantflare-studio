@@ -123,10 +123,11 @@ type WorkspaceOpenRequest struct {
 }
 
 type WorkspaceRequest struct {
-	WorkspaceID string   `json:"workspace_id"`
-	FileID      string   `json:"file_id,omitempty"`
-	MaxBytes    int64    `json:"max_bytes,omitempty"`
-	FileIDs     []string `json:"file_ids,omitempty"`
+	WorkspaceID string                `json:"workspace_id"`
+	FileID      string                `json:"file_id,omitempty"`
+	MaxBytes    int64                 `json:"max_bytes,omitempty"`
+	FileIDs     []string              `json:"file_ids,omitempty"`
+	Files       []workspace.FileInput `json:"files,omitempty"`
 }
 
 type WorkspaceResult struct {
@@ -199,6 +200,20 @@ func (s *Service) WorkspaceSaveTexts(in WorkspaceRequest) WorkspaceResult {
 		return workspaceFailure(err)
 	}
 	result, err := copy.SaveTexts(context.Background(), in.FileIDs)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
+}
+
+// WorkspaceSaveFiles explicitly uploads selected local files and commits their
+// immutable content references into the pinned Project revision.
+func (s *Service) WorkspaceSaveFiles(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	result, err := copy.SaveFiles(context.Background(), in.Files)
 	if err != nil {
 		return workspaceFailure(err)
 	}

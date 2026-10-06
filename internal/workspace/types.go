@@ -19,6 +19,7 @@ var (
 	ErrCorrupt   = errors.New("WORKSPACE_CONTENT_MISMATCH")
 	aliasPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 	hashPattern  = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	rolePattern  = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 )
 
 // Remote is supplied by the trusted host with the current authenticated identity.
@@ -28,6 +29,32 @@ type Remote interface {
 	Metadata(context.Context, project.ContentRef, project.Access) (project.ContentVersion, error)
 	Download(context.Context, project.ContentRef, project.Access, io.Writer, int64) error
 	Commit(context.Context, project.CommitRequest) (project.Result, error)
+}
+
+// BinaryRemote is an optional extension used by explicit local media saves.
+// Implementations prepare and commit an immutable Artifact version and must
+// stream the bytes through a separately authorized transport.
+type BinaryRemote interface {
+	Upload(context.Context, UploadRequest, io.Reader) (project.ContentVersion, error)
+}
+
+type UploadRequest struct {
+	ProjectID string
+	Source    project.Source
+	WriteID   string
+	MIME      string
+	Size      int64
+	SHA256    string
+}
+
+// FileInput describes an explicitly selected local file. An empty FileID
+// creates a new Project file; an existing FileID may only keep its pinned path
+// and role while replacing its content.
+type FileInput struct {
+	FileID string `json:"file_id,omitempty"`
+	Path   string `json:"path"`
+	Role   string `json:"role"`
+	MIME   string `json:"mime"`
 }
 
 type State struct {

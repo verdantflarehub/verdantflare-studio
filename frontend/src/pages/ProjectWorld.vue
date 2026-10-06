@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { callTool, MCPRequestError, uuidv7 } from '../platform/mcp'
-import { closeWorkspace, chooseWorkspaceDirectory, fetchWorkspaceFile, getWorkspaceStatus, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceTexts, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
+import { closeWorkspace, chooseWorkspaceDirectory, fetchWorkspaceFile, getWorkspaceStatus, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
 
 interface ProjectItem {
   project_id: string
@@ -113,6 +113,12 @@ function workspaceStatusLabel(state: string): string {
   }
 }
 
+function workspaceMIME(path: string): string {
+  const extension = path.toLowerCase().split('.').pop() || ''
+  const known: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', wav: 'audio/wav', mp3: 'audio/mpeg', flac: 'audio/flac', mp4: 'video/mp4', webm: 'video/webm', json: 'application/json', md: 'text/markdown', txt: 'text/plain' }
+  return known[extension] || 'application/octet-stream'
+}
+
 function setWorkspaceStatuses(statuses: DesktopWorkspaceFileStatus[]) {
   if (!workspace.value) return
   workspace.value.statuses = statuses
@@ -185,6 +191,28 @@ async function saveLocalWorkspaceTexts() {
   workspaceError.value = ''
   try {
     await saveWorkspaceTexts(workspace.value.workspace_id, selectedWorkspaceFiles.value)
+    await refreshWorkspaceStatus()
+    await loadProjects()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function saveLocalWorkspaceFiles() {
+  if (!workspace.value) return
+  const files: DesktopWorkspaceFileInput[] = workspace.value.statuses
+    .filter(status => status.state === 'modified' && !isTextWorkspaceFile(workspaceFile(status.file_id)))
+    .map(status => {
+      const file = workspaceFile(status.file_id)
+      return { file_id: status.file_id, path: file?.path || status.path, role: file?.role || 'reference', mime: workspaceMIME(file?.path || status.path) }
+    })
+  if (files.length === 0) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    await saveWorkspaceFiles(workspace.value.workspace_id, files)
     await refreshWorkspaceStatus()
     await loadProjects()
   } catch (cause) {
@@ -443,7 +471,7 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
                 </template>
                 <template v-else>
                   <dl class="workspace-facts"><dt>本地目录</dt><dd>{{ workspaceDirectory }}</dd><dt>基础修订</dt><dd>{{ shortID(workspace.state.base_revision_id) }}</dd><dt>文件状态</dt><dd>{{ workspace.statuses.filter(item => item.state === 'modified').length }} 个已修改 · {{ workspace.statuses.filter(item => item.state === 'not_materialized' || item.state === 'missing').length }} 个待下载</dd></dl>
-                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
+                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving || !workspace.statuses.some(item => item.state === 'modified' && !isTextWorkspaceFile(workspaceFile(item.file_id)))" @click="saveLocalWorkspaceFiles">保存已修改媒体</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
                   <ul class="workspace-file-list"><li v-for="status in workspace.statuses" :key="status.file_id"><label v-if="isTextWorkspaceFile(workspaceFile(status.file_id))" class="workspace-check"><input v-model="selectedWorkspaceFiles" type="checkbox" :value="status.file_id" :disabled="status.state !== 'modified'" /><span>{{ workspaceFile(status.file_id)?.path }}</span></label><span v-else class="workspace-file-name">{{ workspaceFile(status.file_id)?.path }}</span><span class="workspace-file-state" :data-state="status.state">{{ workspaceStatusLabel(status.state) }}</span><button v-if="status.state !== 'modified' && status.state !== 'conflict'" class="btn compact" :disabled="workspaceLoading" @click="fetchLocalWorkspaceFile(status.file_id)">下载/校验</button></li></ul>
                   <p class="workspace-note">入口 MD 和媒体都按文件单独下载；发现本地修改后，勾选文本并显式保存。若提交响应中断，使用“恢复待提交”继续同一个提交。</p>
                 </template>
