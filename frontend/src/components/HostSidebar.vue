@@ -17,29 +17,32 @@ const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'work
   if (route.path.startsWith('/station/proxies')) {
     return 'proxies'
   }
-  if (route.query.mode === 'resources') {
+  if (route.path.startsWith('/resources')) {
     return 'resources'
   }
-  if (route.query.mode === 'models') {
+  if (route.path.startsWith('/models')) {
     return 'models'
   }
-  if (route.query.mode === 'workbench') {
+  if (route.path.startsWith('/workbench')) {
     return 'workbench'
+  }
+  if (route.path.startsWith('/market')) {
+    return 'market'
   }
   return 'market'
 })
 
 function navTo(target: string) {
   if (target === 'resources') {
-    router.push({ path: '/market', query: { mode: 'resources' } })
+    router.push('/resources')
   } else if (target === 'models') {
-    router.push({ path: '/market', query: { mode: 'models' } })
+    router.push('/models')
   } else if (target === 'workbench') {
-    router.push({ path: '/market', query: { mode: 'workbench' } })
+    router.push('/workbench')
   } else if (target === 'market') {
-    router.push({ path: '/market' })
+    router.push('/market')
   } else if (target === 'proxies') {
-    router.push({ path: '/station/proxies' })
+    router.push('/station/proxies')
   }
 }
 
@@ -107,7 +110,7 @@ function handleHelpClick() {
     <div class="nav-label">创作空间</div>
     <a class="nav-link"
        :class="{ selected: activeNav === 'workbench' }"
-       href="#/market"
+       href="#/workbench"
        data-nav="workbench"
        @click.prevent="navTo('workbench')">
       <span class="nav-icon">
@@ -141,7 +144,7 @@ function handleHelpClick() {
 
     <a class="nav-link"
        :class="{ selected: activeNav === 'models' }"
-       href="#/market?mode=models"
+       href="#/models"
        data-nav="models"
        @click.prevent="navTo('models')">
       <span class="nav-icon">
@@ -160,7 +163,7 @@ function handleHelpClick() {
 
     <a class="nav-link"
        :class="{ selected: activeNav === 'resources' }"
-       href="#/market?mode=resources"
+       href="#/resources"
        data-nav="resources"
        @click.prevent="navTo('resources')">
       <span class="nav-icon">

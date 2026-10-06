@@ -2,7 +2,6 @@
 export function mountVideo({listen, api, notice, login}) {
  const host=document.getElementById('videoHost'), frame=document.getElementById('videoFrame');
  const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
- const getResource=()=>document.getElementById('resourceView');
  let active=false, generation=0, pending=new Set(), viewState=null, currentUrl=null;
  const pathPattern=/^\/(api\/(dashboard|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/result)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
  const theme=()=>document.body.dataset.theme==='light'?'light':'dark';
@@ -83,9 +82,8 @@ export function mountVideo({listen, api, notice, login}) {
   }
   const [url, hash] = path.split('#');
   if (active && currentUrl === url && frame) {
-    const m = getMarket(), res = getResource(), imgHost = document.getElementById('imageHost');
+    const m = getMarket(), imgHost = document.getElementById('imageHost');
     if (m) { m.hidden = true; m.style.display = 'none'; }
-    if (res) { res.hidden = true; res.style.display = 'none'; }
     if (imgHost) { imgHost.hidden = true; imgHost.style.display = 'none'; }
     if (host) { host.hidden = false; host.style.display = 'flex'; }
     const main = document.querySelector('.main');
@@ -100,8 +98,8 @@ export function mountVideo({listen, api, notice, login}) {
   }
   currentUrl=url;
   const epoch=++generation;pending.clear();
-  const m=getMarket(),res=getResource(),imgHost=document.getElementById('imageHost');
-  if(m){m.hidden=true;m.style.display='none'}if(res){res.hidden=true;res.style.display='none'}if(imgHost){imgHost.hidden=true;imgHost.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
+  const m=getMarket(),imgHost=document.getElementById('imageHost');
+  if(m){m.hidden=true;m.style.display='none'}if(imgHost){imgHost.hidden=true;imgHost.style.display='none'}if(host){host.hidden=false;host.style.display='flex'}
   const main=document.querySelector('.main');if(main)main.classList.add('embed-active');
   breadcrumbs(path);
   const t=document.getElementById('pageTitle');if(t)t.textContent='Video MCP';

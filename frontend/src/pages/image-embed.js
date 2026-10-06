@@ -2,7 +2,6 @@
 export function mountImage({ listen, api, notice, login }) {
   const host = document.getElementById('imageHost'), frame = document.getElementById('imageFrame');
   const getMarket = () => document.getElementById('marketView') || document.getElementById('marketContent');
-  const getResource = () => document.getElementById('resourceView');
   const getVideo = () => document.getElementById('videoHost');
   let active = false, generation = 0, pending = new Set(), viewState = null, currentUrl = null;
   const pathPattern = /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+)?|tasks\/stats|artifacts\/upload|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
@@ -98,9 +97,8 @@ export function mountImage({ listen, api, notice, login }) {
     }
     const [url, hash] = path.split('#');
     if (active && currentUrl === url && frame) {
-      const m = getMarket(), res = getResource(), vHost = getVideo();
+      const m = getMarket(), vHost = getVideo();
       if (m) { m.hidden = true; m.style.display = 'none'; }
-      if (res) { res.hidden = true; res.style.display = 'none'; }
       if (vHost) { vHost.hidden = true; vHost.style.display = 'none'; }
       if (host) { host.hidden = false; host.style.display = 'flex'; }
       const main = document.querySelector('.main');
@@ -118,9 +116,8 @@ export function mountImage({ listen, api, notice, login }) {
     pending.clear();
 
     // First-Paint: immediate viewport lockdown before async network
-    const m = getMarket(), res = getResource(), vHost = getVideo();
+    const m = getMarket(), vHost = getVideo();
     if (m) { m.hidden = true; m.style.display = 'none'; }
-    if (res) { res.hidden = true; res.style.display = 'none'; }
     if (vHost) { vHost.hidden = true; vHost.style.display = 'none'; }
     if (host) { host.hidden = false; host.style.display = 'flex'; }
     const main = document.querySelector('.main');
