@@ -80,6 +80,21 @@ export async function chooseWorkspaceDirectory(): Promise<string> {
   return Array.isArray(selected) ? (selected[0] || '') : selected
 }
 
+export async function chooseWorkspaceFiles(): Promise<string[]> {
+  if (!isDesktopHost()) return []
+  const { Dialogs } = await import('@wailsio/runtime')
+  const selected = await Dialogs.OpenFile({
+    Title: '选择要导入 Project 的文件',
+    Message: '选中的文件会复制到工作副本根目录，并在确认保存后加入 Project。',
+    ButtonText: '导入所选文件',
+    CanChooseDirectories: false,
+    CanChooseFiles: true,
+    AllowsMultipleSelection: true,
+    ShowHiddenFiles: true
+  })
+  return Array.isArray(selected) ? selected : (selected ? [selected] : [])
+}
+
 export function openWorkspace(projectID: string, directory: string, alias = 'station') {
   return callHost<{ workspace_id: string; state: DesktopWorkspaceState; manifest: unknown }>('WorkspaceOpen', {
     project_id: projectID,
@@ -113,6 +128,13 @@ export function saveWorkspaceFiles(workspaceID: string, files: DesktopWorkspaceF
   return callHost<{ workspace_id: string; result: unknown }>('WorkspaceSaveFiles', {
     workspace_id: workspaceID,
     files
+  })
+}
+
+export function importWorkspaceFiles(workspaceID: string, files: Array<{ source_path: string; path: string; role: string; mime: string }>) {
+  return callHost<{ workspace_id: string; result: unknown }>('WorkspaceImportFiles', {
+    workspace_id: workspaceID,
+    imports: files
   })
 }
 

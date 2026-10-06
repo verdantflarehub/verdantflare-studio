@@ -330,6 +330,31 @@ func TestSaveFilesUploadsExplicitNewAndExistingContent(t *testing.T) {
 	}
 }
 
+func TestImportFilesCopiesOnlyExplicitSources(t *testing.T) {
+	f := fixture()
+	w, dir := openFixture(t, f)
+	defer w.Close()
+	sourceDir := t.TempDir()
+	source := filepath.Join(sourceDir, "candidate.wav")
+	if e := os.WriteFile(source, []byte("external-media"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	result, e := w.ImportFiles(context.Background(), []ImportInput{{SourcePath: source, Path: "audio/candidate.wav", Role: "reference", MIME: "audio/wav"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(result.Manifest.Files) != 3 {
+		t.Fatalf("import did not add one file: %d", len(result.Manifest.Files))
+	}
+	data, e := os.ReadFile(filepath.Join(dir, "audio", "candidate.wav"))
+	if e != nil || string(data) != "external-media" {
+		t.Fatalf("imported bytes unavailable: %v", e)
+	}
+	if _, e = w.ImportFiles(context.Background(), []ImportInput{{SourcePath: source, Path: "audio/candidate.wav", Role: "reference", MIME: "audio/wav"}}); !errors.Is(e, ErrConflict) {
+		t.Fatalf("existing target was overwritten: %v", e)
+	}
+}
+
 func TestRecoverInterruptedMetadataAndProtectManualManifest(t *testing.T) {
 	for _, phase := range []string{"journal", "projection", "state", "edited"} {
 		t.Run(phase, func(t *testing.T) {

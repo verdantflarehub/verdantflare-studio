@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -22,6 +23,10 @@ const maxUploadBytes int64 = 1 << 50
 func (w *Workspace) SaveFiles(ctx context.Context, inputs []FileInput) (project.Result, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	return w.saveFilesLocked(ctx, inputs)
+}
+
+func (w *Workspace) saveFilesLocked(ctx context.Context, inputs []FileInput) (project.Result, error) {
 	if len(inputs) == 0 || len(inputs) > project.MaxFiles {
 		return project.Result{}, ErrInvalid
 	}
@@ -116,6 +121,86 @@ func (w *Workspace) SaveFiles(ctx context.Context, inputs []FileInput) (project.
 		return project.Result{}, e
 	}
 	return w.resume(ctx)
+}
+
+// ImportFiles copies explicitly selected external files into new relative
+// workspace paths and then uses the same immutable Artifact/Project save path.
+// Existing targets are never overwritten; an import that cannot be committed
+// leaves the copied local file available for a later explicit retry.
+func (w *Workspace) ImportFiles(ctx context.Context, inputs []ImportInput) (project.Result, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(inputs) == 0 || len(inputs) > project.MaxFiles {
+		return project.Result{}, ErrInvalid
+	}
+	seen := map[string]bool{}
+	for _, input := range inputs {
+		if strings.TrimSpace(input.SourcePath) == "" || project.PortablePath(input.Path) != nil || !rolePattern.MatchString(input.Role) {
+			return project.Result{}, ErrInvalid
+		}
+		if _, _, e := mime.ParseMediaType(input.MIME); e != nil || strings.TrimSpace(input.MIME) == "" || seen[project.PathKey(input.Path)] {
+			return project.Result{}, ErrInvalid
+		}
+		seen[project.PathKey(input.Path)] = true
+		info, e := os.Lstat(input.SourcePath)
+		if e != nil {
+			return project.Result{}, e
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maxUploadBytes {
+			return project.Result{}, ErrInvalid
+		}
+		if e = w.safe(input.Path, true); e != nil {
+			return project.Result{}, e
+		}
+		if _, e = w.root.Lstat(input.Path); e == nil {
+			return project.Result{}, ErrConflict
+		} else if !errors.Is(e, os.ErrNotExist) {
+			return project.Result{}, e
+		}
+		source, e := os.Open(filepath.Clean(input.SourcePath))
+		if e != nil {
+			return project.Result{}, e
+		}
+		tmp, target, e := w.temporary()
+		if e != nil {
+			source.Close()
+			return project.Result{}, e
+		}
+		n, copyErr := io.Copy(target, source)
+		closeSource := source.Close()
+		if copyErr == nil {
+			copyErr = closeSource
+		}
+		if copyErr == nil && n != info.Size() {
+			copyErr = ErrCorrupt
+		}
+		if copyErr == nil {
+			copyErr = target.Sync()
+		}
+		closeTarget := target.Close()
+		if copyErr == nil {
+			copyErr = closeTarget
+		}
+		if copyErr != nil {
+			_ = w.root.Remove(tmp)
+			return project.Result{}, copyErr
+		}
+		if e = w.safe(input.Path, true); e == nil {
+			e = w.root.Link(tmp, input.Path)
+		}
+		_ = w.root.Remove(tmp)
+		if e != nil {
+			return project.Result{}, e
+		}
+		if e = syncDirectory(w.root, filepath.ToSlash(filepath.Dir(input.Path))); e != nil {
+			return project.Result{}, e
+		}
+	}
+	fileInputs := make([]FileInput, 0, len(inputs))
+	for _, input := range inputs {
+		fileInputs = append(fileInputs, FileInput{Path: input.Path, Role: input.Role, MIME: input.MIME})
+	}
+	return w.saveFilesLocked(ctx, fileInputs)
 }
 
 func (w *Workspace) localUploadFile(name string) (*os.File, int64, string, error) {

@@ -57,6 +57,16 @@ type FileInput struct {
 	MIME   string `json:"mime"`
 }
 
+// ImportInput explicitly copies one user-selected external file into the
+// workspace before saving it as a new Project file. It never represents a
+// directory scan or a remote deletion.
+type ImportInput struct {
+	SourcePath string `json:"source_path"`
+	Path       string `json:"path"`
+	Role       string `json:"role"`
+	MIME       string `json:"mime"`
+}
+
 type State struct {
 	SchemaVersion   int      `json:"schema_version"`
 	Kind            string   `json:"kind"`

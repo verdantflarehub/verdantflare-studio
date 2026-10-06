@@ -123,11 +123,12 @@ type WorkspaceOpenRequest struct {
 }
 
 type WorkspaceRequest struct {
-	WorkspaceID string                `json:"workspace_id"`
-	FileID      string                `json:"file_id,omitempty"`
-	MaxBytes    int64                 `json:"max_bytes,omitempty"`
-	FileIDs     []string              `json:"file_ids,omitempty"`
-	Files       []workspace.FileInput `json:"files,omitempty"`
+	WorkspaceID string                  `json:"workspace_id"`
+	FileID      string                  `json:"file_id,omitempty"`
+	MaxBytes    int64                   `json:"max_bytes,omitempty"`
+	FileIDs     []string                `json:"file_ids,omitempty"`
+	Files       []workspace.FileInput   `json:"files,omitempty"`
+	Imports     []workspace.ImportInput `json:"imports,omitempty"`
 }
 
 type WorkspaceResult struct {
@@ -214,6 +215,20 @@ func (s *Service) WorkspaceSaveFiles(in WorkspaceRequest) WorkspaceResult {
 		return workspaceFailure(err)
 	}
 	result, err := copy.SaveFiles(context.Background(), in.Files)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
+}
+
+// WorkspaceImportFiles copies explicitly selected external files into the
+// workspace and commits them as new Project files.
+func (s *Service) WorkspaceImportFiles(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	result, err := copy.ImportFiles(context.Background(), in.Imports)
 	if err != nil {
 		return workspaceFailure(err)
 	}
