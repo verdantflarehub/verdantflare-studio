@@ -67,6 +67,29 @@ type ImportInput struct {
 	MIME       string `json:"mime"`
 }
 
+// uploadJournal is durable local recovery state for binary Artifact writes.
+// It records stable write IDs and completed content versions, but never a
+// service credential or an upload URL. A journal is only promoted to
+// pending.json after every declared content reference is complete.
+type uploadJournal struct {
+	SchemaVersion      int                 `json:"schema_version"`
+	ProjectID          string              `json:"project_id"`
+	ExpectedRevisionID string              `json:"expected_revision_id"`
+	CommitID           string              `json:"commit_id"`
+	Files              []uploadJournalFile `json:"files"`
+}
+
+type uploadJournalFile struct {
+	FileID  string                  `json:"file_id,omitempty"`
+	Path    string                  `json:"path"`
+	Role    string                  `json:"role"`
+	MIME    string                  `json:"mime"`
+	WriteID string                  `json:"write_id"`
+	Size    int64                   `json:"size"`
+	SHA256  string                  `json:"sha256"`
+	Content *project.ContentVersion `json:"content_version,omitempty"`
+}
+
 type State struct {
 	SchemaVersion   int      `json:"schema_version"`
 	Kind            string   `json:"kind"`

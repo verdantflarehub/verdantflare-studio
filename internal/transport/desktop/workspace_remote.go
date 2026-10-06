@@ -211,23 +211,25 @@ func (r *gatewayRemote) Upload(ctx context.Context, req workspace.UploadRequest,
 		return project.ContentVersion{}, err
 	}
 	upload := prepared.Upload
-	if !project.ValidID(upload.UploadID) || !project.ValidID(upload.VersionID) || !project.ValidID(upload.ArtifactID) || upload.State != "prepared" || upload.ContentPath != "/v2/artifacts/uploads/"+upload.UploadID+"/content" {
+	if !project.ValidID(upload.UploadID) || !project.ValidID(upload.VersionID) || !project.ValidID(upload.ArtifactID) || (upload.State != "prepared" && upload.State != "committed") || upload.ContentPath != "/v2/artifacts/uploads/"+upload.UploadID+"/content" {
 		return project.ContentVersion{}, project.ErrDependency
 	}
-	p, gateway, err := r.principal(ctx)
-	if err != nil {
-		return project.ContentVersion{}, err
-	}
-	response, status, err := gateway.Transfer(ctx, p, "PUT", upload.ContentPath, "", src, req.Size)
-	if err != nil {
-		return project.ContentVersion{}, gatewayError(status)
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return project.ContentVersion{}, gatewayError(response.StatusCode)
-	}
-	if _, err = io.Copy(io.Discard, io.LimitReader(response.Body, 4096)); err != nil {
-		return project.ContentVersion{}, project.ErrDependency
+	if upload.State == "prepared" {
+		p, gateway, err := r.principal(ctx)
+		if err != nil {
+			return project.ContentVersion{}, err
+		}
+		response, status, err := gateway.Transfer(ctx, p, "PUT", upload.ContentPath, "", src, req.Size)
+		if err != nil {
+			return project.ContentVersion{}, gatewayError(status)
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return project.ContentVersion{}, gatewayError(response.StatusCode)
+		}
+		if _, err = io.Copy(io.Discard, io.LimitReader(response.Body, 4096)); err != nil {
+			return project.ContentVersion{}, project.ErrDependency
+		}
 	}
 	var committed struct {
 		Version project.ContentVersion `json:"version"`

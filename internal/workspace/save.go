@@ -32,6 +32,11 @@ func (w *Workspace) SaveTexts(ctx context.Context, ids []string) (project.Result
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return project.Result{}, e
 	}
+	if _, e := w.read(".vf/upload-journal.json", project.MaxManifestBytes); e == nil {
+		return project.Result{}, ErrPending
+	} else if !errors.Is(e, os.ErrNotExist) {
+		return project.Result{}, e
+	}
 	ids = append([]string{}, ids...)
 	sort.Strings(ids)
 	updates := []project.FileUpdate{}
@@ -77,7 +82,43 @@ func (w *Workspace) Resume(ctx context.Context) (project.Result, error) {
 	if e := w.authorize(ctx); e != nil {
 		return project.Result{}, e
 	}
-	return w.resume(ctx)
+	if _, e := w.read(".vf/pending.json", project.MaxManifestBytes); e == nil {
+		result, resumeErr := w.resume(ctx)
+		if resumeErr != nil {
+			return result, resumeErr
+		}
+		if journalErr := w.removeUploadJournal(); journalErr != nil {
+			return result, journalErr
+		}
+		return result, nil
+	} else if !errors.Is(e, os.ErrNotExist) {
+		return project.Result{}, e
+	}
+	var journal uploadJournal
+	if e := w.decode(".vf/upload-journal.json", &journal); e != nil {
+		return project.Result{}, e
+	}
+	if journal.ProjectID != w.state.ProjectID || journal.ExpectedRevisionID != w.state.BaseRevisionID {
+		return project.Result{}, ErrConflict
+	}
+	if e := w.resumeUploads(ctx, &journal); e != nil {
+		return project.Result{}, e
+	}
+	request, e := journalCommit(journal)
+	if e != nil {
+		return project.Result{}, e
+	}
+	if e = w.writeJSON(".vf/pending.json", request, false); e != nil {
+		return project.Result{}, e
+	}
+	result, e := w.resume(ctx)
+	if e != nil {
+		return result, e
+	}
+	if e = w.removeUploadJournal(); e != nil {
+		return result, e
+	}
+	return result, nil
 }
 
 func (w *Workspace) resume(ctx context.Context) (project.Result, error) {
