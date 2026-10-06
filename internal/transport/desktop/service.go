@@ -3,10 +3,12 @@ package desktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
+	"github.com/verdantflarehub/verdantflare-studio/internal/workspace"
 	"strings"
 	"sync"
 )
@@ -18,14 +20,15 @@ type Service struct {
 	station    *application.Station
 	token      string
 	mcpGateway *mcp.Gateway
+	workspaces map[string]*workspace.Workspace
 }
 
-func New(s *application.Station) *Service { return &Service{station: s} }
+func New(s *application.Station) *Service { return NewWithGateway(s, nil) }
 
 // NewWithGateway installs the trusted service gateway before the Wails service
 // is registered. The gateway is never exposed as a WebView-callable method.
 func NewWithGateway(s *application.Station, gateway *mcp.Gateway) *Service {
-	return &Service{station: s, mcpGateway: gateway}
+	return &Service{station: s, mcpGateway: gateway, workspaces: map[string]*workspace.Workspace{}}
 }
 
 func (s *Service) Call(in application.Request) application.Result {
@@ -111,4 +114,164 @@ func mcpFailure(status int, id, message string) MCPResult {
 	}
 	data, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": message}})
 	return MCPResult{Status: status, Data: data, RequestID: id}
+}
+
+type WorkspaceOpenRequest struct {
+	Directory string `json:"directory"`
+	Alias     string `json:"connection_alias,omitempty"`
+	ProjectID string `json:"project_id"`
+}
+
+type WorkspaceRequest struct {
+	WorkspaceID string   `json:"workspace_id"`
+	FileID      string   `json:"file_id,omitempty"`
+	MaxBytes    int64    `json:"max_bytes,omitempty"`
+	FileIDs     []string `json:"file_ids,omitempty"`
+}
+
+type WorkspaceResult struct {
+	Status    int             `json:"status"`
+	Data      json.RawMessage `json:"data"`
+	RequestID string          `json:"request_id"`
+}
+
+// WorkspaceOpen creates a pinned local copy under a user-selected directory.
+// The directory is never synchronized in the background; every operation is
+// explicit and uses the authenticated Gateway Remote below.
+func (s *Service) WorkspaceOpen(in WorkspaceOpenRequest) WorkspaceResult {
+	if in.Alias == "" {
+		in.Alias = "station"
+	}
+	if strings.TrimSpace(in.Directory) == "" || !project.ValidID(in.ProjectID) {
+		return workspaceFailure(project.ErrInvalid)
+	}
+	copy, err := workspace.Open(context.Background(), in.Directory, in.Alias, in.ProjectID, &gatewayRemote{owner: s})
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	id := uuid.Must(uuid.NewV7()).String()
+	s.mu.Lock()
+	if len(s.workspaces) >= 128 {
+		s.mu.Unlock()
+		_ = copy.Close()
+		return workspaceFailure(workspace.ErrBusy)
+	}
+	s.workspaces[id] = copy
+	s.mu.Unlock()
+	state, manifest, err := copy.Snapshot(context.Background())
+	if err != nil {
+		s.WorkspaceClose(WorkspaceRequest{WorkspaceID: id})
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": id, "state": state, "manifest": manifest})
+}
+
+func (s *Service) WorkspaceFetch(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	max := in.MaxBytes
+	if max == 0 {
+		max = 1 << 50
+	}
+	if err = copy.Fetch(context.Background(), in.FileID, max); err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "file_id": in.FileID})
+}
+
+func (s *Service) WorkspaceStatus(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	status, err := copy.Status(context.Background())
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "files": status})
+}
+
+func (s *Service) WorkspaceSaveTexts(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	result, err := copy.SaveTexts(context.Background(), in.FileIDs)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
+}
+
+func (s *Service) WorkspaceResume(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	result, err := copy.Resume(context.Background())
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
+}
+
+func (s *Service) WorkspaceClose(in WorkspaceRequest) WorkspaceResult {
+	s.mu.Lock()
+	copy, ok := s.workspaces[in.WorkspaceID]
+	if ok {
+		delete(s.workspaces, in.WorkspaceID)
+	}
+	s.mu.Unlock()
+	if !ok {
+		return workspaceFailure(project.ErrNotFound)
+	}
+	if err := copy.Close(); err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID})
+}
+
+func (s *Service) workspace(id string) (*workspace.Workspace, error) {
+	if !project.ValidID(id) {
+		return nil, project.ErrInvalid
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copy, ok := s.workspaces[id]
+	if !ok {
+		return nil, project.ErrNotFound
+	}
+	return copy, nil
+}
+
+func workspaceSuccess(value any) WorkspaceResult {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return workspaceFailure(project.ErrDependency)
+	}
+	return WorkspaceResult{Status: 200, Data: data, RequestID: uuid.Must(uuid.NewV7()).String()}
+}
+
+func workspaceFailure(err error) WorkspaceResult {
+	status := 500
+	switch {
+	case errors.Is(err, project.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
+		status = 400
+	case errors.Is(err, project.ErrForbidden):
+		status = 403
+	case errors.Is(err, project.ErrNotFound):
+		status = 404
+	case errors.Is(err, project.ErrConflict), errors.Is(err, workspace.ErrConflict), errors.Is(err, workspace.ErrBusy), errors.Is(err, workspace.ErrPending):
+		status = 409
+	case errors.Is(err, project.ErrDependency), errors.Is(err, workspace.ErrCorrupt):
+		status = 503
+	}
+	code := "WORKSPACE_ERROR"
+	if err != nil && err.Error() != "" {
+		code = err.Error()
+	}
+	data, _ := json.Marshal(map[string]any{"code": code})
+	return WorkspaceResult{Status: status, Data: data, RequestID: uuid.Must(uuid.NewV7()).String()}
 }

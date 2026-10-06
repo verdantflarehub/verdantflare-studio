@@ -100,3 +100,20 @@ func TestDesktopMCPRevalidatesSessionAndReturnsJSONRPC(t *testing.T) {
 		t.Fatalf("invalid or credential-leaking MCP envelope: %s", out.Data)
 	}
 }
+
+func TestDesktopWorkspaceHandleBoundary(t *testing.T) {
+	service := NewWithGateway(nil, nil)
+	if result := service.WorkspaceStatus(WorkspaceRequest{WorkspaceID: "bad"}); result.Status != 400 {
+		t.Fatalf("invalid workspace handle returned %d", result.Status)
+	}
+	if result := service.WorkspaceClose(WorkspaceRequest{WorkspaceID: uuid.Must(uuid.NewV7()).String()}); result.Status != 404 {
+		t.Fatalf("unknown workspace handle returned %d", result.Status)
+	}
+	result := service.WorkspaceOpen(WorkspaceOpenRequest{
+		Directory: t.TempDir(),
+		ProjectID: uuid.Must(uuid.NewV7()).String(),
+	})
+	if result.Status != 403 {
+		t.Fatalf("unauthenticated workspace open returned %d", result.Status)
+	}
+}
