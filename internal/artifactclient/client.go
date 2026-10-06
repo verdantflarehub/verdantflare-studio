@@ -50,7 +50,10 @@ func NewWithCA(base, token, caFile string) (*Client, error) {
 			return nil, project.ErrInvalid
 		}
 		pool, err := x509.SystemCertPool()
-		if err != nil || pool == nil || !pool.AppendCertsFromPEM(pem) {
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
 			return nil, project.ErrInvalid
 		}
 		if transport.TLSClientConfig == nil {
