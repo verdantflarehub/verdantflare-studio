@@ -511,6 +511,70 @@ func TestConflictsPathsAndExistingData(t *testing.T) {
 	}
 }
 
+func TestSwitchToHeadRepinsCleanWorkspaceWithoutOverwritingFiles(t *testing.T) {
+	f := fixture()
+	w, dir := openFixture(t, f)
+	ctx := context.Background()
+	entry := f.head.Manifest.EntryDocumentID
+	if e := w.Fetch(ctx, entry, 1<<20); e != nil {
+		t.Fatal(e)
+	}
+	base := f.head
+	remoteText := "# Remote revision\n"
+	updates := []project.FileUpdate{{ID: entry, Path: "review.md", Role: "review", Text: &remoteText, MIME: "text/markdown"}}
+	advanced, e := f.Commit(ctx, project.CommitRequest{
+		ProjectID:          base.ProjectID,
+		ExpectedRevisionID: base.RevisionID,
+		CommitID:           id(),
+		Changes:            &project.Changes{UpsertFiles: &updates},
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+	state, manifest, e := w.SwitchToHead(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if state.BaseRevisionID != advanced.RevisionID || manifest.Name != advanced.Manifest.Name {
+		t.Fatalf("workspace did not repin: %#v %#v", state, manifest)
+	}
+	b, e := os.ReadFile(filepath.Join(dir, "review.md"))
+	if e != nil || string(b) != "# Review\n" {
+		t.Fatalf("switch overwrote local bytes: %q (%v)", b, e)
+	}
+	status, e := w.Status(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(status) == 0 || status[0].State != "modified" {
+		t.Fatalf("new baseline did not expose retained old bytes: %#v", status)
+	}
+}
+
+func TestSwitchToHeadRejectsLocalModification(t *testing.T) {
+	f := fixture()
+	w, dir := openFixture(t, f)
+	ctx := context.Background()
+	entry := f.head.Manifest.EntryDocumentID
+	if e := w.Fetch(ctx, entry, 1<<20); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(dir, "review.md"), []byte("# local draft\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	baseRevision := w.state.BaseRevisionID
+	if _, _, e := w.SwitchToHead(ctx); !errors.Is(e, ErrConflict) {
+		t.Fatalf("modified workspace was repinned: %v", e)
+	}
+	if w.state.BaseRevisionID != baseRevision {
+		t.Fatal("modified workspace base changed")
+	}
+	b, e := os.ReadFile(filepath.Join(dir, "review.md"))
+	if e != nil || string(b) != "# local draft\n" {
+		t.Fatalf("local draft changed: %q (%v)", b, e)
+	}
+}
+
 func TestSymlinkParentDoesNotEscape(t *testing.T) {
 	f := fixture()
 	w, dir := openFixture(t, f)

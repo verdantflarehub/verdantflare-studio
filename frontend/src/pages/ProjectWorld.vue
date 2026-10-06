@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { callTool, MCPRequestError, uuidv7 } from '../platform/mcp'
-import { closeWorkspace, chooseWorkspaceDirectory, chooseWorkspaceFiles, fetchWorkspaceFile, getWorkspaceStatus, importWorkspaceFiles, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
+import { closeWorkspace, chooseWorkspaceDirectory, chooseWorkspaceFiles, fetchWorkspaceFile, getWorkspaceStatus, importWorkspaceFiles, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, switchWorkspaceToHead, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
 
 interface ProjectItem {
   project_id: string
@@ -269,6 +269,27 @@ async function resumeLocalWorkspace() {
   }
 }
 
+async function switchLocalWorkspaceToHead() {
+  if (!workspace.value) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    const response = await switchWorkspaceToHead(workspace.value.workspace_id)
+    const manifest = response.manifest as WorkspaceManifest
+    if (!response.state || !manifest || !Array.isArray(manifest.files) || manifest.project_id !== workspace.value.state.project_id) {
+      throw new Error('切换基础修订返回了无效的工程清单。')
+    }
+    workspace.value.state = response.state
+    workspace.value.manifest = manifest
+    await refreshWorkspaceStatus()
+    await loadProjects()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
 async function closeLocalWorkspace() {
   if (!workspace.value) return
   const current = workspace.value.workspace_id
@@ -503,7 +524,7 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
                 </template>
                 <template v-else>
                   <dl class="workspace-facts"><dt>本地目录</dt><dd>{{ workspaceDirectory }}</dd><dt>基础修订</dt><dd>{{ shortID(workspace.state.base_revision_id) }}</dd><dt>文件状态</dt><dd>{{ workspace.statuses.filter(item => item.state === 'modified').length }} 个已修改 · {{ workspace.statuses.filter(item => item.state === 'not_materialized' || item.state === 'missing').length }} 个待下载</dd></dl>
-                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving || !workspace.statuses.some(item => item.state === 'modified' && !isTextWorkspaceFile(workspaceFile(item.file_id)))" @click="saveLocalWorkspaceFiles">保存已修改媒体</button><button class="btn" :disabled="workspaceSaving" @click="importLocalWorkspaceFiles">导入本地文件</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
+                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button v-if="selectedProject.head_revision_id !== workspace.state.base_revision_id" class="btn" :disabled="workspaceSaving || workspaceLoading" @click="switchLocalWorkspaceToHead">切换到当前修订</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving || !workspace.statuses.some(item => item.state === 'modified' && !isTextWorkspaceFile(workspaceFile(item.file_id)))" @click="saveLocalWorkspaceFiles">保存已修改媒体</button><button class="btn" :disabled="workspaceSaving" @click="importLocalWorkspaceFiles">导入本地文件</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
                   <ul class="workspace-file-list"><li v-for="status in workspace.statuses" :key="status.file_id"><label v-if="isTextWorkspaceFile(workspaceFile(status.file_id))" class="workspace-check"><input v-model="selectedWorkspaceFiles" type="checkbox" :value="status.file_id" :disabled="status.state !== 'modified'" /><span>{{ workspaceFile(status.file_id)?.path }}</span></label><span v-else class="workspace-file-name">{{ workspaceFile(status.file_id)?.path }}</span><span class="workspace-file-state" :data-state="status.state">{{ workspaceStatusLabel(status.state) }}</span><button v-if="status.state !== 'modified' && status.state !== 'conflict'" class="btn compact" :disabled="workspaceLoading" @click="fetchLocalWorkspaceFile(status.file_id)">下载/校验</button></li></ul>
                   <p class="workspace-note">入口 MD 和媒体都按文件单独下载；发现本地修改后，勾选文本并显式保存。若提交响应中断，使用“恢复待提交”继续同一个提交。</p>
                 </template>

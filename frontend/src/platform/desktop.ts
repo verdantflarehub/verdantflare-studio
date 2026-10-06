@@ -144,6 +144,12 @@ export function resumeWorkspace(workspaceID: string) {
   })
 }
 
+export function switchWorkspaceToHead(workspaceID: string) {
+  return callHost<{ workspace_id: string; state: DesktopWorkspaceState; manifest: unknown }>('WorkspaceSwitchToHead', {
+    workspace_id: workspaceID
+  })
+}
+
 export function closeWorkspace(workspaceID: string) {
   return callHost<{ workspace_id: string }>('WorkspaceClose', { workspace_id: workspaceID })
 }

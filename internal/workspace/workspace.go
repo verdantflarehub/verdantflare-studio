@@ -368,6 +368,12 @@ func (w *Workspace) Status(ctx context.Context) ([]FileStatus, error) {
 	if e := w.checkProjection(w.manifest, w.manifest); e != nil {
 		return nil, e
 	}
+	return w.statusLocked(ctx)
+}
+
+// statusLocked inspects the pinned revision without acquiring w.mu. Callers
+// must have already authorized the workspace and checked its projection.
+func (w *Workspace) statusLocked(ctx context.Context) ([]FileStatus, error) {
 	known := map[string]bool{}
 	for _, id := range w.state.Materialized {
 		known[id] = true
@@ -396,4 +402,70 @@ func (w *Workspace) Status(ctx context.Context) ([]FileStatus, error) {
 		result = append(result, FileStatus{f.ID, f.Path, status})
 	}
 	return result, nil
+}
+
+// SwitchToHead explicitly repins a clean local workspace to the current
+// service head. It never merges, overwrites, or deletes local files. A local
+// modification or an unfinished commit must be resolved by the user first;
+// files from the old revision remain in place and are reclassified against
+// the new baseline by the next Status call.
+func (w *Workspace) SwitchToHead(ctx context.Context) (State, project.Manifest, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if e := w.authorize(ctx); e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	if e := w.checkProjection(w.manifest, w.manifest); e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	for _, name := range []string{".vf/pending.json", ".vf/upload-journal.json"} {
+		if _, e := w.read(name, project.MaxManifestBytes); e == nil {
+			return State{}, project.Manifest{}, ErrPending
+		} else if !errors.Is(e, os.ErrNotExist) {
+			return State{}, project.Manifest{}, e
+		}
+	}
+	statuses, e := w.statusLocked(ctx)
+	if e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	for _, item := range statuses {
+		if item.State == "modified" || item.State == "conflict" {
+			return State{}, project.Manifest{}, ErrConflict
+		}
+	}
+	opened, e := w.remote.Open(ctx, w.state.ProjectID, "")
+	if e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	if opened.ProjectID != w.state.ProjectID || opened.Manifest.ProjectID != w.state.ProjectID || !project.ValidID(opened.RevisionID) || !opened.ManifestRef.Valid() || validateManifest(opened.Manifest) != nil {
+		return State{}, project.Manifest{}, ErrInvalid
+	}
+	if opened.RevisionID == w.state.BaseRevisionID {
+		return w.state, w.manifest, nil
+	}
+	known := map[string]bool{}
+	for _, file := range opened.Manifest.Files {
+		known[file.ID] = true
+	}
+	next := w.state
+	next.BaseRevisionID = opened.RevisionID
+	next.Materialized = make([]string, 0, len(w.state.Materialized))
+	for _, id := range w.state.Materialized {
+		if known[id] {
+			next.Materialized = append(next.Materialized, id)
+		}
+	}
+	sort.Strings(next.Materialized)
+	if e = w.storeBase(next.BaseRevisionID, opened.Manifest); e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	transition := transition{From: w.state.BaseRevisionID, State: next}
+	if e = w.writeJSON(".vf/update.json", transition, false); e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	if e = w.recover(transition); e != nil {
+		return State{}, project.Manifest{}, e
+	}
+	return w.state, w.manifest, nil
 }

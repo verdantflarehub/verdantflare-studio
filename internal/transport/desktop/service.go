@@ -247,6 +247,21 @@ func (s *Service) WorkspaceResume(in WorkspaceRequest) WorkspaceResult {
 	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
 }
 
+// WorkspaceSwitchToHead is an explicit conflict recovery action. The
+// workspace refuses local modifications and unfinished commits, then repins
+// the local metadata to the current Project head without replacing user files.
+func (s *Service) WorkspaceSwitchToHead(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	state, manifest, err := copy.SwitchToHead(context.Background())
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "state": state, "manifest": manifest})
+}
+
 func (s *Service) WorkspaceClose(in WorkspaceRequest) WorkspaceResult {
 	s.mu.Lock()
 	copy, ok := s.workspaces[in.WorkspaceID]
