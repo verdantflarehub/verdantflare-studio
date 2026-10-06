@@ -34,12 +34,12 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return nil
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(stdout, "studio-workspace call --input request.json\nstudio-workspace open|status|fetch|save-texts|save-files|import|resume|switch-head --dir DIR --alias ALIAS --project-id ID [--input FILE] [--file-id ID] [--max-bytes N]\nConnection: STUDIO_MCP_URL, STUDIO_MCP_BEARER_TOKEN (a verified Core user session). JSON input may use '-' for stdin. Requests follow central Project/World contracts.")
+		fmt.Fprintln(stdout, "studio-workspace call --input request.json\nstudio-workspace open|status|fetch|save-texts|save-files|import|resume|switch-head|conflict|resolve --dir DIR --alias ALIAS --project-id ID [--input FILE] [--file-id ID] [--max-bytes N]\nConnection: STUDIO_MCP_URL, STUDIO_MCP_BEARER_TOKEN (a verified Core user session). JSON input may use '-' for stdin. Requests follow central Project/World contracts.")
 		return nil
 	}
 	command := args[0]
 	switch command {
-	case "call", "open", "status", "fetch", "save-texts", "save-files", "import", "resume", "switch-head":
+	case "call", "open", "status", "fetch", "save-texts", "save-files", "import", "resume", "switch-head", "conflict", "resolve":
 	default:
 		return project.ErrInvalid
 	}
@@ -125,6 +125,13 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 			}
 		case "resume":
 			result, err = w.Resume(ctx)
+		case "conflict":
+			result, err = w.PreviewConflict(ctx)
+		case "resolve":
+			var resolution workspace.ConflictResolution
+			if err = readInput(&resolution); err == nil {
+				result, err = w.ResolveConflict(ctx, resolution)
+			}
 		case "open", "switch-head":
 			var state workspace.State
 			var manifest project.Manifest

@@ -30,6 +30,31 @@ export interface DesktopWorkspaceFileInput {
   mime: string
 }
 
+export interface DesktopConflictFile {
+  index: number
+  pending: { file_id?: string; path: string; role: string; text?: string; content_ref?: { store_id: string; artifact_id: string; version_id: string } }
+  base?: { file_id: string; path: string; content_ref: { store_id: string; artifact_id: string; version_id: string } }
+  head?: { file_id: string; path: string; content_ref: { store_id: string; artifact_id: string; version_id: string } }
+  remote_changed: boolean
+  can_keep_pending: boolean
+}
+
+export interface DesktopConflictPreview {
+  project_id: string
+  commit_id: string
+  request_sha256: string
+  base_revision_id: string
+  head_revision_id: string
+  files: DesktopConflictFile[]
+}
+
+export interface DesktopConflictResolution {
+  commit_id: string
+  request_sha256: string
+  head_revision_id: string
+  choices: Array<{ index: number; choice: string; text?: string }>
+}
+
 function isDesktopHost(): boolean {
   return new URLSearchParams(location.search).get('host') === 'desktop'
 }
@@ -112,7 +137,7 @@ export function fetchWorkspaceFile(workspaceID: string, fileID: string, maxBytes
 }
 
 export function getWorkspaceStatus(workspaceID: string) {
-  return callHost<{ workspace_id: string; files: DesktopWorkspaceFileStatus[] }>('WorkspaceStatus', {
+  return callHost<{ workspace_id: string; files: DesktopWorkspaceFileStatus[]; state: DesktopWorkspaceState; manifest: unknown }>('WorkspaceStatus', {
     workspace_id: workspaceID
   })
 }
@@ -142,6 +167,14 @@ export function resumeWorkspace(workspaceID: string) {
   return callHost<{ workspace_id: string; result: unknown }>('WorkspaceResume', {
     workspace_id: workspaceID
   })
+}
+
+export function previewWorkspaceConflict(workspaceID: string) {
+  return callHost<DesktopConflictPreview>('WorkspacePreviewConflict', { workspace_id: workspaceID })
+}
+
+export function resolveWorkspaceConflict(workspaceID: string, resolution: DesktopConflictResolution) {
+  return callHost<{ workspace_id: string; result: unknown }>('WorkspaceResolveConflict', { workspace_id: workspaceID, resolution })
 }
 
 export function switchWorkspaceToHead(workspaceID: string) {

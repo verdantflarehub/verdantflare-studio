@@ -32,6 +32,7 @@ type fakeRemote struct {
 	uploads       map[string]project.ContentVersion
 	uploadCalls   map[string]int
 	loseUpload    bool
+	requests      map[string]project.CommitRequest
 }
 
 func fixture() *fakeRemote {
@@ -132,6 +133,10 @@ func (f *fakeRemote) Commit(_ context.Context, r project.CommitRequest) (project
 	if f.denied {
 		return project.Result{}, project.ErrForbidden
 	}
+	if f.requests == nil {
+		f.requests = map[string]project.CommitRequest{}
+	}
+	f.requests[r.CommitID] = r
 	if prior, ok := f.results[r.CommitID]; ok {
 		return prior, nil
 	}

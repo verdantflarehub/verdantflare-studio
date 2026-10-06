@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { callTool, MCPRequestError, uuidv7 } from '../platform/mcp'
-import { closeWorkspace, chooseWorkspaceDirectory, chooseWorkspaceFiles, fetchWorkspaceFile, getWorkspaceStatus, importWorkspaceFiles, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, switchWorkspaceToHead, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
+import { closeWorkspace, chooseWorkspaceDirectory, chooseWorkspaceFiles, fetchWorkspaceFile, getWorkspaceStatus, importWorkspaceFiles, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, switchWorkspaceToHead, previewWorkspaceConflict, resolveWorkspaceConflict, type DesktopConflictPreview, type DesktopConflictFile, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
 
 interface ProjectItem {
   project_id: string
@@ -73,6 +73,11 @@ const workspaceSaving = ref(false)
 const workspaceDirectory = ref('')
 const workspaceError = ref('')
 const selectedWorkspaceFiles = ref<string[]>([])
+const conflictPreview = ref<DesktopConflictPreview | null>(null)
+const conflictChoices = ref<Record<number, string>>({})
+const conflictTexts = ref<Record<number, string>>({})
+const conflictComparison = ref<Record<number, { base: string; head: string }>>({})
+const conflictReady = computed(() => !!conflictPreview.value && conflictPreview.value.files.every(file => ['head', 'pending', 'text'].includes(conflictChoices.value[file.index] || '')))
 
 const assetTypes = [
   { value: '', label: '全部类型' },
@@ -135,6 +140,8 @@ async function refreshWorkspaceStatus() {
   workspaceError.value = ''
   try {
     const result = await getWorkspaceStatus(workspace.value.workspace_id)
+    workspace.value.state = result.state
+    workspace.value.manifest = result.manifest as WorkspaceManifest
     setWorkspaceStatuses(result.files || [])
   } catch (cause) {
     workspaceError.value = errorText(cause)
@@ -269,6 +276,68 @@ async function resumeLocalWorkspace() {
   }
 }
 
+async function previewLocalConflict() {
+  if (!workspace.value) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  conflictPreview.value = null
+  try {
+    conflictPreview.value = await previewWorkspaceConflict(workspace.value.workspace_id)
+    conflictChoices.value = {}
+    conflictTexts.value = Object.fromEntries(conflictPreview.value.files.map(file => [file.index, file.pending.text || '']))
+    conflictComparison.value = {}
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function compareConflictText(file: DesktopConflictFile) {
+  const preview = conflictPreview.value
+  if (!preview) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    const read = async (source: DesktopConflictFile['base'], revision: string) => {
+      if (!source) return '该修订中没有此文件。'
+      const result = await callTool<{ text: string }>('artifact.read', {
+        mode: 'text', content_ref: source.content_ref,
+        access: { project_id: preview.project_id, project_revision_id: revision }
+      }, preview.project_id)
+      return result.text
+    }
+    const [base, head] = await Promise.all([read(file.base, preview.base_revision_id), read(file.head, preview.head_revision_id)])
+    conflictComparison.value[file.index] = { base, head }
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function resolveLocalConflict() {
+  const preview = conflictPreview.value
+  if (!workspace.value || !preview || !conflictReady.value) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    await resolveWorkspaceConflict(workspace.value.workspace_id, {
+      commit_id: preview.commit_id, request_sha256: preview.request_sha256, head_revision_id: preview.head_revision_id,
+      choices: preview.files.map(file => ({ index: file.index, choice: conflictChoices.value[file.index]!,
+        ...(conflictChoices.value[file.index] === 'text' ? { text: conflictTexts.value[file.index] || '' } : {}) }))
+    })
+    conflictPreview.value = null
+    await refreshWorkspaceStatus()
+    await loadProjects()
+  } catch (cause) {
+    conflictPreview.value = null
+    workspaceError.value = `${errorText(cause)}。若提交响应中断，请使用“恢复待提交”；若当前修订已变化，请重新预览。`
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
 async function switchLocalWorkspaceToHead() {
   if (!workspace.value) return
   workspaceSaving.value = true
@@ -303,6 +372,7 @@ async function closeLocalWorkspace() {
     workspaceLoading.value = false
   }
   workspace.value = null
+  conflictPreview.value = null
   workspaceDirectory.value = ''
   selectedWorkspaceFiles.value = []
 }
@@ -524,8 +594,31 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
                 </template>
                 <template v-else>
                   <dl class="workspace-facts"><dt>本地目录</dt><dd>{{ workspaceDirectory }}</dd><dt>基础修订</dt><dd>{{ shortID(workspace.state.base_revision_id) }}</dd><dt>文件状态</dt><dd>{{ workspace.statuses.filter(item => item.state === 'modified').length }} 个已修改 · {{ workspace.statuses.filter(item => item.state === 'not_materialized' || item.state === 'missing').length }} 个待下载</dd></dl>
-                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button v-if="selectedProject.head_revision_id !== workspace.state.base_revision_id" class="btn" :disabled="workspaceSaving || workspaceLoading" @click="switchLocalWorkspaceToHead">切换到当前修订</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving || !workspace.statuses.some(item => item.state === 'modified' && !isTextWorkspaceFile(workspaceFile(item.file_id)))" @click="saveLocalWorkspaceFiles">保存已修改媒体</button><button class="btn" :disabled="workspaceSaving" @click="importLocalWorkspaceFiles">导入本地文件</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
+                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button v-if="selectedProject.head_revision_id !== workspace.state.base_revision_id" class="btn" :disabled="workspaceSaving || workspaceLoading" @click="switchLocalWorkspaceToHead">切换到当前修订</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving || !workspace.statuses.some(item => item.state === 'modified' && !isTextWorkspaceFile(workspaceFile(item.file_id)))" @click="saveLocalWorkspaceFiles">保存已修改媒体</button><button class="btn" :disabled="workspaceSaving" @click="importLocalWorkspaceFiles">导入本地文件</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceSaving || workspaceLoading" @click="previewLocalConflict">处理提交冲突</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
                   <ul class="workspace-file-list"><li v-for="status in workspace.statuses" :key="status.file_id"><label v-if="isTextWorkspaceFile(workspaceFile(status.file_id))" class="workspace-check"><input v-model="selectedWorkspaceFiles" type="checkbox" :value="status.file_id" :disabled="status.state !== 'modified'" /><span>{{ workspaceFile(status.file_id)?.path }}</span></label><span v-else class="workspace-file-name">{{ workspaceFile(status.file_id)?.path }}</span><span class="workspace-file-state" :data-state="status.state">{{ workspaceStatusLabel(status.state) }}</span><button v-if="status.state !== 'modified' && status.state !== 'conflict'" class="btn compact" :disabled="workspaceLoading" @click="fetchLocalWorkspaceFile(status.file_id)">下载/校验</button></li></ul>
+                  <section v-if="conflictPreview" class="conflict-panel" aria-label="处理提交冲突">
+                    <div class="section-title"><span>确认每个文件的处理方式</span><span class="version-pill">当前 {{ shortID(conflictPreview.head_revision_id) }}</span></div>
+                    <p class="workspace-note">上次提交已确认冲突。逐文件选择后提交；本地文件和原请求留档保留。这里的“上次内容”指当时提交的快照，后续本地编辑不会自动带入。</p>
+                    <article v-for="file in conflictPreview.files" :key="file.index" class="conflict-file">
+                      <strong>{{ file.pending.path }}</strong>
+                      <small>{{ file.remote_changed ? '当前版本与基础版本不同' : '远端未修改此文件' }}{{ file.can_keep_pending ? '' : ' · 路径已被占用或文件结构已变化，可保留当前结构后另行导入本地草稿' }}</small>
+                      <label>处理方式<select v-model="conflictChoices[file.index]" class="field" :disabled="workspaceSaving">
+                        <option value="" disabled>请选择</option><option value="head">保留当前版本</option>
+                        <option v-if="file.can_keep_pending" value="pending">采用上次提交内容</option>
+                        <option v-if="file.can_keep_pending && file.pending.text !== undefined" value="text">手动合并文本</option>
+                      </select></label>
+                      <template v-if="file.pending.text !== undefined">
+                        <button class="btn compact" :disabled="workspaceSaving" @click="compareConflictText(file)">比较基础和当前文本</button>
+                        <div v-if="conflictComparison[file.index]" class="conflict-comparison">
+                          <label>基础版本<textarea class="field" readonly :value="conflictComparison[file.index]?.base" /></label>
+                          <label>当前版本<textarea class="field" readonly :value="conflictComparison[file.index]?.head" /></label>
+                        </div>
+                        <label>{{ conflictChoices[file.index] === 'text' ? '合并后提交的文本' : '上次提交的文本' }}<textarea class="field" :readonly="conflictChoices[file.index] !== 'text' || workspaceSaving" :value="conflictChoices[file.index] === 'text' ? conflictTexts[file.index] : file.pending.text" @input="conflictTexts[file.index] = ($event.target as HTMLTextAreaElement).value" /></label>
+                      </template>
+                    </article>
+                    <p class="workspace-note">提交后本地正文仍原样保留，与新修订不同的文件继续显示“已修改”。</p>
+                    <div class="workspace-actions"><button class="btn primary" :disabled="workspaceSaving || !conflictReady" @click="resolveLocalConflict">确认并应用选择</button><button class="btn" :disabled="workspaceSaving" @click="conflictPreview = null">取消</button></div>
+                  </section>
                   <p class="workspace-note">入口 MD 和媒体都按文件单独下载；发现本地修改后，勾选文本并显式保存。若提交响应中断，使用“恢复待提交”继续同一个提交。</p>
                 </template>
               </section>
@@ -605,4 +698,7 @@ textarea { resize: vertical; margin-top: 12px; }
 .workspace-file-state[data-state="clean"] { color: var(--accent); }
 .btn.compact { padding: 5px 7px; font-size: 10px; white-space: nowrap; }
 @media (max-width: 800px) { .content-grid, .form-grid { grid-template-columns: 1fr; } .heading-actions { justify-content: flex-start; } }
+.conflict-panel{display:grid;gap:12px;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--subtle)}
+.conflict-file{display:grid;gap:9px;min-width:0;padding:12px 0;border-top:1px solid var(--line)}
+.conflict-file strong{overflow-wrap:anywhere}.conflict-file small{color:var(--muted);line-height:1.6}.conflict-file label{display:grid;gap:6px;font-size:12px}.conflict-file textarea{width:100%;min-height:130px;resize:vertical;box-sizing:border-box}.conflict-comparison{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}
 </style>

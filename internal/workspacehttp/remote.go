@@ -172,6 +172,12 @@ func (r *Remote) Commit(ctx context.Context, req project.CommitRequest) (project
 	return out, err
 }
 
+func (r *Remote) CommitStatus(ctx context.Context, projectID, commitID string) (project.CommitStatus, error) {
+	var out project.CommitStatus
+	err := r.Call(ctx, "project.commit_status", project.StatusRequest{ProjectID: projectID, CommitID: commitID}, &out)
+	return out, err
+}
+
 func (r *Remote) Metadata(ctx context.Context, ref project.ContentRef, access project.Access) (project.ContentVersion, error) {
 	var out struct {
 		Mode    string                 `json:"mode"`

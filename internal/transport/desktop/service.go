@@ -123,12 +123,13 @@ type WorkspaceOpenRequest struct {
 }
 
 type WorkspaceRequest struct {
-	WorkspaceID string                  `json:"workspace_id"`
-	FileID      string                  `json:"file_id,omitempty"`
-	MaxBytes    int64                   `json:"max_bytes,omitempty"`
-	FileIDs     []string                `json:"file_ids,omitempty"`
-	Files       []workspace.FileInput   `json:"files,omitempty"`
-	Imports     []workspace.ImportInput `json:"imports,omitempty"`
+	WorkspaceID string                        `json:"workspace_id"`
+	FileID      string                        `json:"file_id,omitempty"`
+	MaxBytes    int64                         `json:"max_bytes,omitempty"`
+	FileIDs     []string                      `json:"file_ids,omitempty"`
+	Files       []workspace.FileInput         `json:"files,omitempty"`
+	Imports     []workspace.ImportInput       `json:"imports,omitempty"`
+	Resolution  *workspace.ConflictResolution `json:"resolution,omitempty"`
 }
 
 type WorkspaceResult struct {
@@ -192,7 +193,38 @@ func (s *Service) WorkspaceStatus(in WorkspaceRequest) WorkspaceResult {
 	if err != nil {
 		return workspaceFailure(err)
 	}
-	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "files": status})
+	state, manifest, err := copy.Snapshot(context.Background())
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "files": status, "state": state, "manifest": manifest})
+}
+
+func (s *Service) WorkspacePreviewConflict(in WorkspaceRequest) WorkspaceResult {
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	preview, err := copy.PreviewConflict(context.Background())
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(preview)
+}
+
+func (s *Service) WorkspaceResolveConflict(in WorkspaceRequest) WorkspaceResult {
+	if in.Resolution == nil {
+		return workspaceFailure(project.ErrInvalid)
+	}
+	copy, err := s.workspace(in.WorkspaceID)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	result, err := copy.ResolveConflict(context.Background(), *in.Resolution)
+	if err != nil {
+		return workspaceFailure(err)
+	}
+	return workspaceSuccess(map[string]any{"workspace_id": in.WorkspaceID, "result": result})
 }
 
 func (s *Service) WorkspaceSaveTexts(in WorkspaceRequest) WorkspaceResult {

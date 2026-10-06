@@ -182,6 +182,12 @@ func (r *gatewayRemote) Commit(ctx context.Context, req project.CommitRequest) (
 	return out, err
 }
 
+func (r *gatewayRemote) CommitStatus(ctx context.Context, projectID, commitID string) (project.CommitStatus, error) {
+	var out project.CommitStatus
+	err := r.call(ctx, "project.commit_status", map[string]any{"project_id": projectID, "commit_id": commitID}, projectID, &out)
+	return out, err
+}
+
 // Upload implements the binary extension of the local workspace Remote. The
 // Artifact prepare, controlled PUT, and commit calls all use the same project
 // scope and authenticated principal; the browser never receives the upload

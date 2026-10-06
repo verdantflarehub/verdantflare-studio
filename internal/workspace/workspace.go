@@ -130,6 +130,9 @@ func Open(ctx context.Context, directory, alias, projectID string, remote Remote
 	if e = w.authorize(ctx); e != nil {
 		return nil, e
 	}
+	if e = w.recoverResolution(ctx); e != nil {
+		return nil, e
+	}
 	ok = true
 	return w, nil
 }

@@ -38,6 +38,12 @@ type BinaryRemote interface {
 	Upload(context.Context, UploadRequest, io.Reader) (project.ContentVersion, error)
 }
 
+// ConflictRemote confirms that the exact pending request reached a terminal
+// conflict before a human may replace it with a new, reviewed operation.
+type ConflictRemote interface {
+	CommitStatus(context.Context, string, string) (project.CommitStatus, error)
+}
+
 type UploadRequest struct {
 	ProjectID string
 	Source    project.Source
