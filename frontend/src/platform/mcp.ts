@@ -11,6 +11,12 @@ interface MCPEnvelope<T> {
   error?: MCPError
 }
 
+interface DesktopMCPResult {
+  status: number
+  data: unknown
+  request_id: string
+}
+
 export class MCPRequestError extends Error {
   readonly status: number
   readonly code?: number
@@ -62,6 +68,18 @@ export async function callTool<T>(name: string, arguments_: Record<string, unkno
     const mocked = await handleMockRequest({ path: 'mcp', method: 'POST', body: payload })
     if (mocked) response = mocked
     else throw new MCPRequestError('MCP mock route is unavailable', 503)
+  } else if (new URLSearchParams(location.search).get('host') === 'desktop') {
+    const { Call } = await import('@wailsio/runtime')
+    const result = await Call.ByName('github.com/verdantflarehub/verdantflare-studio/internal/transport/desktop.Service.MCPCall', {
+      name,
+      arguments: arguments_,
+      project_id: projectID || ''
+    }) as DesktopMCPResult
+    const body = typeof result.data === 'string' ? result.data : JSON.stringify(result.data)
+    response = new Response(body, {
+      status: result.status,
+      headers: { 'Content-Type': 'application/json', 'X-Request-ID': result.request_id }
+    })
   } else {
     response = await fetch('/mcp', {
       method: 'POST',
