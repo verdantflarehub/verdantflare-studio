@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { callTool, MCPRequestError, uuidv7 } from '../platform/mcp'
+import { closeWorkspace, chooseWorkspaceDirectory, fetchWorkspaceFile, getWorkspaceStatus, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceTexts, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
 
 interface ProjectItem {
   project_id: string
@@ -30,6 +31,22 @@ interface AssetOpen {
   asset_version_id: string
   manifest: { name: string; asset_type: string; subjects: string[]; files: Array<{ file_id: string; path: string; role: string }>; source: { project_id: string; project_revision_id: string; relation: string }; depends_on: Array<{ asset_id: string; asset_version_id: string; purpose: string }> }
 }
+interface WorkspaceFile {
+  file_id: string
+  path: string
+  role: string
+  content_ref: { store_id: string; artifact_id: string; version_id: string }
+}
+interface WorkspaceManifest {
+  project_id: string
+  files: WorkspaceFile[]
+}
+interface WorkspaceSession {
+  workspace_id: string
+  state: DesktopWorkspaceState
+  manifest: WorkspaceManifest
+  statuses: DesktopWorkspaceFileStatus[]
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -49,6 +66,13 @@ const createEntryText = ref('# 制作审核记录\n\n## 目标\n')
 const entryText = ref('')
 const entryLoading = ref(false)
 const entrySaving = ref(false)
+const desktop = isDesktopHost()
+const workspace = ref<WorkspaceSession | null>(null)
+const workspaceLoading = ref(false)
+const workspaceSaving = ref(false)
+const workspaceDirectory = ref('')
+const workspaceError = ref('')
+const selectedWorkspaceFiles = ref<string[]>([])
 
 const assetTypes = [
   { value: '', label: '全部类型' },
@@ -67,6 +91,139 @@ function errorText(value: unknown) {
   if (value instanceof MCPRequestError && value.status === 401) return '当前会话已失效，请重新登录后再试。'
   if (value instanceof MCPRequestError && value.status === 403) return '当前身份没有访问这组 Project / World 数据的权限。'
   return value instanceof Error ? value.message : 'Project / World 服务暂时不可用。'
+}
+
+function isTextWorkspaceFile(file: WorkspaceFile | undefined): boolean {
+  if (!file) return false
+  return /\.(md|markdown|txt|json)$/i.test(file.path)
+}
+
+function workspaceFile(fileID: string): WorkspaceFile | undefined {
+  return workspace.value?.manifest.files.find(file => file.file_id === fileID)
+}
+
+function workspaceStatusLabel(state: string): string {
+  switch (state) {
+    case 'clean': return '本地与远端一致'
+    case 'not_materialized': return '尚未下载'
+    case 'missing': return '本地文件已移除'
+    case 'modified': return '本地已修改'
+    case 'conflict': return '路径冲突'
+    default: return state
+  }
+}
+
+function setWorkspaceStatuses(statuses: DesktopWorkspaceFileStatus[]) {
+  if (!workspace.value) return
+  workspace.value.statuses = statuses
+  const available = new Set(statuses.filter(status => isTextWorkspaceFile(workspaceFile(status.file_id))).map(status => status.file_id))
+  const current = selectedWorkspaceFiles.value.filter(fileID => available.has(fileID))
+  selectedWorkspaceFiles.value = current.length
+    ? current
+    : statuses.filter(status => status.state === 'modified' && available.has(status.file_id)).map(status => status.file_id)
+}
+
+async function refreshWorkspaceStatus() {
+  if (!workspace.value) return
+  workspaceLoading.value = true
+  workspaceError.value = ''
+  try {
+    const result = await getWorkspaceStatus(workspace.value.workspace_id)
+    setWorkspaceStatuses(result.files || [])
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceLoading.value = false
+  }
+}
+
+async function openLocalWorkspace() {
+  if (!desktop || !selectedProject.value) return
+  workspaceError.value = ''
+  try {
+    const directory = await chooseWorkspaceDirectory()
+    if (!directory) return
+    workspaceLoading.value = true
+    if (workspace.value) {
+      await closeWorkspace(workspace.value.workspace_id)
+      workspace.value = null
+      workspaceDirectory.value = ''
+      selectedWorkspaceFiles.value = []
+    }
+    const result = await openWorkspace(selectedProject.value.project_id, directory)
+    const manifest = result.manifest as WorkspaceManifest
+    if (!manifest || !Array.isArray(manifest.files) || manifest.project_id !== selectedProject.value.project_id) {
+      throw new Error('桌面工作副本返回了无效的工程清单。')
+    }
+    workspaceDirectory.value = directory
+    workspace.value = { workspace_id: result.workspace_id, state: result.state, manifest, statuses: [] }
+    await refreshWorkspaceStatus()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceLoading.value = false
+  }
+}
+
+async function fetchLocalWorkspaceFile(fileID: string) {
+  if (!workspace.value) return
+  workspaceLoading.value = true
+  workspaceError.value = ''
+  try {
+    await fetchWorkspaceFile(workspace.value.workspace_id, fileID)
+    await refreshWorkspaceStatus()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceLoading.value = false
+  }
+}
+
+async function saveLocalWorkspaceTexts() {
+  if (!workspace.value || selectedWorkspaceFiles.value.length === 0) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    await saveWorkspaceTexts(workspace.value.workspace_id, selectedWorkspaceFiles.value)
+    await refreshWorkspaceStatus()
+    await loadProjects()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function resumeLocalWorkspace() {
+  if (!workspace.value) return
+  workspaceSaving.value = true
+  workspaceError.value = ''
+  try {
+    await resumeWorkspace(workspace.value.workspace_id)
+    await refreshWorkspaceStatus()
+    await loadProjects()
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+  } finally {
+    workspaceSaving.value = false
+  }
+}
+
+async function closeLocalWorkspace() {
+  if (!workspace.value) return
+  const current = workspace.value.workspace_id
+  workspaceLoading.value = true
+  try {
+    await closeWorkspace(current)
+  } catch (cause) {
+    workspaceError.value = errorText(cause)
+    return
+  } finally {
+    workspaceLoading.value = false
+  }
+  workspace.value = null
+  workspaceDirectory.value = ''
+  selectedWorkspaceFiles.value = []
 }
 
 async function loadProjects() {
@@ -107,6 +264,9 @@ async function loadWorld() {
 async function openProject(item: ProjectItem) {
   error.value = ''
   try {
+    if (workspace.value && workspace.value.state.project_id !== item.project_id) {
+      await closeLocalWorkspace()
+    }
     selectedProject.value = await callTool<ProjectOpen>('project.open', { project_id: item.project_id, revision_id: item.head_revision_id }, item.project_id)
     const entry = selectedProject.value.manifest.files.find(file => file.file_id === selectedProject.value?.manifest.entry_document_id)
     if (entry) {
@@ -217,6 +377,7 @@ function selectMode(next: 'projects' | 'world') {
 watch(mode, next => { if (next === 'projects') void loadProjects(); else void loadWorld() })
 watch(assetType, () => { if (mode.value === 'world') void loadWorld() })
 onMounted(() => { if (mode.value === 'projects') void loadProjects(); else void loadWorld() })
+onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
 </script>
 
 <template>
@@ -273,6 +434,20 @@ onMounted(() => { if (mode.value === 'projects') void loadProjects(); else void 
               <div v-if="entryLoading" class="inline-state">正在按当前修订读取入口文档…</div>
               <textarea v-else v-model="entryText" class="entry-editor" rows="9" aria-label="入口 MD" />
               <div class="entry-actions"><span>保存会创建新修订，并使用当前修订做并发检查。</span><button class="btn primary" :disabled="entryLoading || entrySaving" @click="saveEntry">{{ entrySaving ? '保存中…' : '保存入口 MD' }}</button></div>
+              <section v-if="desktop" class="workspace-panel">
+                <div class="section-title"><span>本地工作副本</span><small>显式下载与保存，不后台同步</small></div>
+                <div v-if="workspaceError" class="workspace-error" role="alert">{{ workspaceError }}</div>
+                <template v-if="!workspace">
+                  <p class="workspace-note">选择一台电脑上的项目目录，Studio 会创建或恢复其中的 <code>.vf</code> 状态。服务端修订仍是跨电脑继续项目的依据。</p>
+                  <button class="btn primary" :disabled="workspaceLoading" @click="openLocalWorkspace">{{ workspaceLoading ? '打开中…' : '选择目录并打开工作副本' }}</button>
+                </template>
+                <template v-else>
+                  <dl class="workspace-facts"><dt>本地目录</dt><dd>{{ workspaceDirectory }}</dd><dt>基础修订</dt><dd>{{ shortID(workspace.state.base_revision_id) }}</dd><dt>文件状态</dt><dd>{{ workspace.statuses.filter(item => item.state === 'modified').length }} 个已修改 · {{ workspace.statuses.filter(item => item.state === 'not_materialized' || item.state === 'missing').length }} 个待下载</dd></dl>
+                  <div class="workspace-actions"><button class="btn" :disabled="workspaceLoading" @click="refreshWorkspaceStatus">{{ workspaceLoading ? '读取中…' : '刷新状态' }}</button><button class="btn" :disabled="workspaceSaving || selectedWorkspaceFiles.length === 0" @click="saveLocalWorkspaceTexts">{{ workspaceSaving ? '保存中…' : `保存选中文本（${selectedWorkspaceFiles.length}）` }}</button><button class="btn" :disabled="workspaceSaving" @click="resumeLocalWorkspace">恢复待提交</button><button class="btn" :disabled="workspaceLoading" @click="closeLocalWorkspace">关闭</button></div>
+                  <ul class="workspace-file-list"><li v-for="status in workspace.statuses" :key="status.file_id"><label v-if="isTextWorkspaceFile(workspaceFile(status.file_id))" class="workspace-check"><input v-model="selectedWorkspaceFiles" type="checkbox" :value="status.file_id" :disabled="status.state !== 'modified'" /><span>{{ workspaceFile(status.file_id)?.path }}</span></label><span v-else class="workspace-file-name">{{ workspaceFile(status.file_id)?.path }}</span><span class="workspace-file-state" :data-state="status.state">{{ workspaceStatusLabel(status.state) }}</span><button v-if="status.state !== 'modified' && status.state !== 'conflict'" class="btn compact" :disabled="workspaceLoading" @click="fetchLocalWorkspaceFile(status.file_id)">下载/校验</button></li></ul>
+                  <p class="workspace-note">入口 MD 和媒体都按文件单独下载；发现本地修改后，勾选文本并显式保存。若提交响应中断，使用“恢复待提交”继续同一个提交。</p>
+                </template>
+              </section>
               <div v-if="selectedProject.manifest.asset_refs.length" class="subheading">已固定引用</div><ul v-if="selectedProject.manifest.asset_refs.length" class="plain-list"><li v-for="asset in selectedProject.manifest.asset_refs" :key="asset.asset_id + asset.purpose"><span>{{ asset.purpose }}</span><small>{{ shortID(asset.asset_id) }} · {{ shortID(asset.asset_version_id) }}</small></li></ul>
               <div v-if="selectedAsset" class="reuse-panel"><strong>待带入：{{ selectedAsset.manifest.name }}</strong><span>提交后只增加当前项目的固定版本引用，来源资产和原项目不移动。</span><button class="btn primary" :disabled="loading" @click="useSelectedAsset">固定此版本到当前项目</button></div>
             </template>
@@ -331,5 +506,22 @@ textarea { resize: vertical; margin-top: 12px; }
 .detail-action { margin-top: 18px; width: 100%; }
 .reuse-panel { display: grid; gap: 7px; margin-top: 20px; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 7%, var(--shell-panel)); color: var(--ink); font-size: 12px; }
 .reuse-panel span { color: var(--muted); line-height: 1.5; }
+.workspace-panel { display: grid; gap: 12px; margin-top: 20px; padding: 14px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 4%, var(--shell-panel)); }
+.workspace-panel .section-title { margin-bottom: 0; }
+.workspace-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.workspace-note code { color: var(--ink); }
+.workspace-error { padding: 9px 10px; border-radius: 7px; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); font-size: 11px; overflow-wrap: anywhere; }
+.workspace-facts { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 6px 10px; margin: 0; font-size: 11px; }
+.workspace-facts dt { color: var(--muted); }
+.workspace-facts dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.workspace-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.workspace-file-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 280px; overflow: auto; }
+.workspace-file-list li { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; font-size: 11px; }
+.workspace-check, .workspace-file-name { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; color: var(--ink); }
+.workspace-check span, .workspace-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-file-state { color: var(--muted); white-space: nowrap; }
+.workspace-file-state[data-state="modified"], .workspace-file-state[data-state="conflict"], .workspace-file-state[data-state="missing"] { color: var(--danger); }
+.workspace-file-state[data-state="clean"] { color: var(--accent); }
+.btn.compact { padding: 5px 7px; font-size: 10px; white-space: nowrap; }
 @media (max-width: 800px) { .content-grid, .form-grid { grid-template-columns: 1fr; } .heading-actions { justify-content: flex-start; } }
 </style>
