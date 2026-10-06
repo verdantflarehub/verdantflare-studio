@@ -76,7 +76,13 @@ func (g *Gateway) Transfer(ctx context.Context, p project.Principal, method, pat
 	u.Path = path
 	u.RawPath = ""
 	u.RawQuery = query
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	// The caller owns its source (a desktop file or inbound HTTP body).
+	// Closing the outbound request must not close that source a second time.
+	var requestBody io.Reader
+	if body != nil {
+		requestBody = io.NopCloser(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), requestBody)
 	if err != nil {
 		return nil, 400, errors.New("invalid content request")
 	}

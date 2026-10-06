@@ -5,12 +5,48 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 )
+
+func TestTransferKeepsCallerOwnedUploadFileOpen(t *testing.T) {
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	p := project.Principal{OrganizationID: id(), SubjectID: id(), RequestID: id()}
+	f, err := os.CreateTemp(t.TempDir(), "upload-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err = f.WriteString("source bytes"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.Seek(0, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != "source bytes" || r.ContentLength != 12 {
+			t.Error("upload changed")
+		}
+		w.WriteHeader(200)
+	}))
+	defer server.Close()
+	t.Setenv("STUDIO_ARTIFACT_SERVICE_TOKEN", strings.Repeat("a", 32))
+	g := NewGatewayWithClient(nil)
+	g.services["artifact"] = ServiceRegistration{Domain: "artifact", Endpoint: server.URL + "/mcp", Tools: []ToolDefinition{{Name: "artifact.write"}}}
+	response, status, err := g.Transfer(t.Context(), p, "PUT", "/v2/artifacts/uploads/"+id()+"/content", "", f, 12)
+	if err != nil || status != 200 {
+		t.Fatal(status, err)
+	}
+	response.Body.Close()
+	if _, err = f.Stat(); err != nil {
+		t.Fatalf("caller file closed: %v", err)
+	}
+}
 
 func TestTransferRouteAndCredentials(t *testing.T) {
 	id := func() string { return uuid.Must(uuid.NewV7()).String() }

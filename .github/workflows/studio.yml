@@ -3,7 +3,7 @@ name: Studio
 env:
   REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
   IMAGE_NAME: wod/verdantflare-station
-  IMAGE_VERSION: studio-v0.5.35
+  IMAGE_VERSION: studio-v0.5.36
 
 on:
   push:
@@ -17,6 +17,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  workspace:
+    name: Build portable workspace client
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        goos: [linux, windows]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Compile workspace client
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+        run: bash scripts/build.sh workspace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMAGE_VERSION }}-workspace-${{ matrix.goos }}-amd64
+          path: build/studio-workspace*
+          if-no-files-found: error
   image:
     name: Build image and publish release
     runs-on: ubuntu-24.04

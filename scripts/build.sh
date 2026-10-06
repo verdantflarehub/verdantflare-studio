@@ -6,10 +6,11 @@ cd "$PROJECT_ROOT"
 
 usage() {
   cat <<'HELP'
-用法：bash scripts/build.sh [web|desktop|project|image]
+用法：bash scripts/build.sh [web|desktop|project|workspace|image]
   web      构建网站程序（默认），输出 build/studio-web
   desktop  构建当前平台桌面程序，输出 build/studio-desktop
   project  构建 Project/World 内部服务，输出 build/studio-project（无需 Node.js）
+  workspace 构建外部工作副本 CLI，输出 build/studio-workspace（无需 Node.js）
   image    构建 Gin 网站镜像，名称由 STUDIO_IMAGE 配置
 HELP
 }
@@ -19,7 +20,7 @@ require() { command -v "$1" >/dev/null 2>&1 || fail "缺少 $1，请先安装。
 target="${1:-web}"
 case "$target" in
   -h|--help) usage; exit 0 ;;
-  web|desktop|project|image|frontend) ;;
+  web|desktop|project|workspace|image|frontend) ;;
   *) usage >&2; fail "未知目标：$target" ;;
 esac
 # Only used between the frontend and Go stages of Dockerfile.
@@ -35,7 +36,7 @@ if [[ "$target" == image ]]; then
 fi
 
 if [[ "$target" != frontend ]]; then require go; fi
-if [[ "$backend_only" == false && "$target" != project ]]; then
+if [[ "$backend_only" == false && "$target" != project && "$target" != workspace ]]; then
   require node
   expected="$(node -p "require('./frontend/package.json').packageManager.split('@')[1]")"
   if command -v corepack >/dev/null 2>&1; then
@@ -53,14 +54,14 @@ if [[ "$backend_only" == false && "$target" != project ]]; then
   )
 fi
 [[ "$target" != frontend ]] || exit 0
-if [[ "$target" != project ]]; then
+if [[ "$target" != project && "$target" != workspace ]]; then
   [[ -s frontend/dist/index.html ]] || fail '缺少前端构建产物。'
 fi
 mkdir -p build
 suffix=''
 [[ "$(go env GOOS)" != windows ]] || suffix='.exe'
 output="build/studio-${target}${suffix}"
-if [[ "$target" == web || "$target" == project ]]; then
+if [[ "$target" == web || "$target" == project || "$target" == workspace ]]; then
   CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$output" "./cmd/$target"
 else
   go build -trimpath -o "$output" ./cmd/desktop

@@ -12,16 +12,19 @@ COPY scripts/build.sh scripts/build.sh
 RUN go mod download
 COPY cmd/web/ cmd/web/
 COPY cmd/project/ cmd/project/
+COPY cmd/workspace/ cmd/workspace/
 COPY internal/ internal/
 COPY migrations/ migrations/
 COPY frontend/assets.go frontend/assets.go
 COPY --from=frontend /src/frontend/dist/ frontend/dist/
 RUN bash scripts/build.sh web --backend-only
 RUN bash scripts/build.sh project
+RUN bash scripts/build.sh workspace
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=backend /src/build/studio-web /studio-web
 COPY --from=backend /src/build/studio-project /studio-project
+COPY --from=backend /src/build/studio-workspace /studio-workspace
 ENV STUDIO_LISTEN=0.0.0.0:8000
 EXPOSE 8000
 ENTRYPOINT ["/studio-web"]
