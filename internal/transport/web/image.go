@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -98,11 +99,17 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 		req.Header.Set("Authorization", "Bearer "+cfg.Token)
 	}
 	if c.Request.Method == "POST" {
-		if strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {
+		contentType := c.GetHeader("Content-Type")
+		mediaType, params, parseErr := mime.ParseMediaType(contentType)
+		valid := parseErr == nil && mediaType == "application/json"
+		if path == "/api/artifacts/upload" {
+			valid = parseErr == nil && mediaType == "multipart/form-data" && params["boundary"] != ""
+		}
+		if !valid {
 			c.Status(415)
 			return
 		}
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
 	}
 	if value := c.GetHeader("Range"); value != "" {
 		req.Header.Set("Range", value)
