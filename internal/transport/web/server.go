@@ -123,6 +123,7 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	})
 	r.POST("/mcp", s.mcpHandler)
 	r.POST("/studio/mcp", s.mcpHandler)
+	r.GET("/artifacts/:artifact_id/content", s.videoContent)
 	r.Any("/v2/artifacts/*path", s.artifactTransfer)
 	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
