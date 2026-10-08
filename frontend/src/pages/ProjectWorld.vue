@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ProjectBrowser from './ProjectBrowser.vue'
 import { callTool, MCPRequestError, uuidv7 } from '../platform/mcp'
 import { closeWorkspace, chooseWorkspaceDirectory, chooseWorkspaceFiles, fetchWorkspaceFile, getWorkspaceStatus, importWorkspaceFiles, isDesktopHost, openWorkspace, resumeWorkspace, saveWorkspaceFiles, saveWorkspaceTexts, switchWorkspaceToHead, previewWorkspaceConflict, resolveWorkspaceConflict, type DesktopConflictPreview, type DesktopConflictFile, type DesktopWorkspaceFileInput, type DesktopWorkspaceFileStatus, type DesktopWorkspaceState } from '../platform/desktop'
 
@@ -67,6 +68,7 @@ const entryText = ref('')
 const entryLoading = ref(false)
 const entrySaving = ref(false)
 const desktop = isDesktopHost()
+const businessView = computed(() => mode.value === 'projects' && !desktop && route.query.view !== 'files')
 const workspace = ref<WorkspaceSession | null>(null)
 const workspaceLoading = ref(false)
 const workspaceSaving = ref(false)
@@ -518,21 +520,23 @@ async function useSelectedAsset() {
   }
 }
 
-function selectMode(next: 'projects' | 'world') {
+function selectMode(next: 'projects' | 'world', reuse = false) {
   const query: Record<string, string> = {}
   if (typeof route.query.mock === 'string') query.mock = route.query.mock
   if (next === 'world') query.mode = 'world'
+  if (reuse) query.view = 'files'
   router.push({ path: '/projects', query })
 }
 
-watch(mode, next => { if (next === 'projects') void loadProjects(); else void loadWorld() })
+watch([mode, businessView], ([next, business]) => { if (business) return; if (next === 'projects') void loadProjects(); else void loadWorld() })
 watch(assetType, () => { if (mode.value === 'world') void loadWorld() })
-onMounted(() => { if (mode.value === 'projects') void loadProjects(); else void loadWorld() })
+onMounted(() => { if (businessView.value) return; if (mode.value === 'projects') void loadProjects(); else void loadWorld() })
 onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
 </script>
 
 <template>
-  <main class="main">
+  <ProjectBrowser v-if="businessView" />
+  <main v-else class="main">
     <div class="workspace project-world-page">
       <header class="heading">
         <div class="heading-left">
@@ -633,7 +637,7 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
         <section class="toolbar"><label>资产类型<select v-model="assetType"><option v-for="item in assetTypes" :key="item.value" :value="item.value">{{ item.label }}</option></select></label><span class="toolbar-note">World 只登记明确选中的文件和固定版本</span></section>
         <section class="content-grid">
           <div class="list-panel"><div class="section-title"><span>可复用资产</span><small>{{ assets.length }} 个可见资产</small></div><div v-if="assets.length === 0" class="state empty-state">当前类型没有可见资产。</div><button v-for="asset in assets" :key="asset.asset_id" class="list-card" :class="{ selected: selectedAsset?.asset_id === asset.asset_id }" @click="openAsset(asset)"><span class="card-glyph">◉</span><span class="card-main"><strong>{{ asset.name }}</strong><small>{{ asset.asset_type }} · {{ asset.subjects.join('、') || '未标主体' }}</small></span><span class="card-id">{{ shortID(asset.head_asset_version_id) }}</span></button></div>
-          <aside class="detail-panel"><div v-if="!selectedAsset" class="state empty-state"><strong>选择一个资产</strong><span>读取固定版本详情后才能进入项目复用。</span></div><template v-else><div class="section-title"><span>{{ selectedAsset.manifest.name }}</span><span class="version-pill">{{ shortID(selectedAsset.asset_version_id) }}</span></div><dl class="facts"><dt>资产类型</dt><dd>{{ selectedAsset.manifest.asset_type }}</dd><dt>主体</dt><dd>{{ selectedAsset.manifest.subjects.join('、') }}</dd><dt>来源项目修订</dt><dd>{{ shortID(selectedAsset.manifest.source.project_id) }} · {{ shortID(selectedAsset.manifest.source.project_revision_id) }}</dd><dt>关系</dt><dd>{{ selectedAsset.manifest.source.relation }}</dd></dl><div class="subheading">可用文件</div><ul class="plain-list"><li v-for="file in selectedAsset.manifest.files" :key="file.file_id"><span>{{ file.path }}</span><small>{{ file.role }} · {{ shortID(file.file_id) }}</small></li></ul><button class="btn primary detail-action" @click="selectMode('projects')">带入项目后固定引用</button></template></aside>
+          <aside class="detail-panel"><div v-if="!selectedAsset" class="state empty-state"><strong>选择一个资产</strong><span>读取固定版本详情后才能进入项目复用。</span></div><template v-else><div class="section-title"><span>{{ selectedAsset.manifest.name }}</span><span class="version-pill">{{ shortID(selectedAsset.asset_version_id) }}</span></div><dl class="facts"><dt>资产类型</dt><dd>{{ selectedAsset.manifest.asset_type }}</dd><dt>主体</dt><dd>{{ selectedAsset.manifest.subjects.join('、') }}</dd><dt>来源项目修订</dt><dd>{{ shortID(selectedAsset.manifest.source.project_id) }} · {{ shortID(selectedAsset.manifest.source.project_revision_id) }}</dd><dt>关系</dt><dd>{{ selectedAsset.manifest.source.relation }}</dd></dl><div class="subheading">可用文件</div><ul class="plain-list"><li v-for="file in selectedAsset.manifest.files" :key="file.file_id"><span>{{ file.path }}</span><small>{{ file.role }} · {{ shortID(file.file_id) }}</small></li></ul><button class="btn primary detail-action" @click="selectMode('projects', true)">带入项目后固定引用</button></template></aside>
         </section>
       </template>
     </div>
