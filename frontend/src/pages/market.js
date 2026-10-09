@@ -1,5 +1,6 @@
 import { mountVideo } from './video-embed'
 import { mountImage } from './image-embed'
+import { mountBlender } from './blender-embed'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
 import { mergeCatalogWithLive } from './catalog'
@@ -11,7 +12,7 @@ export function mountMarket() {
   const controller = new AbortController();
   const listen = (target, event, handler) => target.addEventListener(event, handler, { signal: controller.signal });
 
-  const $ = id => document.getElementById(id), labels = { image: 'Image', music: 'Music', video: 'Video' };
+  const $ = id => document.getElementById(id), labels = { image: 'Image', music: 'Music', video: 'Video', blender: 'Blender' };
   const statusText = {
     ready: '已就绪',
     running: '运行中',
@@ -78,6 +79,7 @@ export function mountMarket() {
   }
 
   function primaryBtn(a) {
+    if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">查看实例</button>';
     const op = operations.get(a.app_id);
     const isBusy = op && !op.rejected && !terminal(op.op);
     if (isBusy) {
@@ -113,6 +115,7 @@ export function mountMarket() {
   function login() {
     video.close();
     image.close();
+    blender.close();
     connected = false;
     identity = {};
     hostStore.setIdentity({});
@@ -142,6 +145,8 @@ export function mountMarket() {
 
   const video = mountVideo({ listen, api, notice, login });
   const image = mountImage({ listen, api, notice, login });
+  const blender = mountBlender({ listen, notice });
+  blender.sync();
 
   function render() {
     const searchInput = $('search');
@@ -220,6 +225,7 @@ export function mountMarket() {
     const videoHost = $('videoHost');
     const imageHost = $('imageHost');
     const isEmbedActive = location.hash.includes('video=') ||
+                          location.hash.includes('blender=') ||
                           location.hash.includes('image=') ||
                           (videoHost && !videoHost.hidden) ||
                           (imageHost && !imageHost.hidden);
@@ -410,6 +416,10 @@ export function mountMarket() {
       ${dep.images && dep.images.length ? `<details><summary>部署信息</summary><p>${esc(a.namespace || 'verdantflare-station')} / ${esc(a.workload_name || a.app_id)}</p><h4>当前镜像</h4>${dep.images.map(i => `<p style="overflow-wrap:anywhere">${esc(i.component)}：${esc(i.image)}</p>`).join('')}</details>` : ''}
     `;
 
+    if(a.app_id==='blender'){
+      $('actions').innerHTML=primaryBtn(a);
+      $('detailContent').innerHTML=`<p>${esc(a.description)}</p><p>当前使用已部署的固定实例。进入工作区可查看实例权限、连接画面和复制专用 MCP 地址。</p><p>应用状态：${esc(statusText[dep.state]||'状态未知')}</p>`;
+    }
     document.querySelectorAll('[data-detail-tab]').forEach(b => {
       b.hidden = b.dataset.detailTab !== 'overview';
     });
@@ -513,6 +523,7 @@ export function mountMarket() {
       else notice('Image 暂未就绪');
       return;
     }
+    if (b.dataset.openBlender) {e.preventDefault();closeDetail();blender.open();return;}
     if (b.dataset.placeholder) {
       e.preventDefault();
       notice('该功能正在开发');
@@ -588,6 +599,7 @@ export function mountMarket() {
   return () => {
     video.dispose();
     image.dispose();
+    blender.dispose();
     clearInterval(operationTimer);
     clearInterval(polling);
     controller.abort();

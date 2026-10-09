@@ -78,6 +78,19 @@ onBeforeUnmount(() => dispose?.())
       </section>
 
       <!-- Primary Market Columns (Full Width Workspace) -->
+      <section id="blenderHost" hidden>
+        <div class="video-host-bar">
+          <nav class="video-breadcrumb" aria-label="面包屑"><a href="#/market">应用市场</a> / <span aria-current="page">Blender</span></nav>
+          <label>实例 <select id="blenderInstance" aria-label="Blender 实例"></select></label>
+          <button class="btn primary" id="blenderConnect">连接画面</button>
+          <button class="btn" id="blenderRelease" disabled>释放控制权</button>
+          <button class="btn" id="blenderSave">保存工程</button>
+        </div>
+        <p id="blenderMessage" role="status" aria-live="polite"></p>
+        <div class="video-host-bar"><label for="blenderMCP">专用 MCP</label><input id="blenderMCP" readonly aria-label="实例 MCP 地址"><button class="btn" id="blenderCopy">复制地址</button></div>
+        <iframe id="blenderFrame" title="Blender 三维工程编辑器" sandbox="allow-scripts allow-same-origin allow-pointer-lock" allow="autoplay; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
+      </section>
+
       <div id="marketView" class="market-columns">
         <div class="market-primary">
           <section class="catalog-section">
@@ -100,6 +113,7 @@ onBeforeUnmount(() => dispose?.())
               <button class="chip" data-group="image">Image</button>
               <button class="chip" data-group="music">Music</button>
               <button class="chip" data-group="video">Video</button>
+              <button class="chip" data-group="blender">Blender</button>
               <span class="result-count" id="resultCount">等待连接</span>
             </div>
             <div id="catalog"></div>

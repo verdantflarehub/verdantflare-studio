@@ -126,6 +126,8 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	r.POST("/studio/mcp", s.mcpHandler)
 	r.Any("/mcp/:instance_alias", s.blenderMCP)
 	r.GET("/studio/apps/blender/instances", s.blenderInstances)
+	r.POST("/studio/apps/blender/:instance_alias/:action", s.blenderGUIControl)
+	r.GET("/apps/blender/:instance_alias/:editing_session_id/*path", s.blenderDesktop)
 	r.GET("/artifacts/:artifact_id/content", s.videoContent)
 	r.Any("/v2/artifacts/*path", s.artifactTransfer)
 	r.Any("/api/*path", s.api)
