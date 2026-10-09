@@ -81,5 +81,9 @@ func main() {
 		WriteTimeout:      120 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	if addr := os.Getenv("STUDIO_BLENDER_CONTENT_LISTEN"); addr != "" {
+		content := &http.Server{Addr: addr, Handler: webServer.BlenderContentHandler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 30 * time.Second}
+		go func() { log.Fatal(content.ListenAndServe()) }()
+	}
 	log.Fatal(server.ListenAndServe())
 }
