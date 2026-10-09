@@ -26,13 +26,14 @@ type session struct {
 	expires time.Time
 }
 type Server struct {
-	station    *application.Station
-	origin     string
-	secure     bool
-	mu         sync.Mutex
-	sessions   map[string]session
-	etcd       *clientv3.Client
-	mcpGateway *mcp.Gateway
+	station         *application.Station
+	origin          string
+	secure          bool
+	mu              sync.Mutex
+	sessions        map[string]session
+	etcd            *clientv3.Client
+	mcpGateway      *mcp.Gateway
+	blenderEndpoint func() (string, bool)
 }
 
 func (s *Server) SetEtcdClient(cli *clientv3.Client) {
@@ -123,6 +124,8 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	})
 	r.POST("/mcp", s.mcpHandler)
 	r.POST("/studio/mcp", s.mcpHandler)
+	r.Any("/mcp/:instance_alias", s.blenderMCP)
+	r.GET("/studio/apps/blender/instances", s.blenderInstances)
 	r.GET("/artifacts/:artifact_id/content", s.videoContent)
 	r.Any("/v2/artifacts/*path", s.artifactTransfer)
 	r.Any("/api/*path", s.api)

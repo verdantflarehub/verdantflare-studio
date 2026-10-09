@@ -169,6 +169,15 @@ func (g *Gateway) ListTools() []ToolDefinition {
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
+
+// ServiceEndpoint returns only endpoints from the validated discovery snapshot.
+// Instance aliases are resolved by the application, never by caller-supplied URLs.
+func (g *Gateway) ServiceEndpoint(domain string) (string, bool) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	r, ok := g.services[domain]
+	return r.Endpoint, ok
+}
 func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any, headers map[string]string) (any, int, error) {
 	if Managed(name) {
 		return nil, 403, errors.New("verified identity required")
