@@ -71,7 +71,7 @@ export function summary(items) {
   const count = items.length, known = items.every(i => isFresh(i) && i.status !== 'unknown');
   const gpuKnown = items.every(i => isFresh(i) && Number.isInteger(i.allocated_gpu_count) && i.allocated_gpu_count >= 0);
   const copiesKnown = items.every(i => typeof i.workspace?.registered === 'boolean');
-  const values = [['可访问实例',count,'个工作环境'],['正在运行',known ? items.filter(i => i.status === 'running').length : '—','场景就绪观测'],['已分配 GPU',gpuKnown ? items.reduce((n,i) => n+i.allocated_gpu_count,0) : '—','实际分配待确认'],['已登记工作区',copiesKnown ? items.filter(i => i.workspace.registered).length : '—','持久工作副本']];
+  const values = [['可访问实例',count,'个工作环境'],['正在运行',known ? items.filter(i => i.status === 'running').length : '—','场景就绪观测'],['已分配 GPU',gpuKnown ? items.reduce((n,i) => n+i.allocated_gpu_count,0) : '—','独占 GPU 数量'],['已登记工作区',copiesKnown ? items.filter(i => i.workspace.registered).length : '—','持久工作副本']];
   return values.map(([label,value,note]) => `<div><dt>${label}</dt><dd><strong>${value}</strong><small>${note}</small></dd></div>`).join('');
 }
 export function instanceCard(item) {
