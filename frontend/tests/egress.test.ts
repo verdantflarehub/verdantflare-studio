@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseImport, exportData, type ProxyItem } from '../src/pages/egress.ts';
+import { parseImport, exportData, exitProfile, countryCode, type ProxyItem, type Observation, type Probe } from '../src/pages/egress.ts';
 
 test('URL preview distinguishes valid, duplicate and invalid input without echoing secrets', () => {
  const rows = parseImport('socks5://alice:p%40ss@proxy.example:1080\nsocks5://alice:p%40ss@proxy.example:1080\nftp://proxy.example:1080\nsocks5://proxy.example:65536\nsocks5://proxy.example:1080/path', []);
@@ -29,4 +29,39 @@ test('JSON preview rejects coerced fields and invalid management states', () => 
  const base = { name: 'proxy', protocol: 'socks5', host: 'proxy.example', port: 1080 };
  const rows = parseImport(JSON.stringify({ format: 'verdantflare-proxies-v1', items: [base, {...base, name: {}}, {...base, port: '1080'}, {...base, status: 'active'}] }), []);
  assert.deepEqual(rows.map(r => r.state), ['valid', 'invalid', 'invalid', 'invalid']);
+});
+
+const observation = (source: string, fields: Partial<Observation> = {}): Observation => ({ source, url: '', at: '', status: 'available', ip: '8.8.8.8', datacenter: null, mobile: null, proxy: null, vpn: null, tor: null, risk_score: null, ...fields });
+const probe = (observations: Observation[]) => ({ exit_ip: '8.8.8.8', observations }) as Probe;
+test('geography uses fixed source priority, a matching exit IP and one complete source record', () => {
+ const q = observation('IPQuery', { country: 'United States', region: 'Texas', city: 'Dallas' });
+ const info = observation('IPinfo', { country_code: 'US', region: 'California', city: 'San Francisco' });
+ const g = observation('ipapi.is (anonymous)', { country: 'United States', region: 'Washington', city: 'Seattle' });
+ for (const list of [[q, info, g], [g, info, q]]) {
+  const result = exitProfile(probe(list));
+  assert.equal(result.location, '美国 / 加州 / 旧金山');
+  assert.equal(result.countryCode, 'US');
+  assert.equal(result.fallback, false);
+ }
+ const result = exitProfile(probe([q, {...info, status: 'unavailable', error: 'http_status_429'}, g]));
+ assert.equal(result.geo?.source, g.source); assert.equal(result.fallback, true);
+ assert.equal(exitProfile(probe([q, {...info, ip: '1.1.1.1'}])).geo?.source, q.source);
+ assert.equal(exitProfile(probe([q, {...info, city: ''}])).location, '美国 / 加州 / 城市未获取');
+});
+test('negative data center flags, ISP ownership and zero risk never imply a residential IP', () => {
+ const q = observation('IPQuery', { datacenter: false, risk_score: 0, organization: 'Residential ISP' });
+ assert.equal(exitProfile(probe([q])).type, '类型未判定');
+ assert.equal(exitProfile(probe([{...q, datacenter: true}])).type, '机房IP');
+ assert.equal(exitProfile(probe([{...q, mobile: true}])).type, '移动网络IP');
+ assert.equal(exitProfile(probe([{...q, datacenter: true, mobile: true}])).type, '类型未判定');
+ assert.equal(exitProfile(probe([q, observation('IPinfo', { datacenter: true })])).type, '类型未判定');
+ assert.equal(exitProfile(probe([{...q, datacenter: true, status: 'unavailable'}])).type, '类型未判定');
+ assert.equal(exitProfile(probe([{...q, datacenter: true, ip: '1.1.1.1'}])).type, '类型未判定');
+});
+test('old observations derive a country flag without inventing missing geography', () => {
+ assert.equal(countryCode(observation('IPQuery', {country: 'United States'})), 'US');
+ assert.equal(countryCode(observation('IPinfo', {country_code: '../../US'})), '');
+ assert.equal(countryCode(observation('IPQuery', {country: 'Unknown'})), '');
+ assert.equal(exitProfile(null).location, '位置未获取');
+ assert.equal(exitProfile(null).type, '类型未判定');
 });

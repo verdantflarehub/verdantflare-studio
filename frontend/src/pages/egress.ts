@@ -1,6 +1,6 @@
 export type Observation = {
  source: string; url: string; at: string; status: string; ip: string;
- country?: string; region?: string; city?: string; asn?: string; isp?: string; organization?: string;
+ country?: string; country_code?: string; region?: string; city?: string; asn?: string; isp?: string; organization?: string;
  datacenter: boolean | null; proxy: boolean | null; vpn: boolean | null; tor: boolean | null; mobile: boolean | null;
  risk_score: number | null; error?: string;
 };
@@ -19,6 +19,40 @@ export type ProxyInput = {
  name: string; protocol: string; host: string; port: number; tag: string; note: string; expires_at: string;
  username?: string; password?: string; clear_auth?: boolean; status?: string; revision?: number;
 };
+const geoSources = ['IPinfo', 'ipapi.is (anonymous)', 'IPQuery'];
+const countryNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' });
+const countryCodes = new Map<string, string>();
+for (const locale of ['en', 'zh-CN']) {
+ const names = new Intl.DisplayNames([locale], { type: 'region' });
+ for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+  const code = String.fromCharCode(a, b), name = names.of(code);
+  if (name && name !== code) countryCodes.set(name.toLowerCase(), code);
+ }
+}
+export function countryCode(o?: Observation): string {
+ const value = (o?.country_code || o?.country || '').trim();
+ const code = /^[a-z]{2}$/i.test(value) ? value.toUpperCase() : countryCodes.get(value.toLowerCase()) || '';
+ return code && countryNames.of(code) !== code ? code : '';
+}
+// Translation only; selection never depends on proxy name, endpoint or expected location.
+const regions: Record<string, Record<string, string>> = { US: { California: '加州', Washington: '华盛顿州', Nebraska: '内布拉斯加州', Texas: '得克萨斯州', 'New York': '纽约州' } };
+const cities: Record<string, Record<string, string>> = { US: { 'Los Angeles': '洛杉矶', 'Costa Mesa': '科斯塔梅萨', 'San Francisco': '旧金山', Seattle: '西雅图', Dallas: '达拉斯' } };
+export function locationText(o?: Observation): string {
+ if (!o) return '位置未获取';
+ const code = countryCode(o);
+ return [code ? countryNames.of(code) : o.country || '国家未获取', o.region ? regions[code]?.[o.region] || o.region : '州／省未获取', o.city ? cities[code]?.[o.city] || o.city : '城市未获取'].join(' / ');
+}
+export function exitProfile(probe?: Probe | null) {
+ const observations = (probe?.observations || []).filter(o => !!probe?.exit_ip && o.status === 'available' && o.ip === probe.exit_ip);
+ const geo = geoSources.map(source => observations.find(o => o.source === source && (o.country_code || o.country || o.region || o.city))).find(Boolean);
+ const typed = observations.filter(o => o.datacenter === true || o.mobile === true);
+ const datacenter = typed.some(o => o.datacenter === true), mobile = typed.some(o => o.mobile === true);
+ // A negative hosting flag, low risk or ISP name does not establish residential service.
+ const conflict = (datacenter && observations.some(o => o.datacenter === false)) || (mobile && observations.some(o => o.mobile === false)) || (datacenter && mobile);
+ const type = conflict ? '类型未判定' : datacenter ? '机房IP' : mobile ? '移动网络IP' : '类型未判定';
+ const typeEvidence = typed.map(o => `${o.source}: ${[o.datacenter === true ? 'datacenter=true' : '', o.mobile === true ? 'mobile=true' : ''].filter(Boolean).join(', ')}`).join('；');
+ return { geo, countryCode: countryCode(geo), location: locationText(geo), type, typeEvidence: conflict ? `类型标记冲突；${typeEvidence}` : typeEvidence || '当前来源没有明确的 IP 类型证据', fallback: !!geo && geo.source !== geoSources[0] };
+}
 const errors: Record<string, string> = {
  UNAUTHENTICATED: '登录已失效，请重新登录', PERMISSION_DENIED: '当前账号没有代理管理权限',
  INVALID_ARGUMENT: '请检查名称、协议、主机、端口、有效期及认证字段',
