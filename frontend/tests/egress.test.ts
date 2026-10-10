@@ -39,14 +39,15 @@ test('geography uses fixed source priority, a matching exit IP and one complete 
  const g = observation('ipapi.is (anonymous)', { country: 'United States', region: 'Washington', city: 'Seattle' });
  for (const list of [[q, info, g], [g, info, q]]) {
   const result = exitProfile(probe(list));
-  assert.equal(result.location, '美国 / 加州 / 旧金山');
+  assert.equal(result.location, 'US / California / San Francisco');
   assert.equal(result.countryCode, 'US');
   assert.equal(result.fallback, false);
  }
  const result = exitProfile(probe([q, {...info, status: 'unavailable', error: 'http_status_429'}, g]));
  assert.equal(result.geo?.source, g.source); assert.equal(result.fallback, true);
  assert.equal(exitProfile(probe([q, {...info, ip: '1.1.1.1'}])).geo?.source, q.source);
- assert.equal(exitProfile(probe([q, {...info, city: ''}])).location, '美国 / 加州 / 城市未获取');
+ assert.equal(exitProfile(probe([q, {...info, city: ''}])).location, 'US / California / 城市未获取');
+ assert.equal(exitProfile(probe([q])).location, 'United States / Texas / Dallas');
 });
 test('negative data center flags, ISP ownership and zero risk never imply a residential IP', () => {
  const q = observation('IPQuery', { datacenter: false, risk_score: 0, organization: 'Residential ISP' });

@@ -20,7 +20,7 @@ export type ProxyInput = {
  username?: string; password?: string; clear_auth?: boolean; status?: string; revision?: number;
 };
 const geoSources = ['IPinfo', 'ipapi.is (anonymous)', 'IPQuery'];
-const countryNames = new Intl.DisplayNames(['zh-CN'], { type: 'region' });
+const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const countryCodes = new Map<string, string>();
 for (const locale of ['en', 'zh-CN']) {
  const names = new Intl.DisplayNames([locale], { type: 'region' });
@@ -34,13 +34,9 @@ export function countryCode(o?: Observation): string {
  const code = /^[a-z]{2}$/i.test(value) ? value.toUpperCase() : countryCodes.get(value.toLowerCase()) || '';
  return code && countryNames.of(code) !== code ? code : '';
 }
-// Translation only; selection never depends on proxy name, endpoint or expected location.
-const regions: Record<string, Record<string, string>> = { US: { California: '加州', Washington: '华盛顿州', Nebraska: '内布拉斯加州', Texas: '得克萨斯州', 'New York': '纽约州' } };
-const cities: Record<string, Record<string, string>> = { US: { 'Los Angeles': '洛杉矶', 'Costa Mesa': '科斯塔梅萨', 'San Francisco': '旧金山', Seattle: '西雅图', Dallas: '达拉斯' } };
 export function locationText(o?: Observation): string {
  if (!o) return '位置未获取';
- const code = countryCode(o);
- return [code ? countryNames.of(code) : o.country || '国家未获取', o.region ? regions[code]?.[o.region] || o.region : '州／省未获取', o.city ? cities[code]?.[o.city] || o.city : '城市未获取'].join(' / ');
+ return [o.country || o.country_code || '国家未获取', o.region || '州／省未获取', o.city || '城市未获取'].join(' / ');
 }
 export function exitProfile(probe?: Probe | null) {
  const observations = (probe?.observations || []).filter(o => !!probe?.exit_ip && o.status === 'available' && o.ip === probe.exit_ip);
