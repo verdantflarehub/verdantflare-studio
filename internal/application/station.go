@@ -34,6 +34,7 @@ type Station struct {
 var operationPath = regexp.MustCompile(`^operations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 var appPath = regexp.MustCompile(`^apps/[a-z0-9][a-z0-9-]{0,62}$`)
+var proxyPath = regexp.MustCompile(`^proxies/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 func ID() string {
 	var b [32]byte
@@ -60,6 +61,12 @@ func Error(status int, code string) Result {
 func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 	path := ""
 	switch {
+	case (in.Method == "GET" || in.Method == "POST") && in.Path == "proxies":
+		path = "/api/v1/proxies"
+	case (in.Method == "GET" || in.Method == "PUT" || in.Method == "DELETE") && proxyPath.MatchString(in.Path):
+		path = "/api/v1/" + in.Path
+	case in.Method == "POST" && strings.HasSuffix(in.Path, "/test") && proxyPath.MatchString(strings.TrimSuffix(in.Path, "/test")):
+		path = "/api/v1/" + in.Path
 	case in.Method == "POST" && in.Path == "login":
 		path = "/identity/login"
 	case in.Method == "POST" && in.Path == "logout":
@@ -103,7 +110,13 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := s.client.Do(req)
+	client := s.client
+	if strings.HasPrefix(path, "/api/v1/proxies/") && strings.HasSuffix(path, "/test") {
+		probeClient := *s.client
+		probeClient.Timeout = 60 * time.Second
+		client = &probeClient
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return Error(503, "SERVICE_UNAVAILABLE")
 	}

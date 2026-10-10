@@ -179,7 +179,7 @@ func (s *Server) api(c *gin.Context) {
 	}
 	path := strings.TrimPrefix(c.Param("path"), "/")
 	var body []byte
-	if c.Request.Method == "POST" {
+	if c.Request.Method == "POST" || c.Request.Method == "PUT" {
 		if path != "logout" && strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {
 			c.JSON(400, gin.H{"code": "INVALID_ARGUMENT"})
 			return

@@ -1,0 +1,64 @@
+export type Observation = {
+ source: string; url: string; at: string; status: string; ip: string;
+ country?: string; region?: string; city?: string; asn?: string; isp?: string; organization?: string;
+ datacenter: boolean | null; proxy: boolean | null; vpn: boolean | null; tor: boolean | null; mobile: boolean | null;
+ risk_score: number | null; error?: string;
+};
+export type Probe = {
+ status: string; target: string; started_at: string; finished_at: string;
+ attempts: number; successes: number; success_rate: number; mean_latency_ms: number; jitter_ms: number;
+ exit_ip: string; exit_changed: boolean; location_conflict: boolean; blacklist_status: string;
+ samples: { at: string; latency_ms: number; ip?: string; error?: string }[]; observations: Observation[];
+};
+export type ProxyItem = {
+ proxy_id: string; name: string; protocol: string; host: string; port: number; status: 'active' | 'pending' | 'off';
+ tag: string; note: string; expires_at: string | null; auth_configured: boolean; assigned_apps: string[];
+ revision: number; probe: Probe | null; testing: boolean; updated_at: string;
+};
+export type ProxyInput = {
+ name: string; protocol: string; host: string; port: number; tag: string; note: string; expires_at: string;
+ username?: string; password?: string; clear_auth?: boolean; status?: string; revision?: number;
+};
+const errors: Record<string, string> = {
+ UNAUTHENTICATED: '登录已失效，请重新登录', PERMISSION_DENIED: '当前账号没有代理管理权限',
+ INVALID_ARGUMENT: '请检查名称、协议、主机、端口、有效期及认证字段',
+ PROXY_CONFLICT: '记录已被修改、端点重复或仍有引用，请刷新后核对', PROBE_BUSY: '已有探测运行或达到并发上限，请稍后重试',
+ PROXY_DISABLED_OR_EXPIRED: '代理已停用或过期，请先编辑并启用', EGRESS_NOT_CONFIGURED: '代理管理服务尚未配置',
+ SERVICE_UNAVAILABLE: '代理管理服务暂不可用，请重试', NOT_FOUND: '代理不存在或接口尚未就绪',
+ endpoint_not_allowed: '此端点不在允许的代理范围内', connection_failed: '代理连接失败', proxy_auth_failed: '代理认证失败',
+ timeout: '连接超时', tls_verification_failed: 'TLS 证书验证失败', invalid_exit_ip: '探测目标未返回有效公网 IP',
+ ip_mismatch: '信息源返回的 IP 与出口不一致', invalid_response: '信息源返回格式异常', http_status_429: '信息源查询额度或频率受限',
+};
+export function message(code: string) { return errors[code] || (code.startsWith('http_status_') ? `目标返回 HTTP ${code.slice(12)}` : '请求失败，请稍后重试'); }
+export async function api<T>(path = '', method = 'GET', body?: unknown): Promise<T> {
+ const { request } = await import('../platform/client');
+ const response = await request({ path: `proxies${path}`, method, body }, { realOnly: true });
+ if (response.status === 204) return undefined as T;
+ const data = await response.json().catch(() => ({ code: 'SERVICE_UNAVAILABLE' }));
+ if (!response.ok) throw new Error(message(data.code || 'SERVICE_UNAVAILABLE'));
+ return data as T;
+}
+export function payload(r: ProxyItem): ProxyInput { return { name: r.name, protocol: r.protocol, host: r.host, port: r.port, tag: r.tag, note: r.note, expires_at: r.expires_at || '', revision: r.revision }; }
+export function exportData(rows: ProxyItem[]) {
+ return { format: 'verdantflare-proxies-v1', exported_at: new Date().toISOString(), credentials_included: false,
+ items: rows.map(r => { const { revision: _revision, ...data } = payload(r); return { ...data, status: r.status === 'off' ? 'off' : 'pending', authentication_required: r.auth_configured }; }) };
+}
+export type ImportRow = { line: number; input?: ProxyInput; state: 'valid' | 'duplicate' | 'invalid' | 'imported' | 'failed'; detail: string };
+export function parseImport(text: string, existing: ProxyItem[]): ImportRow[] {
+ let values: unknown[]; const trimmed = text.trim(); if (!trimmed) return [];
+ if (trimmed.startsWith('{')) { const data = JSON.parse(trimmed); if (data.format !== 'verdantflare-proxies-v1' || !Array.isArray(data.items)) throw new Error('不支持的 JSON 文件格式'); values = data.items; }
+ else values = trimmed.split(/\r?\n/).filter(Boolean);
+ if (values.length > 50) throw new Error('每次最多导入 50 条代理'); const seen = new Set<string>();
+ return values.map((value, index) => {
+  try {
+   let input: ProxyInput; let missingAuth = false;
+   if (typeof value === 'string') { const u = new URL(value.trim()); if (u.search || u.hash || (u.pathname && u.pathname !== '/')) throw Error(); const port = Number(u.port || (u.protocol === 'http:' ? 80 : u.protocol === 'https:' ? 443 : 0)); input = { name: `导入-${u.hostname}:${port}`, protocol: u.protocol.slice(0, -1), host: u.hostname.replace(/^\[|\]$/g, ''), port, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), tag: 'imported', note: '', expires_at: '' }; }
+   else { if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error(); const v = value as Record<string, unknown>; if (['name', 'protocol', 'host'].some(k => typeof v[k] !== 'string') || typeof v.port !== 'number' || ['tag', 'note', 'expires_at'].some(k => v[k] !== undefined && typeof v[k] !== 'string') || (v.status !== undefined && !['off', 'pending'].includes(v.status as string))) throw Error(); input = { name: v.name as string, protocol: v.protocol as string, host: v.host as string, port: v.port, tag: (v.tag as string) || '', note: (v.note as string) || '', expires_at: (v.expires_at as string) || '', status: v.status === 'off' ? 'off' : 'pending' }; missingAuth = v.authentication_required === true; }
+   input.host = input.host.trim().toLowerCase().replace(/\.$/, ''); input.protocol = input.protocol.toLowerCase();
+   if (!['http', 'https', 'socks5', 'socks5h'].includes(input.protocol) || !Number.isInteger(input.port) || input.port < 1 || input.port > 65535 || !input.name || input.name.length > 120 || !input.host || /[\s/@?#]/.test(input.host)) throw Error();
+   const key = `${input.protocol}|${input.host}|${input.port}|${input.username || ''}`;
+   const duplicate = seen.has(key) || existing.some(r => r.protocol === input.protocol && r.host === input.host && r.port === input.port && !r.auth_configured && !input.username); seen.add(key);
+   return { line: index + 1, input, state: duplicate ? 'duplicate' : 'valid', detail: duplicate ? '重复，跳过' : missingAuth ? '可导入；原认证未导出，导入后需重新填写' : '可导入' };
+  } catch { return { line: index + 1, state: 'invalid', detail: '格式或字段无效；不会写入' }; }
+ });
+}

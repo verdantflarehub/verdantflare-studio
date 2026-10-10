@@ -4,8 +4,8 @@ export interface Request {path:string;method:string;body?:unknown}
 interface Result {status:number;data:unknown;request_id:string}
 const desktop = new URLSearchParams(location.search).get('host') === 'desktop'
 
-export async function request(input:Request):Promise<Response> {
- if (isMockEnabled()) {
+export async function request(input:Request, options: {realOnly?: boolean} = {}):Promise<Response> {
+ if (!options.realOnly && isMockEnabled()) {
   const mockRes = await handleMockRequest(input)
   if (mockRes) return mockRes
  }
