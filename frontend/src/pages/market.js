@@ -1,6 +1,7 @@
 import { mountVideo } from './video-embed'
 import { mountImage } from './image-embed'
 import { mountBlender } from './blender-embed'
+import { mountComfyUI } from './comfyui-management'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
 import { mergeCatalogWithLive } from './catalog'
@@ -80,6 +81,7 @@ export function mountMarket() {
 
   function primaryBtn(a) {
     if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">打开</button>';
+    if(a.app_id==='comfyui')return '<button class="btn primary" data-open-comfyui="true">打开</button>';
     const op = operations.get(a.app_id);
     const isBusy = op && !op.rejected && !terminal(op.op);
     if (isBusy) {
@@ -147,6 +149,8 @@ export function mountMarket() {
   const image = mountImage({ listen, api, notice, login });
   const blender = mountBlender({ listen, notice });
   blender.sync();
+  const comfyui = mountComfyUI({ listen });
+  comfyui.sync();
 
   function render() {
     const searchInput = $('search');
@@ -201,7 +205,7 @@ export function mountMarket() {
                     <div class="brand-version">
                       ${brandLabel(a)}
                       <span class="version-divider">·</span>
-                      <span>v${esc(a.version)}</span>
+                      <span>${a.version && a.version !== '—' ? 'v' + esc(a.version) : '版本待发布'}</span>
                     </div>
                   </div>
                 </div>
@@ -225,6 +229,7 @@ export function mountMarket() {
     const videoHost = $('videoHost');
     const imageHost = $('imageHost');
     const isEmbedActive = location.hash.includes('video=') ||
+                          !!new URLSearchParams(location.hash.split('?')[1] || '').get('comfyui') ||
                           location.hash.includes('blender=') ||
                           location.hash.includes('image=') ||
                           (videoHost && !videoHost.hidden) ||
@@ -389,7 +394,7 @@ export function mountMarket() {
         <div class="brand-version" style="font-size:12px; margin-top:6px;">
           ${brandLabel(a)}
           <span class="version-divider">·</span>
-          <span>v${esc(a.version)} ${badge(a)}</span>
+          <span>${a.version && a.version !== '—' ? 'v' + esc(a.version) : '版本待发布'} ${badge(a)}</span>
         </div>
       </div>
     </div>`;
@@ -524,6 +529,7 @@ export function mountMarket() {
       return;
     }
     if (b.dataset.openBlender) {e.preventDefault();closeDetail();blender.open();return;}
+    if (b.dataset.openComfyui) {e.preventDefault();closeDetail();comfyui.open();return;}
     if (b.dataset.placeholder) {
       e.preventDefault();
       notice('该功能正在开发');
@@ -600,6 +606,7 @@ export function mountMarket() {
     video.dispose();
     image.dispose();
     blender.dispose();
+    comfyui.dispose();
     clearInterval(operationTimer);
     clearInterval(polling);
     controller.abort();

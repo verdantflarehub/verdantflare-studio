@@ -3,6 +3,13 @@
 
 export const CATALOG_APPS = [
   {
+    app_id: 'comfyui', display_name: 'ComfyUI', group_id: 'image', brand: 'vf',
+    version: '—', gpu: 0, models: [],
+    tagline: '从空白工作流开始。',
+    description: '独立 ComfyUI 基础环境，不预装模型和第三方节点。查看实例及资源占用。',
+    capabilities: [], dashboard: '#/market?comfyui=instances'
+  },
+  {
     app_id: 'blender', display_name: 'Blender', group_id: 'desktop', brand: 'vf',
     version: '0.1.3', gpu: 1, models: [],
     tagline: '图形编辑与 Agent 协作的三维工作区。',

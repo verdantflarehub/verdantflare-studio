@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from "vue"
 import { mountMarket } from "./market"
+import '../theme/comfyui-management.css'
 
 let dispose: (() => void) | undefined
 onMounted(() => { dispose = mountMarket() })
@@ -105,6 +106,15 @@ onBeforeUnmount(() => dispose?.())
             <iframe id="blenderFrame" title="Blender 三维工程编辑器" sandbox="allow-scripts allow-same-origin allow-pointer-lock" allow="autoplay; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
           </div>
         </section>
+      </section>
+
+      <section id="comfyuiHost" class="comfyui-management" aria-label="ComfyUI 实例" hidden>
+        <div class="topline"><nav class="crumbs" aria-label="面包屑"><a href="#/market">应用市场</a><span>/</span><a href="#/market?comfyui=instances">ComfyUI</a><span id="comfyuiInstanceCrumb" hidden>/ <span id="comfyuiInstanceName" aria-current="page"></span></span></nav><div class="actions"><button id="comfyuiRefresh" class="btn">刷新</button><button id="comfyuiTheme" class="btn" aria-label="切换主题">◐</button></div></div>
+        <div id="comfyuiDirectory"><div class="intro"><h1>你的 ComfyUI 实例</h1></div>
+        <div class="filterbar"><span id="comfyuiCount">我的实例 · —</span><input id="comfyuiSearch" type="search" aria-label="搜索 ComfyUI 实例" placeholder="搜索实例"></div>
+        <p id="comfyuiMessage" role="status">正在获取实例…</p>
+        <div id="comfyuiRows"></div></div>
+        <section id="comfyuiWorkspace" hidden><div class="comfyui-editor-status"><span id="comfyuiEditorMessage" role="status"></span><a class="btn" href="#/market?comfyui=instances">返回实例</a></div><div id="comfyuiFrameHost"></div></section>
       </section>
 
       <div id="marketView" class="market-columns">

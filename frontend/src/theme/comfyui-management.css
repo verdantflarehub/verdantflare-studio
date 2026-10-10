@@ -1,0 +1,33 @@
+/* Approved ComfyUI entry, scoped to the Studio business viewport. */
+#comfyuiHost[hidden]{display:none!important}
+#comfyuiHost [hidden]{display:none!important}
+.comfyui-frame{display:block;width:100%;height:800px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.comfyui-editor-status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:14px}
+.comfyui-editor-status [data-state="error"]{color:var(--ink)}
+.comfyui-active>.workspace>.heading{display:none}
+.comfyui-management .actions{display:flex;gap:8px}
+.comfyui-management .app-icon svg{width:28px;height:28px}
+.comfyui-management{min-width:0}
+.comfyui-management .topline,.comfyui-management .crumbs,.comfyui-management .identity{display:flex;align-items:center;gap:10px}
+.comfyui-management .topline{justify-content:space-between;flex-wrap:wrap;margin-bottom:26px}
+.comfyui-management .crumbs{font-size:13px;color:var(--muted)}
+.comfyui-management .crumbs [aria-current]{color:var(--ink)}
+.comfyui-management .intro{margin-bottom:26px}
+.comfyui-management h1{font-size:26px;font-weight:550}
+.comfyui-management .filterbar{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:16px;font-size:12px;color:var(--muted)}
+.comfyui-management input{width:280px;max-width:100%;min-width:0;padding:10px 12px;background:var(--subtle);color:var(--ink);border:1px solid var(--line);border-radius:8px;font-size:12px}
+.comfyui-management .panel{border:1px solid var(--line);background:var(--shell-panel);border-radius:12px;overflow:hidden;margin-bottom:18px}
+.comfyui-management .instance-top{padding:22px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.comfyui-management .app-icon{width:48px;height:48px;display:grid;place-items:center;background:var(--subtle);border:1px solid var(--line);border-radius:12px;color:var(--accent);font-size:28px;flex:none}
+.comfyui-management .identity{gap:13px;min-width:0}.comfyui-management .identity>div{min-width:0}.comfyui-management h2{font-size:19px;font-weight:600;overflow-wrap:anywhere}.comfyui-management .identity p{font-size:11px;color:var(--muted);margin-top:3px}
+.comfyui-management .badge{padding:3px 8px;border:1px solid var(--line);border-radius:5px;font-size:11px;color:var(--muted);white-space:nowrap}.comfyui-management .badge.running{color:var(--accent)}
+.comfyui-management .instance-body{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(0,1.7fr);border-block:1px solid var(--line)}
+.comfyui-management .instance-context{padding:23px 24px;background:var(--shell-button);border-right:1px solid var(--line)}.comfyui-management dl{display:grid;gap:12px;font-size:12px;margin-top:20px}.comfyui-management dl>div{display:flex;justify-content:space-between;gap:12px}.comfyui-management dt{color:var(--muted)}.comfyui-management dd{margin:0;text-align:right}
+.comfyui-management .kicker{font-size:10px;color:var(--muted);letter-spacing:1px}.comfyui-management h3{font-size:15px;font-weight:550;margin:10px 0 5px}.comfyui-management .instance-context p{font-size:12px;color:var(--muted)}
+.comfyui-management .resource-area{padding:22px 24px;min-width:0}.comfyui-management .resource-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px;font-size:12px}.comfyui-management .resource-heading small{font-size:11px;color:var(--muted)}
+.comfyui-management .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}.comfyui-management .metric{min-width:0}.comfyui-management .metric-label{font-size:11px;color:var(--muted);margin-bottom:7px}.comfyui-management .metric-value{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px;font-size:21px;font-weight:500;font-variant-numeric:tabular-nums}.comfyui-management .metric-value small{font-size:11px;color:var(--muted);white-space:nowrap}.comfyui-management .meter{height:3px;background:var(--line);margin:10px 0 9px;border-radius:4px;overflow:hidden}.comfyui-management .meter i{display:block;height:100%;background:var(--accent)}.comfyui-management .metric-foot{font-size:11px;color:var(--muted);line-height:1.6}
+.comfyui-management .instance-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 22px;flex-wrap:wrap}.comfyui-management .instance-bottom>span{font-size:11px;color:var(--muted)}
+.comfyui-management .empty{padding:60px 20px;text-align:center}.comfyui-management .empty p{font-size:12px;color:var(--muted);margin-top:12px}
+#comfyuiMessage{padding:16px;font-size:13px;color:var(--muted)}
+@media(max-width:1180px){.comfyui-management .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
+@media(max-width:760px){.comfyui-management .instance-body{grid-template-columns:1fr}.comfyui-management .instance-context{border-right:0;border-bottom:1px solid var(--line)}.comfyui-management .instance-context,.comfyui-management .resource-area{padding:18px}.comfyui-management .instance-top{padding:18px;flex-wrap:wrap}.comfyui-management .resource-heading{align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:18px}.comfyui-management .metrics{gap:20px 14px}.comfyui-management .instance-bottom{padding:18px}.comfyui-management h1{font-size:22px}}

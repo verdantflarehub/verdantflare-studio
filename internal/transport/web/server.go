@@ -34,6 +34,7 @@ type Server struct {
 	etcd            *clientv3.Client
 	mcpGateway      *mcp.Gateway
 	blenderEndpoint func() (string, bool)
+	comfyuiEndpoint func() (string, bool)
 }
 
 func (s *Server) SetEtcdClient(cli *clientv3.Client) {
@@ -126,6 +127,9 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	r.POST("/studio/mcp", s.mcpHandler)
 	r.Any("/mcp/:instance_alias", s.blenderMCP)
 	r.GET("/studio/apps/blender/instances", s.blenderInstances)
+	r.GET("/studio/apps/comfyui/instances", s.comfyuiInstances)
+	r.POST("/studio/apps/comfyui/:instance_alias/editor/:action", s.comfyuiEditor)
+	r.GET("/apps/comfyui/static/*path", s.comfyuiStatic)
 	r.POST("/studio/apps/blender/:instance_alias/:action", s.blenderGUIControl)
 	r.GET("/apps/blender/:instance_alias/:editing_session_id/*path", s.blenderDesktop)
 	r.GET("/artifacts/:artifact_id/content", s.videoContent)
