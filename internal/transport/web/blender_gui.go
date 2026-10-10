@@ -155,8 +155,10 @@ func (s *Server) blenderDesktop(c *gin.Context) {
 				}
 				// Closing this stream closes the hijacked client connection as well.
 				// The worker watchdog separately terminates WebRTC input on lease loss.
-				go func() {
-					defer resp.Body.Close()
+				// ReverseProxy detaches resp.Body during the upgrade. Capture the
+				// stream before starting the goroutine; never read the mutable response.
+				go func(upstream io.ReadCloser) {
+					defer upstream.Close()
 					ticker := time.NewTicker(5 * time.Second)
 					defer ticker.Stop()
 					for {
@@ -177,7 +179,7 @@ func (s *Server) blenderDesktop(c *gin.Context) {
 							}
 						}
 					}
-				}()
+				}(resp.Body)
 			}
 			return nil
 		},

@@ -41,6 +41,12 @@ func TestBlenderGUIRevocationClosesLiveWebSocket(t *testing.T) {
 		}
 		defer conn.CloseNow()
 		_ = conn.Write(r.Context(), websocket.MessageText, []byte("ready"))
+		kind, message, readErr := conn.Read(r.Context())
+		if readErr != nil || string(message) != "HELLO browser" {
+			t.Error("client-to-worker message was not forwarded", readErr)
+			return
+		}
+		_ = conn.Write(r.Context(), kind, message)
 		_, _, _ = conn.Read(r.Context())
 		disconnected <- struct{}{}
 	}))
@@ -85,6 +91,13 @@ func TestBlenderGUIRevocationClosesLiveWebSocket(t *testing.T) {
 	_, data, err := conn.Read(ctx)
 	if err != nil || string(data) != "ready" {
 		t.Fatal("WebSocket bytes not proxied", err)
+	}
+	if err := conn.Write(ctx, websocket.MessageText, []byte("HELLO browser")); err != nil {
+		t.Fatal(err)
+	}
+	_, data, err = conn.Read(ctx)
+	if err != nil || string(data) != "HELLO browser" {
+		t.Fatal("round-trip WebSocket message failed", err)
 	}
 	revoked.Store(true)
 	_, _, err = conn.Read(ctx)
