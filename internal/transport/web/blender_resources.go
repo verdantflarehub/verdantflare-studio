@@ -15,6 +15,7 @@ type blenderResourceBinding struct {
 	Namespace string `json:"namespace"`
 	PodName   string `json:"pod_name"`
 	Container string `json:"container"`
+	GPUUUID   string `json:"gpu_uuid"`
 }
 type blenderResourceMetric struct {
 	Value     *float64 `json:"value"`
@@ -29,15 +30,22 @@ type blenderResourceMetric struct {
 type blenderWorkloads struct {
 	SchemaVersion int    `json:"schema_version"`
 	ObservedAt    string `json:"updated_at"`
-	Workloads     []struct {
+	GPUSamples    []struct {
+		UUID   string                `json:"uuid"`
+		Memory blenderResourceMetric `json:"memory"`
+	} `json:"gpu_samples"`
+	Workloads []struct {
 		PodUID        string `json:"pod_uid"`
 		Namespace     string `json:"namespace"`
 		PodName       string `json:"pod_name"`
 		InstanceAlias string `json:"instance_alias"`
+		CreatedAt     string `json:"created_at"`
 		Containers    []struct {
-			Name   string                `json:"name"`
-			CPU    blenderResourceMetric `json:"cpu"`
-			Memory blenderResourceMetric `json:"memory"`
+			Name       string                `json:"name"`
+			CPU        blenderResourceMetric `json:"cpu"`
+			Memory     blenderResourceMetric `json:"memory"`
+			GPURequest *float64              `json:"gpu_request"`
+			GPULimit   *float64              `json:"gpu_limit"`
 		} `json:"containers"`
 	} `json:"workloads"`
 }
@@ -132,14 +140,18 @@ func (s *Server) blenderResourceView(c *gin.Context, data []byte) ([]byte, error
 			}
 			count := 0
 			var cpu, memory blenderResourceMetric
+			wholeCard := false
+			createdAt := ""
 			for _, w := range workloads.Workloads {
-				if w.PodUID != b.PodUID || w.Namespace != b.Namespace || w.PodName != b.PodName || w.InstanceAlias != alias {
+				if w.PodUID != b.PodUID || w.Namespace != b.Namespace || w.PodName != b.PodName || (w.InstanceAlias != "" && w.InstanceAlias != alias) {
 					continue
 				}
 				for _, container := range w.Containers {
 					if container.Name == b.Container {
 						count++
 						cpu, memory = container.CPU, container.Memory
+						wholeCard = container.GPURequest != nil && *container.GPURequest == 1 && container.GPULimit != nil && *container.GPULimit == 1
+						createdAt = w.CreatedAt
 					}
 				}
 			}
@@ -153,6 +165,31 @@ func (s *Server) blenderResourceView(c *gin.Context, data []byte) ([]byte, error
 			}
 			resources["cpu"], _ = json.Marshal(safeBlenderMetric(cpu, "cores", now))
 			resources["memory"], _ = json.Marshal(safeBlenderMetric(memory, "bytes", now))
+			if wholeCard && b.GPUUUID != "" {
+				matches := 0
+				var gpu blenderResourceMetric
+				for _, sample := range workloads.GPUSamples {
+					if sample.UUID == b.GPUUUID {
+						matches++
+						gpu = sample.Memory
+					}
+				}
+				if matches == 1 {
+					gpu = safeBlenderMetric(gpu, "bytes", now)
+					created, createErr := time.Parse(time.RFC3339Nano, createdAt)
+					if gpu.SampledAt != nil {
+						sampled, sampleErr := time.Parse(time.RFC3339Nano, *gpu.SampledAt)
+						if createErr != nil || sampleErr != nil || sampled.Before(created) {
+							gpu.Value = nil
+							gpu.Quality = "unavailable"
+							gpu.Reason = "SAMPLE_IDENTITY_UNVERIFIED"
+						}
+					}
+					gpu.Scope = "exclusive_gpu"
+					resources["gpu"], _ = json.Marshal(gpu)
+				}
+				item["allocated_gpu_count"] = json.RawMessage("1")
+			}
 			item["resources"], _ = json.Marshal(resources)
 			item["resources_observed_at"], _ = json.Marshal(workloads.ObservedAt)
 		}

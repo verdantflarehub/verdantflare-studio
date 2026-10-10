@@ -50,7 +50,12 @@ func TestBlenderResourceHTTPIdentityAndDegradation(t *testing.T) {
 			cpu["quality"] = "unavailable"
 		}
 		container := map[string]any{"name": "blender", "cpu": cpu, "memory": map[string]any{"value": 1073741824, "request": 4294967296, "limit": 17179869184, "sampled_at": sampleAt, "quality": "fresh"}}
+		container["gpu_request"], container["gpu_limit"] = 1, 1
 		pod := map[string]any{"pod_uid": "private-uid", "namespace": "private-namespace", "pod_name": "private-pod", "instance_alias": "blenderA", "containers": []any{container}, "node_name": "private-node-secret"}
+		pod["created_at"] = time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
+		if mode == "dynamic" {
+			delete(pod, "instance_alias")
+		}
 		for key, scenario := range map[string]string{"pod_uid": "wrong_uid", "namespace": "wrong_namespace", "pod_name": "wrong_pod", "instance_alias": "wrong_alias"} {
 			if mode == scenario {
 				pod[key] = "other"
@@ -71,7 +76,21 @@ func TestBlenderResourceHTTPIdentityAndDegradation(t *testing.T) {
 		if mode == "stale_config" {
 			observed = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"schema_version": version, "updated_at": observed, "workloads": pods})
+		gpu := map[string]any{"uuid": "private-gpu", "memory": map[string]any{"value": 0, "quality": "fresh", "sampled_at": stamp()}}
+		if mode == "gpu_wrong" {
+			gpu["uuid"] = "private-other-gpu"
+		}
+		if mode == "gpu_shared" {
+			container["gpu_request"] = 0.5
+		}
+		if mode == "gpu_old_process" {
+			pod["created_at"] = time.Now().Add(time.Second).UTC().Format(time.RFC3339Nano)
+		}
+		gpus := []any{gpu}
+		if mode == "gpu_duplicate" {
+			gpus = append(gpus, gpu)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"schema_version": version, "updated_at": observed, "workloads": pods, "gpu_samples": gpus})
 	}))
 	defer core.Close()
 	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +104,7 @@ func TestBlenderResourceHTTPIdentityAndDegradation(t *testing.T) {
 			return
 		}
 		empty := map[string]any{"value": nil, "request": nil, "limit": nil, "sampled_at": nil, "quality": "unavailable"}
-		binding := any(map[string]any{"pod_uid": "private-uid", "namespace": "private-namespace", "pod_name": "private-pod", "container": "blender"})
+		binding := any(map[string]any{"pod_uid": "private-uid", "namespace": "private-namespace", "pod_name": "private-pod", "container": "blender", "gpu_uuid": "private-gpu"})
 		if mode == "no_binding" {
 			binding = nil
 		}
@@ -99,7 +118,7 @@ func TestBlenderResourceHTTPIdentityAndDegradation(t *testing.T) {
 	router, s := NewServer(station, "https://studio.example", fstest.MapFS{})
 	s.blenderEndpoint = func() (string, bool) { return worker.URL + "/internal/mcp", true }
 	t.Setenv("STUDIO_BLENDER_SERVICE_TOKEN", "internal-service")
-	for _, scenario := range []string{"ready", "missing", "stale", "offline", "wrong_uid", "wrong_namespace", "wrong_pod", "wrong_alias", "wrong_container", "duplicate", "old_core", "stale_config", "no_binding", "denied"} {
+	for _, scenario := range []string{"ready", "dynamic", "gpu_wrong", "gpu_shared", "gpu_old_process", "gpu_duplicate", "missing", "stale", "offline", "wrong_uid", "wrong_namespace", "wrong_pod", "wrong_alias", "wrong_container", "duplicate", "old_core", "stale_config", "no_binding", "denied"} {
 		t.Run(scenario, func(t *testing.T) {
 			mode = scenario
 			before := coreCalls
@@ -131,8 +150,15 @@ func TestBlenderResourceHTTPIdentityAndDegradation(t *testing.T) {
 				t.Fatal(body)
 			}
 			cpu := result.Instances[0].Resources["cpu"]
+			gpu := result.Instances[0].Resources["gpu"]
+			if mode == "ready" && (gpu.Value == nil || *gpu.Value != 0 || gpu.Scope != "exclusive_gpu") {
+				t.Fatal("valid zero GPU sample lost")
+			}
+			if strings.HasPrefix(mode, "gpu_") && gpu.Value != nil {
+				t.Fatal("unattributable GPU sample accepted")
+			}
 			switch mode {
-			case "ready":
+			case "ready", "dynamic", "gpu_wrong", "gpu_shared", "gpu_old_process", "gpu_duplicate":
 				if cpu.Value == nil || *cpu.Value != 0 || cpu.Quality != "fresh" || *cpu.Request != 2 {
 					t.Fatal(body)
 				}
