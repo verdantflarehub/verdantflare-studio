@@ -72,6 +72,7 @@ export function mountMarket() {
   }
 
   function badge(a) {
+    if (a.app_id === 'comfyui') return '<span class="status"><i class="dot"></i>实例入口</span>';
     const state = a.deployment?.state || 'not_installed';
     const isRunning = state === 'ready' || state === 'running';
     const isDegraded = state === 'degraded' || state === 'failed';
@@ -424,6 +425,11 @@ export function mountMarket() {
     if(a.app_id==='blender'){
       $('actions').innerHTML=primaryBtn(a);
       $('detailContent').innerHTML=`<p>${esc(a.description)}</p><p>当前使用已部署的固定实例。进入工作区可查看实例权限、连接画面和复制专用 MCP 地址。</p><p>应用状态：${esc(statusText[dep.state]||'状态未知')}</p>`;
+    }
+    if (a.app_id === 'comfyui') {
+      $('actions').innerHTML = primaryBtn(a);
+      $('progress').innerHTML = '';
+      $('detailContent').innerHTML = `<p>${esc(a.description)}</p><p>进入实例列表查看你有权使用的环境、运行状态和资源占用。</p><p>安装、升级和卸载尚未开放。</p>`;
     }
     document.querySelectorAll('[data-detail-tab]').forEach(b => {
       b.hidden = b.dataset.detailTab !== 'overview';

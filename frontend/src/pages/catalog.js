@@ -4,7 +4,7 @@
 export const CATALOG_APPS = [
   {
     app_id: 'comfyui', display_name: 'ComfyUI', group_id: 'image', brand: 'vf',
-    version: '—', gpu: 0, models: [],
+    version: '0.1.1', gpu: 0, models: [],
     tagline: '从空白工作流开始。',
     description: '独立 ComfyUI 基础环境，不预装模型和第三方节点。查看实例及资源占用。',
     capabilities: [], dashboard: '#/market?comfyui=instances'
