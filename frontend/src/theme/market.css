@@ -1599,10 +1599,53 @@
   flex-direction: column;
 }
 
-#blenderHost { gap: 16px; }
-#blenderHost[hidden], #blenderFrame[hidden] { display: none !important; }
-#blenderFrame { width: 100%; min-height: 240px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
-#blenderMCP { flex: 1; min-width: 180px; padding: 10px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+#blenderHost { gap: 12px; }
+#blenderHost[hidden], #blenderHost [hidden] { display: none !important; }
+.main.blender-active .heading, .main.blender-active #viewportLoader { display: none !important; }
+.blender-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:9px; color:var(--muted); font-size:13px; }
+.blender-breadcrumb a { color:inherit; text-decoration:none; }
+.blender-breadcrumb a:hover { color:var(--accent); }
+.blender-viewport { position:relative; display:grid; place-items:center; min-height:calc(100svh - 100px); border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; }
+.blender-loading { width:100%; max-width:720px; padding:56px 24px; text-align:center; }
+.blender-mark { display:block; width:clamp(144px,12vw,200px); height:clamp(120px,10vw,164px); object-fit:contain; margin:0 auto 12px; }
+.blender-loading h2 { margin:0 0 30px; font-size:clamp(68px,7vw,104px); line-height:1.08; font-weight:750; letter-spacing:-.055em; }
+.blender-loading p { color:var(--muted); margin:20px 0; }
+.blender-progress { width:180px; height:2px; margin:auto; background:var(--line); overflow:hidden; }
+.blender-progress:after { content:''; display:block; width:45%; height:100%; background:var(--accent); animation:blender-progress 1.6s ease-in-out infinite; }
+@keyframes blender-progress { from { transform:translateX(-100%); } to { transform:translateX(325%); } }
+@media (prefers-reduced-motion:reduce) { .blender-progress:after { animation:none; } }
+#blenderFrame { display:block; width:100%; aspect-ratio:16/9; min-height:240px; border:0; background:var(--panel); }
+#blenderHost[data-state="loading"] #blenderFrame { position:absolute; inset:0; height:100%; }
+#blenderHost[data-state="ready"] .blender-viewport { min-height:0; }
+.blender-toolbar { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.blender-list { border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; }
+.blender-list-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px; color:var(--muted); font-size:13px; }
+#blenderSearch { width:300px; max-width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--subtle); color:var(--ink); }
+#blenderTable { width:100%; border-collapse:collapse; text-align:left; }
+#blenderTable th { padding:12px 24px; border-block:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:500; }
+#blenderTable td { padding:26px 24px; }
+#blenderTable th:first-child { width:60%; }
+#blenderTable th:last-child, #blenderTable td:last-child { text-align:right; }
+.blender-instance-name { display:flex; align-items:center; gap:16px; width:fit-content; font-size:18px; font-weight:600; color:var(--ink); text-decoration:none; }
+.blender-instance-name img { width:48px; height:40px; object-fit:contain; }
+#blenderListMessage { padding:32px 24px; text-align:center; color:var(--muted); }
+#blenderListRetry { margin:0 24px 24px; }
+@media(max-width:760px) {
+  .main.blender-active { padding:20px 16px; }
+  .blender-loading { padding:40px 12px; }
+  .blender-mark { width:132px; height:112px; }
+  .blender-loading h2 { font-size:clamp(44px,14vw,64px); }
+  .blender-list-toolbar { padding:18px 16px; flex-wrap:wrap; }
+  #blenderSearch { width:100%; }
+  #blenderTable thead { display:none; }
+  #blenderTable tbody { display:block; }
+  #blenderTable tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:22px 16px; border-top:1px solid var(--line); }
+  #blenderTable td { padding:0; }
+  #blenderTable td:nth-child(2) { grid-column:1; padding-left:44px; }
+  #blenderTable td:last-child { grid-column:2; grid-row:1/3; align-self:center; }
+  .blender-instance-name { gap:12px; font-size:16px; }
+  .blender-instance-name img { width:32px; height:28px; }
+}
 
 .video-host-bar {
   display: flex;

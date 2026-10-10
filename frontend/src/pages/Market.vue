@@ -79,16 +79,30 @@ onBeforeUnmount(() => dispose?.())
 
       <!-- Primary Market Columns (Full Width Workspace) -->
       <section id="blenderHost" hidden>
-        <div class="video-host-bar">
-          <nav class="video-breadcrumb" aria-label="面包屑"><a href="#/market">应用市场</a> / <span aria-current="page">Blender</span></nav>
-          <label>实例 <select id="blenderInstance" aria-label="Blender 实例"></select></label>
-          <button class="btn primary" id="blenderConnect">连接画面</button>
-          <button class="btn" id="blenderRelease" disabled>释放控制权</button>
-          <button class="btn" id="blenderSave">保存工程</button>
-        </div>
-        <p id="blenderMessage" role="status" aria-live="polite"></p>
-        <div class="video-host-bar"><label for="blenderMCP">专用 MCP</label><input id="blenderMCP" readonly aria-label="实例 MCP 地址"><button class="btn" id="blenderCopy">复制地址</button></div>
-        <iframe id="blenderFrame" title="Blender 三维工程编辑器" sandbox="allow-scripts allow-same-origin allow-pointer-lock" allow="autoplay; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
+        <nav id="blenderBreadcrumb" class="blender-breadcrumb" aria-label="面包屑"></nav>
+        <section id="blenderList" class="blender-list" aria-label="Blender 实例" hidden>
+          <div class="blender-list-toolbar"><span id="blenderCount"></span><input id="blenderSearch" type="search" placeholder="搜索实例" aria-label="搜索 Blender 实例"></div>
+          <table id="blenderTable"><thead><tr><th scope="col">实例</th><th scope="col">权限</th><th scope="col">操作</th></tr></thead><tbody id="blenderRows"></tbody></table>
+          <p id="blenderListMessage" role="status" hidden></p>
+          <button id="blenderListRetry" class="btn" hidden>重试</button>
+        </section>
+        <section id="blenderWorkspace" hidden>
+          <div id="blenderToolbar" class="blender-toolbar" hidden>
+            <button class="btn" id="blenderRelease">释放控制权</button>
+            <button class="btn primary" id="blenderSave">保存工程</button>
+            <button class="btn" id="blenderCopy">复制 MCP 地址</button>
+          </div>
+          <div id="blenderViewport" class="blender-viewport">
+            <div id="blenderLoading" class="blender-loading">
+              <img class="blender-mark" src="/assets/blender-logo.svg" alt="">
+              <h2>Blender</h2>
+              <div id="blenderProgress" class="blender-progress" aria-hidden="true"></div>
+              <p id="blenderMessage" role="status" aria-live="polite">正在打开</p>
+              <button id="blenderAction" class="btn ghost">取消连接</button>
+            </div>
+            <iframe id="blenderFrame" title="Blender 三维工程编辑器" sandbox="allow-scripts allow-same-origin allow-pointer-lock" allow="autoplay; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
+          </div>
+        </section>
       </section>
 
       <div id="marketView" class="market-columns">
@@ -113,7 +127,7 @@ onBeforeUnmount(() => dispose?.())
               <button class="chip" data-group="image">Image</button>
               <button class="chip" data-group="music">Music</button>
               <button class="chip" data-group="video">Video</button>
-              <button class="chip" data-group="blender">Blender</button>
+              <button class="chip" data-group="desktop">Desktop</button>
               <span class="result-count" id="resultCount">等待连接</span>
             </div>
             <div id="catalog"></div>
