@@ -1,6 +1,7 @@
 export type Observation = {
  source: string; url: string; at: string; status: string; ip: string;
  country?: string; country_code?: string; region?: string; city?: string; asn?: string; isp?: string; organization?: string;
+ asn_type?: string; company?: string; company_type?: string;
  datacenter: boolean | null; proxy: boolean | null; vpn: boolean | null; tor: boolean | null; mobile: boolean | null;
  risk_score: number | null; error?: string;
 };
@@ -45,9 +46,26 @@ export function exitProfile(probe?: Probe | null) {
  const datacenter = typed.some(o => o.datacenter === true), mobile = typed.some(o => o.mobile === true);
  // A negative hosting flag, low risk or ISP name does not establish residential service.
  const conflict = (datacenter && observations.some(o => o.datacenter === false)) || (mobile && observations.some(o => o.mobile === false)) || (datacenter && mobile);
- const type = conflict ? '类型未判定' : datacenter ? '机房IP' : mobile ? '移动网络IP' : '类型未判定';
- const typeEvidence = typed.map(o => `${o.source}: ${[o.datacenter === true ? 'datacenter=true' : '', o.mobile === true ? 'mobile=true' : ''].filter(Boolean).join(', ')}`).join('；');
- return { geo, countryCode: countryCode(geo), location: locationText(geo), type, typeEvidence: conflict ? `类型标记冲突；${typeEvidence}` : typeEvidence || '当前来源没有明确的 IP 类型证据', fallback: !!geo && geo.source !== geoSources[0] };
+ let type = conflict ? '类型未判定' : datacenter ? '机房IP' : mobile ? '移动网络IP' : '类型未判定';
+ let typeEvidence = typed.map(o => `${o.source}: ${[o.datacenter === true ? 'datacenter=true' : '', o.mobile === true ? 'mobile=true' : ''].filter(Boolean).join(', ')}`).join('；');
+ typeEvidence = conflict ? `类型标记冲突；${typeEvidence}` : typeEvidence || '当前来源没有明确的 IP 类型证据';
+ const primary = observations.find(o => o.source === 'IPinfo (type)');
+ if (primary) {
+  const a = (primary.asn_type || '').trim().toLowerCase(), c = (primary.company_type || '').trim().toLowerCase();
+  const hosting = primary.datacenter === true || a === 'hosting' || c === 'hosting';
+  const count = Number(a === 'isp') + Number(c === 'isp');
+  type = '类型未判定';
+  if (a && c && count) {
+   const tier = count === 2 ? '双ISP' : '单ISP';
+   type = hosting ? `${tier}（存在机房标记）` : primary.mobile === true ? '移动网络IP' : `${tier}住宅IP`;
+  } else if (hosting && primary.mobile !== true) type = '机房IP';
+  else if (primary.mobile === true && !hosting) type = '移动网络IP';
+  typeEvidence = `IPinfo: ASN type=${a || '未知'}；Company type=${c || '未知'}；hosting=${primary.datacenter ?? '未知'}`;
+  // Secondary negative flags never erase an explicit primary-source classification.
+  if (observations.some(o => o !== primary && o.datacenter != null && primary.datacenter != null && o.datacenter !== primary.datacenter)) typeEvidence += '；其他来源的机房标记存在差异，见原始观测';
+ }
+ if (probe?.exit_changed) { type = '类型未判定'; typeEvidence = '采样期间出口发生变化，请重新检测'; }
+ return { geo, countryCode: countryCode(geo), location: locationText(geo), type, typeEvidence, fallback: !!geo && geo.source !== geoSources[0] };
 }
 const errors: Record<string, string> = {
  UNAUTHENTICATED: '登录已失效，请重新登录', PERMISSION_DENIED: '当前账号没有代理管理权限',
@@ -58,6 +76,7 @@ const errors: Record<string, string> = {
  endpoint_not_allowed: '此端点不在允许的代理范围内', connection_failed: '代理连接失败', proxy_auth_failed: '代理认证失败',
  timeout: '连接超时', tls_verification_failed: 'TLS 证书验证失败', invalid_exit_ip: '探测目标未返回有效公网 IP',
  ip_mismatch: '信息源返回的 IP 与出口不一致', invalid_response: '信息源返回格式异常', http_status_429: '信息源查询额度或频率受限',
+ exit_changed: '查询期间出口发生变化，请重新检测',
 };
 export function message(code: string) { return errors[code] || (code.startsWith('http_status_') ? `目标返回 HTTP ${code.slice(12)}` : '请求失败，请稍后重试'); }
 export async function api<T>(path = '', method = 'GET', body?: unknown): Promise<T> {

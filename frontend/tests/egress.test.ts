@@ -33,6 +33,24 @@ test('JSON preview rejects coerced fields and invalid management states', () => 
 
 const observation = (source: string, fields: Partial<Observation> = {}): Observation => ({ source, url: '', at: '', status: 'available', ip: '8.8.8.8', datacenter: null, mobile: null, proxy: null, vpn: null, tor: null, risk_score: null, ...fields });
 const probe = (observations: Observation[]) => ({ exit_ip: '8.8.8.8', observations }) as Probe;
+test('IPinfo two-field classification distinguishes single, dual, hosting and incomplete evidence', () => {
+ const classify = (fields: Partial<Observation>) => exitProfile(probe([observation('IPinfo (type)', fields)]));
+ assert.equal(classify({asn_type:'isp', company_type:'business', datacenter:false}).type, '单ISP住宅IP');
+ assert.equal(classify({asn_type:'ISP', company_type:' isp '}).type, '双ISP住宅IP');
+ assert.equal(classify({asn_type:'business', company_type:'isp'}).type, '单ISP住宅IP');
+ assert.equal(classify({asn_type:'hosting', company_type:'hosting', datacenter:true}).type, '机房IP');
+ assert.equal(classify({asn_type:'isp'}).type, '类型未判定');
+ assert.equal(classify({company_type:'isp', datacenter:false}).type, '类型未判定');
+ assert.equal(classify({asn_type:'business', company_type:'business', datacenter:false}).type, '类型未判定');
+ assert.equal(classify({asn_type:'isp', company_type:'hosting'}).type, '单ISP（存在机房标记）');
+ assert.equal(classify({asn_type:'isp', company_type:'isp', datacenter:true}).type, '双ISP（存在机房标记）');
+ assert.equal(classify({asn_type:'isp', company_type:'isp', mobile:true}).type, '移动网络IP');
+ for (const invalid of [{status:'unavailable'}, {ip:'1.1.1.1'}]) assert.equal(classify({asn_type:'isp',company_type:'isp',...invalid}).type,'类型未判定');
+ const records = [observation('IPQuery',{datacenter:false}),observation('IPinfo (type)',{asn_type:'hosting',company_type:'hosting',datacenter:true})];
+ assert.equal(exitProfile(probe(records)).type,'机房IP');
+ assert.match(exitProfile(probe(records)).typeEvidence,/存在差异/);
+ assert.equal(exitProfile({...probe(records),exit_changed:true}).type,'类型未判定');
+});
 test('geography uses fixed source priority, a matching exit IP and one complete source record', () => {
  const q = observation('IPQuery', { country: 'United States', region: 'Texas', city: 'Dallas' });
  const info = observation('IPinfo', { country_code: 'US', region: 'California', city: 'San Francisco' });
