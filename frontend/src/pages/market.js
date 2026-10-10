@@ -50,7 +50,7 @@ export function mountMarket() {
   const active = a => ['starting', 'stopping', 'installing', 'warming'].includes(a.deployment?.state) || (operations.has(a.app_id) && !terminal(operations.get(a.app_id)?.op));
 
   function brandInfo(a) {
-    if (a.brand === 'vf' || a.app_id.endsWith('-mcp-server')) return { key: 'vf', name: 'VF 官方', title: 'VerdantFlare 官方微服务应用' };
+    if (a.brand === 'vf' || a.app_id.endsWith('-mcp-server')) return { key: 'vf', name: 'VF', title: 'VerdantFlare 官方微服务应用' };
     if (a.brand === 'minimax' || ['music-minimax-music3-api', 'video-minimax-h3-api', 'video-minimax-h3-vdn', 'video-minimax-h3-singularity'].includes(a.app_id)) {
       return { key: 'minimax', name: 'MiniMax', title: 'MiniMax 官方模型引擎' };
     }
@@ -79,7 +79,7 @@ export function mountMarket() {
   }
 
   function primaryBtn(a) {
-    if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">查看实例</button>';
+    if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">打开</button>';
     const op = operations.get(a.app_id);
     const isBusy = op && !op.rejected && !terminal(op.op);
     if (isBusy) {
