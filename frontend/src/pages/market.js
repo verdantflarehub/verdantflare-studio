@@ -13,7 +13,7 @@ export function mountMarket() {
   const controller = new AbortController();
   const listen = (target, event, handler) => target.addEventListener(event, handler, { signal: controller.signal });
 
-  const $ = id => document.getElementById(id), labels = { image: 'Image', music: 'Music', video: 'Video', desktop: 'Desktop' };
+  const $ = id => document.getElementById(id), labels = { image: 'Image', music: 'Music', video: 'Video', desktop: '创作工具' };
   const statusText = {
     ready: '已就绪',
     running: '运行中',

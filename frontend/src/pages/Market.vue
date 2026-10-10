@@ -146,7 +146,7 @@ onBeforeUnmount(() => dispose?.())
               <button class="chip" data-group="image">Image</button>
               <button class="chip" data-group="music">Music</button>
               <button class="chip" data-group="video">Video</button>
-              <button class="chip" data-group="desktop">Desktop</button>
+              <button class="chip" data-group="desktop">创作工具</button>
               <span class="result-count" id="resultCount">等待连接</span>
             </div>
             <div id="catalog"></div>
