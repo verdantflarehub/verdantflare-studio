@@ -46,7 +46,7 @@ export function exitProfile(probe?: Probe | null) {
  const datacenter = typed.some(o => o.datacenter === true), mobile = typed.some(o => o.mobile === true);
  // A negative hosting flag, low risk or ISP name does not establish residential service.
  const conflict = (datacenter && observations.some(o => o.datacenter === false)) || (mobile && observations.some(o => o.mobile === false)) || (datacenter && mobile);
- let type = conflict ? '类型未判定' : datacenter ? '机房IP' : mobile ? '移动网络IP' : '类型未判定';
+ let type = conflict ? '类型未判定' : datacenter ? '机房IP' : '类型未判定';
  let typeEvidence = typed.map(o => `${o.source}: ${[o.datacenter === true ? 'datacenter=true' : '', o.mobile === true ? 'mobile=true' : ''].filter(Boolean).join(', ')}`).join('；');
  typeEvidence = conflict ? `类型标记冲突；${typeEvidence}` : typeEvidence || '当前来源没有明确的 IP 类型证据';
  const primary = observations.find(o => o.source === 'IPinfo (type)');
@@ -56,10 +56,9 @@ export function exitProfile(probe?: Probe | null) {
   const count = Number(a === 'isp') + Number(c === 'isp');
   type = '类型未判定';
   if (a && c && count) {
-   const tier = count === 2 ? '双ISP' : '单ISP';
-   type = hosting ? `${tier}（存在机房标记）` : primary.mobile === true ? '移动网络IP' : `${tier}住宅IP`;
+   if (!hosting && primary.mobile !== true) type = count === 2 ? '住宅IP' : '单ISP';
   } else if (hosting && primary.mobile !== true) type = '机房IP';
-  else if (primary.mobile === true && !hosting) type = '移动网络IP';
+
   typeEvidence = `IPinfo: ASN type=${a || '未知'}；Company type=${c || '未知'}；hosting=${primary.datacenter ?? '未知'}`;
   // Secondary negative flags never erase an explicit primary-source classification.
   if (observations.some(o => o !== primary && o.datacenter != null && primary.datacenter != null && o.datacenter !== primary.datacenter)) typeEvidence += '；其他来源的机房标记存在差异，见原始观测';

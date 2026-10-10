@@ -35,16 +35,16 @@ const observation = (source: string, fields: Partial<Observation> = {}): Observa
 const probe = (observations: Observation[]) => ({ exit_ip: '8.8.8.8', observations }) as Probe;
 test('IPinfo two-field classification distinguishes single, dual, hosting and incomplete evidence', () => {
  const classify = (fields: Partial<Observation>) => exitProfile(probe([observation('IPinfo (type)', fields)]));
- assert.equal(classify({asn_type:'isp', company_type:'business', datacenter:false}).type, '单ISP住宅IP');
- assert.equal(classify({asn_type:'ISP', company_type:' isp '}).type, '双ISP住宅IP');
- assert.equal(classify({asn_type:'business', company_type:'isp'}).type, '单ISP住宅IP');
+ assert.equal(classify({asn_type:'isp', company_type:'business', datacenter:false}).type, '单ISP');
+ assert.equal(classify({asn_type:'ISP', company_type:' isp '}).type, '住宅IP');
+ assert.equal(classify({asn_type:'business', company_type:'isp'}).type, '单ISP');
  assert.equal(classify({asn_type:'hosting', company_type:'hosting', datacenter:true}).type, '机房IP');
  assert.equal(classify({asn_type:'isp'}).type, '类型未判定');
  assert.equal(classify({company_type:'isp', datacenter:false}).type, '类型未判定');
  assert.equal(classify({asn_type:'business', company_type:'business', datacenter:false}).type, '类型未判定');
- assert.equal(classify({asn_type:'isp', company_type:'hosting'}).type, '单ISP（存在机房标记）');
- assert.equal(classify({asn_type:'isp', company_type:'isp', datacenter:true}).type, '双ISP（存在机房标记）');
- assert.equal(classify({asn_type:'isp', company_type:'isp', mobile:true}).type, '移动网络IP');
+ assert.equal(classify({asn_type:'isp', company_type:'hosting'}).type, '类型未判定');
+ assert.equal(classify({asn_type:'isp', company_type:'isp', datacenter:true}).type, '类型未判定');
+ assert.equal(classify({asn_type:'isp', company_type:'isp', mobile:true}).type, '类型未判定');
  for (const invalid of [{status:'unavailable'}, {ip:'1.1.1.1'}]) assert.equal(classify({asn_type:'isp',company_type:'isp',...invalid}).type,'类型未判定');
  const records = [observation('IPQuery',{datacenter:false}),observation('IPinfo (type)',{asn_type:'hosting',company_type:'hosting',datacenter:true})];
  assert.equal(exitProfile(probe(records)).type,'机房IP');
@@ -71,7 +71,7 @@ test('negative data center flags, ISP ownership and zero risk never imply a resi
  const q = observation('IPQuery', { datacenter: false, risk_score: 0, organization: 'Residential ISP' });
  assert.equal(exitProfile(probe([q])).type, '类型未判定');
  assert.equal(exitProfile(probe([{...q, datacenter: true}])).type, '机房IP');
- assert.equal(exitProfile(probe([{...q, mobile: true}])).type, '移动网络IP');
+ assert.equal(exitProfile(probe([{...q, mobile: true}])).type, '类型未判定');
  assert.equal(exitProfile(probe([{...q, datacenter: true, mobile: true}])).type, '类型未判定');
  assert.equal(exitProfile(probe([q, observation('IPinfo', { datacenter: true })])).type, '类型未判定');
  assert.equal(exitProfile(probe([{...q, datacenter: true, status: 'unavailable'}])).type, '类型未判定');
