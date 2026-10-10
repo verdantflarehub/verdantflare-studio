@@ -66,7 +66,7 @@ export function mountComfyUI({listen}) {
     if (!selected) scroll = window.scrollY;
     editor?.dispose(); editor = null; selected = null;
     active = false; ++current; clearTimeout(poll); pending?.abort();
-    host.hidden = true; main.classList.remove('comfyui-active');
+    host.hidden = true; main.classList.remove('comfyui-active','comfyui-editor-active');
     if (!/[?&](blender|image|video)=/.test(location.hash)) {
       $('marketView').hidden = false; $('marketView').style.display = '';
       $('pageTitle').textContent = '应用市场'; $('pageSubtitle').textContent = '为 Station 安装创作应用，管理模型与运行状态。';
@@ -92,6 +92,9 @@ export function mountComfyUI({listen}) {
     $('marketView').hidden = true; $('marketView').style.display = 'none';
     $('pageTitle').textContent = 'ComfyUI'; $('pageSubtitle').textContent = '选择实例，打开 ComfyUI。';
     const instance = target === 'instances' ? null : target;
+    main.classList.toggle('comfyui-editor-active',!!instance);
+    $('comfyuiEditorMessage').hidden = !instance;
+    if (!instance) $('comfyuiRefresh').textContent = '刷新';
     if (selected !== instance) {
       if (!selected) scroll = window.scrollY;
       editor?.dispose(); editor = null;
@@ -107,6 +110,9 @@ export function mountComfyUI({listen}) {
         editor = mountEditor({alias:instance,container:$('comfyuiFrameHost'),onStatus:(state,message)=>{
           $('comfyuiEditorMessage').textContent = message;
           $('comfyuiEditorMessage').dataset.state = state;
+          $('comfyuiEditorHint').textContent = message;
+          $('comfyuiEditorFallback').hidden = state === 'ready' || state === 'saving' || !!$('comfyuiFrameHost').querySelector('iframe:not([hidden])');
+          $('comfyuiRefresh').textContent = state === 'error' ? '重新连接' : '刷新';
         }});
         window.scrollTo(0,0);
       }

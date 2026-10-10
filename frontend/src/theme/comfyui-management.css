@@ -1,16 +1,24 @@
 /* Approved ComfyUI entry, scoped to the Studio business viewport. */
 #comfyuiHost[hidden]{display:none!important}
 #comfyuiHost [hidden]{display:none!important}
-.comfyui-frame{display:block;width:100%;height:800px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
-.comfyui-editor-status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:14px}
-.comfyui-editor-status [data-state="error"]{color:var(--ink)}
+.comfyui-frame{display:block;width:100%;height:100%;min-height:0;border:0;background:var(--panel)}
+.comfyui-editor-status{font-size:12px;color:var(--muted);max-width:360px;overflow-wrap:anywhere}
+.comfyui-editor-status[data-state="ready"],.comfyui-editor-status[data-state="loading"]{display:none}
+.comfyui-editor-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:24px;color:var(--muted);font-size:13px;text-align:center}
+.main.comfyui-editor-active{height:100dvh;min-height:0;overflow:hidden;padding:14px 18px 12px}
+.main.comfyui-editor-active>.workspace{height:100%;min-height:0}
+.comfyui-editor-active #comfyuiHost{height:100%;min-height:0;display:flex;flex-direction:column;gap:10px}
+.comfyui-editor-active #comfyuiHost>.topline{flex:none;margin:0;gap:8px}
+.comfyui-editor-active #comfyuiWorkspace{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+#comfyuiFrameHost{height:100%;min-height:0}
 .comfyui-active>.workspace>.heading{display:none}
-.comfyui-management .actions{display:flex;gap:8px}
+.comfyui-management .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .comfyui-management .app-icon svg{width:28px;height:28px}
 .comfyui-management{min-width:0}
 .comfyui-management .topline,.comfyui-management .crumbs,.comfyui-management .identity{display:flex;align-items:center;gap:10px}
 .comfyui-management .topline{justify-content:space-between;flex-wrap:wrap;margin-bottom:26px}
 .comfyui-management .crumbs{font-size:13px;color:var(--muted)}
+.comfyui-editor-active .crumbs{flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
 .comfyui-management .crumbs [aria-current]{color:var(--ink)}
 .comfyui-management .intro{margin-bottom:26px}
 .comfyui-management h1{font-size:26px;font-weight:550}
@@ -31,3 +39,4 @@
 #comfyuiMessage{padding:16px;font-size:13px;color:var(--muted)}
 @media(max-width:1180px){.comfyui-management .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
 @media(max-width:760px){.comfyui-management .instance-body{grid-template-columns:1fr}.comfyui-management .instance-context{border-right:0;border-bottom:1px solid var(--line)}.comfyui-management .instance-context,.comfyui-management .resource-area{padding:18px}.comfyui-management .instance-top{padding:18px;flex-wrap:wrap}.comfyui-management .resource-heading{align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:18px}.comfyui-management .metrics{gap:20px 14px}.comfyui-management .instance-bottom{padding:18px}.comfyui-management h1{font-size:22px}}
+@media(max-width:760px){.main.comfyui-editor-active{padding:10px 8px 8px}.comfyui-editor-active #comfyuiHost{gap:8px}.comfyui-editor-active .comfyui-editor-status{max-width:100%}}

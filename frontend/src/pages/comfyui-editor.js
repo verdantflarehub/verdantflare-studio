@@ -122,11 +122,8 @@ export function mountEditor({ alias, container, onStatus }) {
           ++editGeneration; clearTimeout(editTimer);
           editTimer = setTimeout(()=>void save().catch(saveError),250);
         }
-        if (event.type === 'wheel') window.scrollBy(0,event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1));
-        if (event.type === 'resize' && ready) {
-          const border = frame.offsetHeight - frame.clientHeight;
-          frame.style.height = (Math.max(680,Math.min(event.height,10000)) + border) + 'px';
-        }
+        // The editor fills the host viewport. Its canvas and native panels own
+        // wheel interaction; content height must not expand the Studio page.
       }
     });
   }
