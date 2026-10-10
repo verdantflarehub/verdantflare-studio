@@ -11,11 +11,17 @@ export function mountBlender({ listen, notice }) {
     TURN_NOT_CONFIGURED: '桌面连接尚未配置，请联系管理员。', INITIAL_PROJECT_RESTORE_REQUIRED: '工程尚未恢复到此实例，请联系管理员。'
   };
   async function request(path, body, keepalive = false) {
-    const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive,
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw Error(messages[data.code] || '暂时无法连接，请重试。');
-    return data;
+    const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 30000);
+    try {
+      const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: controller.signal,
+        headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(messages[data.code] || '暂时无法连接，请重试。');
+      return data;
+    } catch (error) {
+      if (controller.signal.aborted) throw Error('连接请求超时，请重试。');
+      throw error;
+    } finally { clearTimeout(deadline); }
   }
   const closeLease = value => request('/studio/apps/blender/' + value.alias + '/close', { editing_session_id: value.id }, true);
   async function release() {
@@ -121,6 +127,7 @@ export function mountBlender({ listen, notice }) {
         const selected = items.find(item => item.alias === target);
         if (!selected) status('实例不存在或当前账号无权访问。', 'empty', false);
         else if (selected.access !== 'edit') status('当前账号没有桌面编辑权限。', 'empty', false);
+        else if (saving) status('正在保存工程…', 'saving', false);
         else void connect();
       }
     } catch (error) {
@@ -168,7 +175,9 @@ export function mountBlender({ listen, notice }) {
     } catch (error) { if (current === epoch) status(error.message); }
     finally {
       if (edit) await rpc('session.close', { editing_session_id: edit.editing_session_id }, target).catch(() => {});
-      saving = false; if (current === epoch) $('blenderAction').disabled = false;
+      saving = false;
+      if (current === epoch) $('blenderAction').disabled = false;
+      else if (active && alias() !== 'instances') void sync(true);
     }
   }
   listen($('blenderAction'), 'click', () => { if (host.dataset.state === 'loading') void stop(); else if (!items.some(item => item.alias === alias())) void sync(true); else void connect(); });
