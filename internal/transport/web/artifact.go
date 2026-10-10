@@ -23,7 +23,7 @@ func (s *Server) artifactTransfer(c *gin.Context) {
 		}
 		c.JSON(status, gin.H{"code": code, "message": "Content transfer failed", "request_id": c.Writer.Header().Get("X-Request-Id")})
 	}
-	p, _, ok := s.authenticateMCP(c, false)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}

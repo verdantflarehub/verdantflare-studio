@@ -34,12 +34,13 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return nil
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
+		fmt.Fprintln(stdout, "studio-workspace tools (discover tools using the same user Bearer; no extra login)")
 		fmt.Fprintln(stdout, "studio-workspace call --input request.json\nstudio-workspace open|status|fetch|save-texts|save-files|import|resume|switch-head|conflict|resolve --dir DIR --alias ALIAS --project-id ID [--input FILE] [--file-id ID] [--max-bytes N]\nConnection: STUDIO_MCP_URL, STUDIO_MCP_BEARER_TOKEN (a verified Core user session). JSON input may use '-' for stdin. Requests follow central Project/World contracts.")
 		return nil
 	}
 	command := args[0]
 	switch command {
-	case "call", "open", "status", "fetch", "save-texts", "save-files", "import", "resume", "switch-head", "conflict", "resolve":
+	case "tools", "call", "open", "status", "fetch", "save-texts", "save-files", "import", "resume", "switch-head", "conflict", "resolve":
 	default:
 		return project.ErrInvalid
 	}
@@ -77,7 +78,20 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return errors.New("STUDIO_SESSION_CONFIGURATION_REQUIRED")
 	}
 	var result any
-	if command == "call" {
+	if command == "tools" {
+		catalog, err := remote.Tools(ctx)
+		if err != nil {
+			return err
+		}
+		found := map[string]bool{}
+		for _, tool := range catalog {
+			found[tool.Name] = true
+		}
+		if !found["project.create"] || !found["project.list"] || !found["project.open"] {
+			return errors.New("STUDIO_PROJECT_TOOLS_UNAVAILABLE: check server-side Bearer identity binding and Project service registration; no additional client login is required")
+		}
+		result = map[string]any{"tools": catalog}
+	} else if command == "call" {
 		var req struct {
 			Name      string          `json:"name"`
 			Arguments json.RawMessage `json:"arguments"`

@@ -330,7 +330,7 @@ func (g *Gateway) resolveToken(domain string) string {
 	if domain == "artifact" {
 		return os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN")
 	}
-	for _, key := range []string{"STUDIO_" + strings.ToUpper(domain) + "_TOKEN", strings.ToUpper(domain) + "_MCP_BEARER_TOKEN", "STUDIO_BEARER_TOKEN", "INTERNAL_SERVICE_TOKEN"} {
+	for _, key := range []string{"STUDIO_" + strings.ToUpper(domain) + "_TOKEN", strings.ToUpper(domain) + "_MCP_BEARER_TOKEN", "INTERNAL_SERVICE_TOKEN"} {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 			return v
 		}

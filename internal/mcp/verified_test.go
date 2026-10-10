@@ -77,3 +77,15 @@ func TestManagedRoutingRequiresVerifiedIdentityAndExactScope(t *testing.T) {
 		t.Fatal("redirect leaked internal identity")
 	}
 }
+
+func TestUserBearerIsNeverADownstreamCredential(t *testing.T) {
+	t.Setenv("STUDIO_BEARER_TOKEN", "external-user-token")
+	t.Setenv("INTERNAL_SERVICE_TOKEN", "")
+	for _, domain := range []string{"image", "video", "music"} {
+		t.Setenv("STUDIO_"+strings.ToUpper(domain)+"_TOKEN", "")
+		t.Setenv(strings.ToUpper(domain)+"_MCP_BEARER_TOKEN", "")
+		if got := NewGatewayWithClient(nil).resolveToken(domain); got != "" {
+			t.Fatal("user bearer used as internal credential")
+		}
+	}
+}

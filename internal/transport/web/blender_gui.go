@@ -25,7 +25,7 @@ func (s *Server) blenderGUIControl(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	p, _, ok := s.authenticateMCP(c, false)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}
@@ -80,7 +80,7 @@ func (s *Server) blenderDesktop(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	p, _, ok := s.authenticateMCP(c, false)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}

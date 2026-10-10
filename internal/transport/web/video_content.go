@@ -21,7 +21,7 @@ func (s *Server) videoContent(c *gin.Context) {
 		c.Status(403)
 		return
 	}
-	p, legacy, ok := s.authenticateMCP(c, true)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}
@@ -38,10 +38,8 @@ func (s *Server) videoContent(c *gin.Context) {
 		return
 	}
 	identity := map[string]string{"X-Request-Id": c.Writer.Header().Get("X-Request-Id")}
-	if !legacy {
-		identity["X-User-Id"] = p.SubjectID
-		identity["X-Organization-Id"] = p.OrganizationID
-	}
+	identity["X-User-Id"] = p.SubjectID
+	identity["X-Organization-Id"] = p.OrganizationID
 	response, status, err := gateway.VideoContent(r.Context(), r.URL.Path, r.Header.Get("Range"), identity)
 	if err != nil {
 		c.Status(status)

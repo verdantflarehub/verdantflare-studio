@@ -36,7 +36,7 @@ func (s *Server) blenderMCP(c *gin.Context) {
 		c.Status(404)
 		return
 	}
-	p, _, ok := s.authenticateMCP(c, false)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}
@@ -58,7 +58,7 @@ func (s *Server) blenderMCP(c *gin.Context) {
 }
 
 func (s *Server) blenderInstances(c *gin.Context) {
-	p, _, ok := s.authenticateMCP(c, false)
+	p, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}

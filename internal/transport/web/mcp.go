@@ -19,11 +19,10 @@ func (s *Server) mcpHandler(c *gin.Context) {
 		mcprpc.Reject(c.Writer, c.Request, empty, 400, -32600, "Invalid request")
 		return
 	}
-	principal, legacy, ok := s.authenticateMCP(c, true)
+	principal, ok := s.authenticateMCP(c)
 	if !ok {
 		return
 	}
-	id := c.Writer.Header().Get("X-Request-Id")
 	request, e := mcprpc.Decode(c.Request.Body)
 	if e != nil {
 		mcprpc.Reject(c.Writer, c.Request, empty, 400, -32700, "Invalid JSON-RPC request")
@@ -43,11 +42,7 @@ func (s *Server) mcpHandler(c *gin.Context) {
 		}
 		tools := []mcp.ToolDefinition{}
 		if gateway != nil {
-			for _, tool := range gateway.ListTools() {
-				if !legacy || !mcp.Managed(tool.Name) {
-					tools = append(tools, tool)
-				}
-			}
+			tools = gateway.ListTools()
 		}
 		mcprpc.Result(c.Writer, request, map[string]any{"tools": tools})
 	case "tools/call":
@@ -56,28 +51,11 @@ func (s *Server) mcpHandler(c *gin.Context) {
 			mcprpc.Reject(c.Writer, c.Request, request, 400, -32602, "Invalid tool parameters")
 			return
 		}
-		if legacy && mcp.Managed(name) {
-			mcprpc.Reject(c.Writer, c.Request, request, 403, -32000, "A verified Core session is required for this tool")
-			return
-		}
 		if gateway == nil {
 			mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Service discovery unavailable")
 			return
 		}
-		var result any
-		var status int
-		if legacy {
-			user, projectID := c.GetHeader("X-User-Id"), c.GetHeader("X-Project-Id")
-			if user == "" {
-				user = "usr_studio_default"
-			}
-			if projectID == "" {
-				projectID = "prj_studio_default"
-			}
-			result, status, e = gateway.CallTool(c.Request.Context(), name, args, map[string]string{"X-User-Id": user, "X-Project-Id": projectID, "X-Request-Id": id})
-		} else {
-			result, status, e = gateway.CallVerified(c.Request.Context(), name, args, principal, c.GetHeader("X-Project-Id"))
-		}
+		result, status, e := gateway.CallVerified(c.Request.Context(), name, args, principal, c.GetHeader("X-Project-Id"))
 		if e != nil {
 			mcprpc.Reject(c.Writer, c.Request, request, status, -32603, e.Error())
 			return

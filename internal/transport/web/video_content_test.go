@@ -12,7 +12,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -80,12 +79,7 @@ func TestVideoResultDownloadThroughStudio(t *testing.T) {
 	if err := gateway.StartDiscovery(ctx); err != nil {
 		t.Fatal(err)
 	}
-	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(401)
-		_, _ = io.WriteString(w, `{"code":"UNAUTHENTICATED"}`)
-	}))
-	defer core.Close()
-	station, _ := application.NewStation(core.URL)
+	station := bearerStation(t, "studio-secret")
 	router, server := NewServer(station, "https://studio.example", fstest.MapFS{})
 	server.SetMCPGateway(gateway)
 	host := httptest.NewServer(router)
@@ -154,7 +148,7 @@ func TestVideoResultDownloadThroughStudio(t *testing.T) {
 		{strings.Replace(path, "art_", "art_%61", 1), "Bearer studio-secret", "", "", "", 400},
 		{path, "Bearer studio-secret", "{}", "", "", 400},
 		{"/artifacts/0199c0a0-0000-7000-8000-000000000021/content", "Bearer studio-secret", "", "", "", 400},
-		{"/v2/artifacts/0199c0a0-0000-7000-8000-000000000021/content", "Bearer studio-secret", "", "", "", 403},
+		{"/v2/artifacts/0199c0a0-0000-7000-8000-000000000021/content", "Bearer studio-secret", "", "", "", 400},
 		{"/runtime-artifacts/art_" + strings.Repeat("a", 32) + "/content", "Bearer studio-secret", "", "", "", 404},
 	} {
 		resp, _ = call("GET", tc.path, tc.auth, tc.body, tc.origin, tc.site, "")

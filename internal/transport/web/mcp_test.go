@@ -8,13 +8,12 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 )
 
 func TestMCP_Endpoint(t *testing.T) {
 	t.Setenv("STUDIO_BEARER_TOKEN", "test_bearer_token")
-	station, _ := application.NewStation("http://127.0.0.1:5050")
+	station := bearerStation(t, "test_bearer_token")
 	router, s := NewServer(station, "https://studio.example", fstest.MapFS{})
 
 	gw := mcp.NewGatewayWithClient(nil)

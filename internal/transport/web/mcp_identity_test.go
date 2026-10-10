@@ -14,7 +14,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 )
 
-func TestMCPVerifiedSessionAndLegacyBoundary(t *testing.T) {
+func TestMCPBearerIdentityAndSessionBoundary(t *testing.T) {
 	id := func() string { return uuid.Must(uuid.NewV7()).String() }
 	user, org := id(), id()
 	context := map[string]any{"station_id": id(), "session_id": id(), "user_id": user, "organization_id": org, "organization_name": "fixture", "request_id": "fixture-request", "username": "fixture", "roles": []string{"admin"}, "scopes": []string{"identity:read"}, "issued_at": time.Now().Add(-time.Minute).UTC(), "expires_at": time.Now().Add(time.Hour).UTC(), "revocation_version": 0, "policy_version": 1}
@@ -90,19 +90,21 @@ func TestMCPVerifiedSessionAndLegacyBoundary(t *testing.T) {
 		t.Fatal("expired identity accepted", code)
 	}
 	context["expires_at"] = time.Now().Add(time.Hour).UTC()
-	t.Setenv("STUDIO_BEARER_TOKEN", "legacy-shared")
+	// The deployment variable must not shadow a valid user bearer or bypass
+	// Core. Matching bytes have the same identity rules as any other token.
+	t.Setenv("STUDIO_BEARER_TOKEN", "actual-core-session")
 	before := calls
-	if code := call("Bearer legacy-shared", "", list, nil, false); code != 200 {
-		t.Fatal("legacy list failed", code)
+	if code := call("Bearer actual-core-session", "", list, nil, false); code != 200 || calls != before+1 {
+		t.Fatal("configured bearer did not resolve through Core", code)
 	}
-	if calls != before {
-		t.Fatal("legacy token sent to Core")
+	revoked = true
+	if code := call("Bearer actual-core-session", "", list, nil, false); code != 401 {
+		t.Fatal("revoked configured bearer bypassed Core", code)
 	}
-	for _, name := range []string{"project.create", "world.list", "artifact.read"} {
-		body := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"` + name + `","arguments":{}}}`
-		if code := call("Bearer legacy-shared", "", body, nil, false); code != 403 {
-			t.Fatal("unbound shared token entered managed domain", name, code)
-		}
+	revoked = false
+	t.Setenv("STUDIO_BEARER_TOKEN", "unbound-token")
+	if code := call("Bearer unbound-token", "", list, nil, false); code != 401 {
+		t.Fatal("unbound configured token accepted", code)
 	}
 	core.Close()
 	if code := call("Bearer actual-core-session", "", list, nil, false); code != 503 {
