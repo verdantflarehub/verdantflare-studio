@@ -42,7 +42,7 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Set-Cookie", "internal-secret=do-not-forward")
-		if strings.HasPrefix(r.URL.Path, "/internal/instance-") || r.URL.Path == "/internal/instances" || r.URL.Path == "/internal/instances/blenderA/start" {
+		if strings.HasPrefix(r.URL.Path, "/internal/instance-") || r.URL.Path == "/internal/instances" || r.URL.Path == "/internal/instances/blenderA/start" || r.URL.Path == "/internal/instances/blenderA/stop" || r.URL.Path == "/internal/instances/blenderA/destroy" {
 			if r.Method == "POST" {
 				w.WriteHeader(202)
 			}
@@ -126,6 +126,8 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 		{"POST", "/studio/apps/blender/instance-source", "/internal/instance-source", `{}`, 202},
 		{"POST", "/studio/apps/blender/instance-project-create", "/internal/instance-project-create", `{}`, 202},
 		{"POST", "/studio/apps/blender/instances/blenderA/start", "/internal/instances/blenderA/start", `{"expected_version":2,"idempotency_key":"start-key"}`, 202},
+		{"POST", "/studio/apps/blender/instances/blenderA/stop", "/internal/instances/blenderA/stop", `{"expected_version":2,"idempotency_key":"stop-key"}`, 202},
+		{"POST", "/studio/apps/blender/instances/blenderA/destroy", "/internal/instances/blenderA/destroy", `{"expected_version":2,"idempotency_key":"destroy-key","confirm_name":"Blender A"}`, 202},
 		{"GET", "/studio/apps/blender/instance-options", "/internal/instance-options", "", 200},
 		{"GET", "/studio/apps/blender/instance-operations/" + operation, "/internal/instance-operations/" + operation, "", 200},
 	} {
@@ -147,6 +149,12 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 		{"POST", "/studio/apps/blender/instances/invalid/start", `{}`, nil, 404},
 		{"POST", "/studio/apps/blender/instances/blenderA/start?target=other", `{}`, nil, 400},
 		{"POST", "/studio/apps/blender/instances/blenderA/start", strings.Repeat("x", 16385), nil, 413},
+		{"POST", "/studio/apps/blender/instances/invalid/stop", `{}`, nil, 404},
+		{"POST", "/studio/apps/blender/instances/blenderA/stop?target=other", `{}`, nil, 400},
+		{"POST", "/studio/apps/blender/instances/blenderA/stop", strings.Repeat("x", 16385), nil, 413},
+		{"POST", "/studio/apps/blender/instances/invalid/destroy", `{}`, nil, 404},
+		{"POST", "/studio/apps/blender/instances/blenderA/destroy?target=other", `{}`, nil, 400},
+		{"POST", "/studio/apps/blender/instances/blenderA/destroy", strings.Repeat("x", 16385), nil, 413},
 	} {
 		if w := call(tc.method, tc.path, "real-session", tc.body, tc.extra); w.Code != tc.status || len(received) != count {
 			t.Fatal("invalid management request forwarded", tc.path, w.Code)

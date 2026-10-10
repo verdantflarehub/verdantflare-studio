@@ -103,9 +103,10 @@ type CommitStatus struct {
 	CurrentRevisionID string  `json:"current_revision_id,omitempty"`
 }
 type ListRequest struct {
-	Category string `json:"category,omitempty"`
-	Cursor   string `json:"cursor,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	RequireWrite bool   `json:"require_write,omitempty"`
+	Category     string `json:"category,omitempty"`
+	Cursor       string `json:"cursor,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
 }
 type ListItem struct {
 	ProjectID      string    `json:"project_id"`

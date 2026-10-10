@@ -13,6 +13,13 @@
 #blenderHost .blender-management{min-width:0;margin-top:14px}
 
 #blenderHost .blender-management .search input{padding-left:12px}
+#blenderHost dialog.blender-stop-dialog{box-sizing:border-box;width:min(520px,calc(100vw - 32px));max-width:520px;max-height:calc(100dvh - 32px);margin:auto;padding:26px;border:1px solid var(--line);border-radius:12px;color:var(--ink);background:var(--bg);overflow:auto}
+#blenderHost dialog.blender-stop-dialog::backdrop{background:color-mix(in srgb,var(--ink) 35%,transparent)}
+#blenderHost dialog.blender-stop-dialog h2{margin-bottom:14px;font-size:20px;overflow-wrap:anywhere}
+#blenderHost dialog.blender-stop-dialog p,#blenderHost dialog.blender-stop-dialog li{font-size:13px;line-height:1.8;color:var(--muted)}
+#blenderHost dialog.blender-stop-dialog ul{padding-left:20px;margin:12px 0}
+#blenderHost dialog.blender-stop-dialog .actions{justify-content:flex-end;margin-top:22px}
+#blenderHost dialog.blender-stop-dialog .state-note:empty{display:none}
 
 #blenderManageLink{margin-left:auto}
 

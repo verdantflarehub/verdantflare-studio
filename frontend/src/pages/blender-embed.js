@@ -1,5 +1,6 @@
-import { instanceName, instanceURL, isFresh, canOpen, summary, instanceCard, detail } from './blender-management';
+import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summary, instanceCard, detail } from './blender-management';
 import { mountBlenderCreation } from './blender-create';
+import { createBlenderStarter } from './blender-start';
 
 export function mountBlender({ listen, notice }) {
   const $ = id => document.getElementById(id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
@@ -18,6 +19,15 @@ export function mountBlender({ listen, notice }) {
     PROFILE_UNAVAILABLE:'该运行规格已不可用，请重新选择。', CONTENT_TOO_LARGE:'来源工程超过当前规格的大小限制。',
     PROJECT_SOURCE_MISMATCH:'工程来源不一致，请重新核验固定修订。', STORAGE_CAPACITY_UNAVAILABLE:'工作区存储容量不足，正在等待可用容量。',
     WORKSPACE_BINDING_CONFLICT:'工作区归属发生变化，已暂停推进，请联系管理员。',
+    COMPUTE_CAPACITY_UNAVAILABLE:'当前计算资源不足，正在等待可用容量。',
+    COMPUTE_CAPACITY_UNKNOWN:'暂时无法确认可用计算资源，系统将继续检查。',
+    WORKER_LOAD_UNVERIFIED:'正在确认 Blender 已加载工程。', WORKER_EXITED:'Blender 进程已退出，工作区仍保留，请联系管理员。',
+    SAVE_IN_PROGRESS:'工程正在保存，请等待保存完成。', WORKER_BUSY:'Blender 仍有任务或操作进行中，正在等待空闲。',
+    WORKER_ACTIVITY_UNKNOWN:'暂时无法确认 Blender 是否空闲，工作区已保留。',
+    WORKER_DRAIN_UNVERIFIED:'正在确认工程已保存且 Blender 已停止接受编辑。',
+    PROJECT_EXTERNAL_DEPENDENCIES:'工程含外链资源，请在 Blender 中打包资源后重试。',
+    INSTANCE_STATE_CONFLICT:'实例状态已变化，请刷新后重试。', INSTANCE_BUSY:'实例已有操作进行中，请查看进度。',
+    INSTANCE_NAME_MISMATCH:'实例名称不匹配，请输入完整名称。',
     WORKSPACE_PREPARATION_UNAVAILABLE:'工作区准备暂未确认，系统将继续核对原操作。',
     OPERATION_OUTCOME_UNKNOWN:'操作结果尚未确认，正在继续核对。', NOT_FOUND:'项目、修订或操作不存在，或当前账号无权访问。'
   };
@@ -45,11 +55,15 @@ export function mountBlender({ listen, notice }) {
     const item = items.find(i=>i.alias===alias());
     const id = item?.management_operation_id || new URLSearchParams(location.hash.split('?')[1] || '').get('operation');
     operation = null; operationError = '';
-    if (!item || !id || !panel()) return;
+    if (!id || !panel()) return;
     try {
       const result = await request('/studio/apps/blender/instance-operations/'+encodeURIComponent(id));
       if (current !== epoch) return;
-      if (result.instance_id !== item.instance_id || result.operation_id !== id) throw Error('操作与实例不匹配，请刷新检查。');
+      if (result.operation_id !== id || result.alias !== alias() || (item && result.instance_id !== item.instance_id)) throw Error('操作与实例不匹配，请刷新检查。');
+      if(!item && result.action==='destroy' && result.state==='completed' && result.phase==='deleted'){
+        notice('实例已销毁，项目修订与工作区已保留，继续占用存储。');location.hash='/market?blender=instances';return;
+      }
+      if(!item)throw Error('实例状态暂不可用，请刷新检查。');
       operation = result;
       if (result.state === 'completed') creation.finish(id);
     } catch(e) {if(current === epoch) operationError=e.message;}
@@ -58,8 +72,12 @@ export function mountBlender({ listen, notice }) {
     if (!operation && !operationError) return;
     const section = document.createElement('section'); section.className = 'panel pad operation-progress';section.setAttribute('aria-live','polite');
     const heading = document.createElement('h2'), text = document.createElement('p');
-    heading.textContent = operation?.state === 'completed' ? '工作区已准备完成' : '创建进度';
-    const phases = {accepted:'请求已受理',reserved:'已预留工作区',claimed:'已绑定独立存储',preparing:'正在准备工作区',awaiting_content:'正在校验并恢复工程',removing:'工程已准备，正在确认准备服务退出',stopped:'已停止，可按需启动'};
+    const starting = operation?.action === 'start', stopping = operation?.action === 'stop', destroying = operation?.action === 'destroy';
+    heading.textContent = operation?.state === 'completed' ? (destroying ? '实例已销毁' : stopping ? '实例已停止' : starting ? '实例已启动' : '工作区已准备完成')
+      : destroying ? '销毁进度' : stopping ? (operation?.state === 'failed' ? '停止未完成，实例继续运行' : '保存并停止') : (starting ? '启动进度' : '创建进度');
+    const phases = {accepted:'请求已受理',reserved:'已预留工作区',claimed:'已绑定独立存储',preparing:'正在准备工作区',awaiting_content:'正在校验并恢复工程',removing:'工程已准备，正在确认准备服务退出',stopped:'已停止，可按需启动',launching:'正在启动 Blender',loading:'正在加载并校验工程',running:'工程已加载，可打开实例'};
+    if (stopping) Object.assign(phases,{draining:'正在等待任务空闲并保存检查点',saving:'正在将工程保存到项目',stopping:'工程已保存，正在停止实例',removing:'正在确认计算资源释放',aborting:'保存未完成，正在恢复编辑',aborted:'本次停止已取消，实例继续运行'});
+    if (destroying) Object.assign(phases,{revoking:'正在撤销实例访问并登记保留工作区',deleted:'实例已销毁，工作区与项目修订保留'});
     text.textContent = operationError || messages[operation?.code] || phases[operation?.phase] || '正在确认操作状态';
     if(operationError || operation?.code) text.className='state-note error';
     section.append(heading,text);$('blenderDetail').prepend(section);
@@ -287,6 +305,56 @@ export function mountBlender({ listen, notice }) {
     if (item) navigator.clipboard.writeText(location.origin + item.mcp_path).then(() => notice('已复制实例 MCP 地址')).catch(() => notice('复制失败，请检查浏览器权限。'));
   });
   listen($('blenderSearch'), 'input', renderList); listen($('blenderListRetry'), 'click', () => void sync(true));
+  const startInstance = createBlenderStarter({request,storage:sessionStorage});
+  const stopInstance = createBlenderStarter({request,storage:sessionStorage,action:'stop'});
+  const destroyInstance = createBlenderStarter({request,storage:sessionStorage,action:'destroy'});
+  const stopDialog = document.createElement('dialog');stopDialog.className='blender-management blender-stop-dialog';
+  stopDialog.setAttribute('aria-labelledby','blenderStopTitle');
+  stopDialog.innerHTML='<h2 id="blenderStopTitle"></h2><p data-description></p><ul><li data-retention></li><li data-access></li></ul><label class="field" data-name-field hidden><span>输入实例名称以确认</span><input autocomplete="off" data-name></label><p class="state-note" role="status"></p><div class="actions"><button class="btn" data-cancel>取消</button><button class="btn primary" data-confirm>保存并停止</button></div>';
+  host.append(stopDialog);
+  let stopTarget = null, stopTrigger = null, dialogAction = 'stop';
+  const stopConfirm = stopDialog.querySelector('[data-confirm]');
+  const confirmName = stopDialog.querySelector('[data-name]');
+  listen(confirmName,'input',()=>{stopConfirm.disabled=confirmName.value!==instanceName(items.find(value=>value.alias===stopTarget)||{alias:''});});
+  listen(stopDialog.querySelector('[data-cancel]'),'click',()=>stopDialog.close());
+  listen(stopDialog,'close',()=>{if(stopTrigger?.isConnected)stopTrigger.focus();stopTarget=null;});
+  listen(stopConfirm,'click',async()=>{
+    const item=items.find(value=>value.alias===stopTarget),current=epoch;
+    const note=stopDialog.querySelector('[role=status]');
+    if(!item || !(dialogAction==='destroy'?canDestroy(item):canStop(item))){note.textContent='实例状态已变化，请关闭后刷新检查。';return;}
+    stopConfirm.disabled=true;
+    try{
+      const result=await (dialogAction==='destroy'?destroyInstance(item,confirmName.value):stopInstance(item));
+      if(result){stopDialog.close();if(current===epoch)location.hash='/market?blender='+encodeURIComponent(result.alias)+'&panel=overview&operation='+encodeURIComponent(result.operation_id);}
+    }catch(e){note.textContent=e.message;}
+    finally{stopConfirm.disabled=dialogAction==='destroy' && confirmName.value!==instanceName(item);}
+  });
+  listen(host,'click',async event=>{
+    const stopButton=event.target.closest('[data-blender-stop],[data-blender-destroy]');
+    if(stopButton && !stopButton.disabled){
+      const destroying=stopButton.hasAttribute('data-blender-destroy');
+      const item=items.find(value=>value.alias===(destroying?stopButton.dataset.blenderDestroy:stopButton.dataset.blenderStop));
+      if(!item || !(destroying?canDestroy(item):canStop(item)))return;
+      dialogAction=destroying?'destroy':'stop';stopTarget=item.alias;stopTrigger=stopButton;stopConfirm.disabled=destroying;
+      stopConfirm.textContent=destroying?'确认销毁':'保存并停止';stopConfirm.className=destroying?'btn danger':'btn primary';
+      confirmName.value='';stopDialog.querySelector('[data-name-field]').hidden=!destroying;
+      stopDialog.querySelector('h2').textContent=(destroying?'销毁 ':'保存并停止 ')+instanceName(item)+'？';
+      stopDialog.querySelector('[data-description]').textContent=destroying?'销毁后，该实例及其访问入口将不可用。':'先将工程保存到项目，确认成功后再停止 Blender 并释放 CPU、内存与 GPU。';
+      stopDialog.querySelector('[data-retention]').textContent=destroying?'保留正式项目修订、Artifact 和工作区，继续占用存储。':'保留工作区和项目修订，下次使用可重新启动。';
+      stopDialog.querySelector('[data-access]').textContent=destroying?'工作区清理是独立操作，本次不会删除工作区数据。':'停止期间不接受新的桌面或 MCP 编辑连接。';
+      stopDialog.querySelector('[role=status]').textContent='';stopDialog.showModal();return;
+    }
+    const button = event.target.closest('[data-blender-start]');
+    if (!button || button.disabled) return;
+    const item = items.find(value=>value.alias===button.dataset.blenderStart), current = epoch;
+    if (!item) return;
+    button.disabled = true; button.textContent = '正在受理…';
+    try {
+      const result = await startInstance(item);
+      if (result && current === epoch) location.hash = '/market?blender='+encodeURIComponent(result.alias)+'&panel=overview&operation='+encodeURIComponent(result.operation_id);
+    } catch(e) { if(current===epoch) {notice(e.message);await refresh();} }
+    finally { if(button.isConnected) {button.disabled=false;button.textContent='启动';} }
+  });
   listen($('blenderCreate'),'click',()=>{if(createAvailable)location.hash='/market?blender=create';});
   listen($('blenderRefresh'), 'click', () => void refresh());
   listen($('blenderFilters'), 'click', event => {

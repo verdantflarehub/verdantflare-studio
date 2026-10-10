@@ -11,6 +11,21 @@ export function isFresh(item, now = Date.now()) {
 export function canOpen(item) {
   return isFresh(item) && item.status === 'running' && item.control?.state === 'idle' && item.access === 'edit' && item.allowed_actions?.includes('open');
 }
+export function canStart(item) {
+  return isFresh(item) && item.status === 'stopped' && item.can_manage === true && item.access === 'edit'
+    && !item.management_operation_id && Number.isSafeInteger(item.state_version) && item.state_version > 0
+    && item.allowed_actions?.includes('start');
+}
+export function canStop(item) {
+  return isFresh(item) && item.status === 'running' && item.control?.state === 'idle'
+    && item.can_manage === true && item.access === 'edit' && !item.management_operation_id
+    && Number.isSafeInteger(item.state_version) && item.state_version > 0 && item.allowed_actions?.includes('stop');
+}
+export function canDestroy(item) {
+  return isFresh(item) && item.status === 'stopped' && item.can_manage === true && item.access === 'edit'
+    && !item.management_operation_id && Number.isSafeInteger(item.state_version) && item.state_version > 0
+    && item.allowed_actions?.includes('destroy');
+}
 const status = item => isFresh(item) ? states[item.status] || states.unknown : '状态过期';
 const role = item => item.can_manage ? '管理员' : item.access === 'edit' ? '可编辑' : '只读';
 const project = item => item.project_name || '关联项目名称暂不可用';
@@ -29,7 +44,10 @@ function openAction(item) {
 }
 function lifecycle(item) {
   if (!item.can_manage) return '';
-  // Command endpoints are not implemented yet. Never infer a command from status.
+  const destroy = canDestroy(item) ? `<button class="btn danger" data-blender-destroy="${esc(item.alias)}">销毁</button>` : '<button class="btn danger" disabled title="实例销毁暂未开放">销毁</button>';
+  if (canStart(item)) return destroy+`<button class="btn primary" data-blender-start="${esc(item.alias)}">启动</button>`;
+  if (canDestroy(item)) return destroy+'<button class="btn" disabled>启动</button>';
+  if (canStop(item)) return `<button class="btn danger" disabled title="请先停止实例，再销毁">销毁</button><button class="btn" data-blender-stop="${esc(item.alias)}">停止</button>`;
   return `<button class="btn danger" disabled title="实例销毁暂未开放">销毁</button><button class="btn" disabled title="实例生命周期管理暂未开放">${item.status === 'stopped' ? '启动' : '停止'}</button>`;
 }
 function metric(label, metric, unit) {
@@ -64,5 +82,5 @@ export function detail(item, panel) {
   const tabs = `<div class="tabs">${[['overview','概览'],['resources','资源'],['activity','活动']].map(([value,label]) => `<a href="${instanceURL(item,value)}" ${panel === value ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</div>`;
   if (panel === 'resources') return tabs+`<section class="panel pad"><div class="section-head"><h2>资源配置与使用</h2><small>${esc(resourceNote(item))}</small></div><div class="metrics">${metrics(item)}</div><dl class="definition">${row('CPU 请求 / 上限',isFresh({observed_at:item.resources_observed_at}) ? formatResource(item.resources?.cpu?.request) + ' / ' + formatResource(item.resources?.cpu?.limit) : '待确认')}${row('内存请求 / 上限',isFresh({observed_at:item.resources_observed_at}) ? formatResource(item.resources?.memory?.request,'bytes') + ' / ' + formatResource(item.resources?.memory?.limit,'bytes') : '待确认')}${row('计量范围','实例容器 CPU 与内存工作集')}</dl><p class="state-note">显存用量待独占设备绑定确认；工作区存储尚未采集。缺少配置或使用量时显示“—”。</p></section>`;
   if (panel === 'activity') return tabs+`<section class="panel pad"><div class="section-head"><h2>实例活动</h2></div>${item.save?.revision_id ? `<p>工程已保存到项目</p><dl class="definition">${row('确认时间',when(item.save.last_saved_at))}${row('项目修订',item.save.revision_id)}</dl>` : '<p class="muted">暂无已确认的保存记录。</p>'}<p class="state-note">完整生命周期活动尚未接入。</p></section>`;
-  return tabs+`<div class="detail-grid"><section class="panel pad"><div class="section-head"><h2>运行概况</h2>${badge(item)}</div><dl class="definition">${row('关联项目',project(item))}${row('访问权限',role(item))}${row('当前控制权',control(item))}${row('状态来源',item.status_source === 'instance_ledger' ? '实例管理操作' : '实时场景检查')}${row('观测时间',when(item.observed_at))}</dl><p class="state-note">${item.status === 'unknown' ? '无法确认实例运行状态，请刷新重试。' : '关闭页面或释放编辑控制权不会停止实例。'} 实例生命周期管理暂未开放。</p><div class="actions">${lifecycle(item)}${openAction(item)}</div></section><section class="panel pad"><div class="section-head"><h2>工程与保存</h2></div><dl class="definition">${row('当前工程状态','待确认')}${row('最近确认保存',when(item.save?.last_saved_at))}${row('工作副本',item.workspace?.registered === true ? '已登记' : '待确认')}${row('工作副本基线',item.workspace?.revision_id || '暂无记录')}</dl><p class="state-note">历史保存记录不代表当前内存中的更改已经保存。</p></section></div>`;
+  return tabs+`<div class="detail-grid"><section class="panel pad"><div class="section-head"><h2>运行概况</h2>${badge(item)}</div><dl class="definition">${row('关联项目',project(item))}${row('访问权限',role(item))}${row('当前控制权',control(item))}${row('状态来源',item.status_source === 'instance_ledger' ? '实例管理操作' : '实时场景检查')}${row('观测时间',when(item.observed_at))}</dl><p class="state-note">${item.status === 'unknown' ? '无法确认实例运行状态，请刷新重试。' : '关闭页面或释放编辑控制权不会停止实例。'} ${canStart(item) ? "" : "停止与销毁功能暂未开放。"}</p><div class="actions">${lifecycle(item)}${openAction(item)}</div></section><section class="panel pad"><div class="section-head"><h2>工程与保存</h2></div><dl class="definition">${row('当前工程状态','待确认')}${row('最近确认保存',when(item.save?.last_saved_at))}${row('工作副本',item.workspace?.registered === true ? '已登记' : '待确认')}${row('工作副本基线',item.workspace?.revision_id || '暂无记录')}</dl><p class="state-note">历史保存记录不代表当前内存中的更改已经保存。</p></section></div>`;
 }

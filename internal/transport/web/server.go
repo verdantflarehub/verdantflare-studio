@@ -129,6 +129,8 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	r.GET("/studio/apps/blender/instances", s.blenderInstances)
 	r.POST("/studio/apps/blender/instances", s.blenderManagement)
 	r.POST("/studio/apps/blender/instances/:instance_alias/start", s.blenderManagement)
+	r.POST("/studio/apps/blender/instances/:instance_alias/stop", s.blenderManagement)
+	r.POST("/studio/apps/blender/instances/:instance_alias/destroy", s.blenderManagement)
 	r.POST("/studio/apps/blender/instance-projects", s.blenderManagement)
 	r.POST("/studio/apps/blender/instance-source", s.blenderManagement)
 	r.POST("/studio/apps/blender/instance-project-create", s.blenderManagement)

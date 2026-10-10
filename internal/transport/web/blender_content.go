@@ -52,7 +52,19 @@ func blenderContentHandler(resolve func(string) (string, bool)) http.Handler {
 		}
 		domain, path, token := "", "", ""
 		switch {
-		case r.Method == "POST" && (r.URL.Path == "/project/open" || r.URL.Path == "/project/commit" || r.URL.Path == "/project/commit_status"):
+		case r.Method == "POST" && r.URL.Path == "/runtime/options":
+			domain, path, token = "station-core", "/internal/v1/blender/options", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && r.URL.Path == "/runtime/instances/create":
+			domain, path, token = "station-core", "/internal/v1/blender/create", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && r.URL.Path == "/runtime/instances/start":
+			domain, path, token = "station-core", "/internal/v1/blender/start", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && r.URL.Path == "/runtime/instances/stop":
+			domain, path, token = "station-core", "/internal/v1/blender/stop", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && r.URL.Path == "/runtime/instances/destroy":
+			domain, path, token = "station-core", "/internal/v1/blender/destroy", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && r.URL.Path == "/runtime/instances/access":
+			domain, path, token = "station-core", "/internal/v1/blender/access", os.Getenv("STUDIO_BLENDER_CONTROL_TOKEN")
+		case r.Method == "POST" && (r.URL.Path == "/project/create" || r.URL.Path == "/project/list" || r.URL.Path == "/project/open" || r.URL.Path == "/project/commit" || r.URL.Path == "/project/commit_status"):
 			domain, path, token = "project", "/internal/v1"+r.URL.Path, os.Getenv("STUDIO_PROJECT_SERVICE_TOKEN")
 		case r.Method == "POST" && r.URL.Path == "/artifact/uploads":
 			domain, path, token = "artifact", "/v2/artifacts/uploads", os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN")
@@ -86,9 +98,15 @@ func blenderContentHandler(resolve func(string) (string, bool)) http.Handler {
 			http.Error(w, "Service unavailable", 503)
 			return
 		}
-		endpoint, ok := resolve(domain)
+		endpoint, ok := "", false
+		expectedPath := "/mcp"
+		if domain == "station-core" {
+			endpoint, ok, expectedPath = strings.TrimSuffix(os.Getenv("STATION_CORE_URL"), "/"), true, ""
+		} else {
+			endpoint, ok = resolve(domain)
+		}
 		u, err := url.Parse(endpoint)
-		if !ok || err != nil || u.Host == "" || u.User != nil || u.Path != "/mcp" || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && u.Scheme != "http") {
+		if !ok || err != nil || u.Host == "" || u.User != nil || u.Path != expectedPath || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && u.Scheme != "http") {
 			http.Error(w, "Service unavailable", 503)
 			return
 		}
@@ -132,7 +150,11 @@ func blenderContentHandler(resolve func(string) (string, bool)) http.Handler {
 				http.Error(w, "Content service unavailable", 502)
 			},
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 512<<20)
+		limit := int64(512 << 20)
+		if domain == "station-core" {
+			limit = 16 << 10
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		proxy.ServeHTTP(w, r)
 	})
 }

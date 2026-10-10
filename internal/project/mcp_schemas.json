@@ -52,6 +52,10 @@
       "additionalProperties": false,
       "required": [],
       "properties": {
+        "require_write": {
+          "type": "boolean",
+          "description": "Only list projects where the authenticated subject is currently an owner or editor. Defaults to false."
+        },
         "category": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_-]{0,63}$"
@@ -87,6 +91,10 @@
         "revision_id": {
           "type": "string",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "require_write": {
+          "type": "boolean",
+          "description": "When true, opening the selected revision also requires the current project owner/editor permission; the default remains read access."
         }
       }
     }

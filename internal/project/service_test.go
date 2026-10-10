@@ -477,6 +477,31 @@ func TestHTTPClientsAndCentralContracts(t *testing.T) {
 	if opened.ManifestRef != created.ManifestRef {
 		t.Fatal("second HTTP client opened different content")
 	}
+	call(1, "open", body(project.OpenRequest{ProjectID: created.ProjectID, RevisionID: created.RevisionID, RequireWrite: true}), 200, nil)
+	var editable project.ListResult
+	if e := json.Unmarshal(call(1, "list", body(project.ListRequest{RequireWrite: true}), 200, nil), &editable); e != nil || len(editable.Items) != 1 || editable.Items[0].ProjectID != created.ProjectID {
+		t.Fatal("owner project absent from writable list")
+	}
+	if _, e := f.db.Exec(context.Background(), "UPDATE studio.project_members SET role='reader' WHERE project_id=$1 AND subject_id=$2", created.ProjectID, f.p.SubjectID); e != nil {
+		t.Fatal(e)
+	}
+	call(1, "open", body(project.OpenRequest{ProjectID: created.ProjectID, RevisionID: created.RevisionID}), 200, nil)
+	call(1, "open", body(project.OpenRequest{ProjectID: created.ProjectID, RevisionID: created.RevisionID, RequireWrite: true}), 403, nil)
+	if e := json.Unmarshal(call(1, "list", body(project.ListRequest{RequireWrite: true}), 200, nil), &editable); e != nil || len(editable.Items) != 0 {
+		t.Fatal("reader project in writable list")
+	}
+	if e := json.Unmarshal(call(1, "list", body(project.ListRequest{}), 200, nil), &editable); e != nil || len(editable.Items) != 1 {
+		t.Fatal("default readable list changed")
+	}
+	if _, e := f.db.Exec(context.Background(), "UPDATE studio.project_members SET role='editor' WHERE project_id=$1 AND subject_id=$2", created.ProjectID, f.p.SubjectID); e != nil {
+		t.Fatal(e)
+	}
+	if e := json.Unmarshal(call(1, "list", body(project.ListRequest{RequireWrite: true}), 200, nil), &editable); e != nil || len(editable.Items) != 1 {
+		t.Fatal("editor project absent from writable list")
+	}
+	if _, e := f.db.Exec(context.Background(), "UPDATE studio.project_members SET role='owner' WHERE project_id=$1 AND subject_id=$2", created.ProjectID, f.p.SubjectID); e != nil {
+		t.Fatal(e)
+	}
 	m := opened.Manifest
 	localID := id()
 	m.Files = append(m.Files, project.File{ID: localID, Path: "notes.md", Role: "review", Content: m.Files[0].Content})

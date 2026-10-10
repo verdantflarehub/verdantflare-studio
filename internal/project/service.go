@@ -570,7 +570,7 @@ func (s *Service) List(ctx context.Context, p Principal, r ListRequest) (ListRes
 	if r.Limit < 1 || r.Limit > 100 || (r.Cursor != "" && !ValidID(r.Cursor)) || (r.Category != "" && !tokenPattern.MatchString(r.Category)) {
 		return out, ErrInvalid
 	}
-	rows, e := s.db.Query(ctx, `SELECT p.project_id::text,p.head_revision_id::text,p.name,p.category,p.status,p.created_at FROM studio.projects p JOIN studio.project_members m USING(organization_id,project_id) WHERE p.organization_id=$1 AND m.subject_id=$2 AND p.head_revision_id IS NOT NULL AND ($3='' OR p.category=$3) AND ($4='' OR p.project_id>NULLIF($4,'')::uuid) ORDER BY p.project_id LIMIT $5`, p.OrganizationID, p.SubjectID, r.Category, r.Cursor, r.Limit+1)
+	rows, e := s.db.Query(ctx, `SELECT p.project_id::text,p.head_revision_id::text,p.name,p.category,p.status,p.created_at FROM studio.projects p JOIN studio.project_members m USING(organization_id,project_id) WHERE p.organization_id=$1 AND m.subject_id=$2 AND p.head_revision_id IS NOT NULL AND ($3='' OR p.category=$3) AND ($4='' OR p.project_id>NULLIF($4,'')::uuid) AND (NOT $6 OR m.role IN ('owner','editor')) ORDER BY p.project_id LIMIT $5`, p.OrganizationID, p.SubjectID, r.Category, r.Cursor, r.Limit+1, r.RequireWrite)
 	if e != nil {
 		return out, e
 	}

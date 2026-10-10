@@ -82,7 +82,14 @@ func (s *Server) blenderManagement(c *gin.Context) {
 				c.Status(404)
 				return
 			}
-			path = "/internal/instances/" + alias + "/start"
+			action := "start"
+			if strings.HasSuffix(c.FullPath(), "/stop") {
+				action = "stop"
+			}
+			if strings.HasSuffix(c.FullPath(), "/destroy") {
+				action = "destroy"
+			}
+			path = "/internal/instances/" + alias + "/" + action
 		}
 		switch c.Request.URL.Path {
 		case "/studio/apps/blender/instance-projects":

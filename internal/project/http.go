@@ -16,8 +16,9 @@ import (
 )
 
 type OpenRequest struct {
-	ProjectID  string `json:"project_id"`
-	RevisionID string `json:"revision_id,omitempty"`
+	ProjectID    string `json:"project_id"`
+	RevisionID   string `json:"revision_id,omitempty"`
+	RequireWrite bool   `json:"require_write,omitempty"`
 }
 type StatusRequest struct {
 	ProjectID string `json:"project_id"`
@@ -91,7 +92,15 @@ func (s *Service) HTTPHandler(serviceToken, authorityToken string) (http.Handler
 			if !decode(&req) {
 				return
 			}
-			result, err = s.Open(r.Context(), p, req.ProjectID, req.RevisionID)
+			if req.RequireWrite {
+				err = writable(r.Context(), s.db, p, req.ProjectID)
+			}
+			if err == nil {
+				result, err = s.Open(r.Context(), p, req.ProjectID, req.RevisionID)
+			}
+			if err == nil && req.RequireWrite {
+				err = writable(r.Context(), s.db, p, req.ProjectID)
+			}
 		case "/internal/v1/project/commit":
 			var req CommitRequest
 			req, err = decodeCommit(data)
