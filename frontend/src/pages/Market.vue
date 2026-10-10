@@ -79,7 +79,14 @@ onBeforeUnmount(() => dispose?.())
 
       <!-- Primary Market Columns (Full Width Workspace) -->
       <section id="blenderHost" hidden>
-        <nav id="blenderBreadcrumb" class="blender-breadcrumb" aria-label="面包屑"></nav>
+        <div class="blender-header">
+          <nav id="blenderBreadcrumb" class="blender-breadcrumb" aria-label="面包屑"></nav>
+          <div id="blenderToolbar" class="blender-toolbar" hidden>
+            <button class="btn" id="blenderRelease">释放控制权</button>
+            <button class="btn primary" id="blenderSave">保存工程</button>
+            <button class="btn" id="blenderCopy">复制 MCP 地址</button>
+          </div>
+        </div>
         <section id="blenderList" class="blender-list" aria-label="Blender 实例" hidden>
           <div class="blender-list-toolbar"><span id="blenderCount"></span><input id="blenderSearch" type="search" placeholder="搜索实例" aria-label="搜索 Blender 实例"></div>
           <table id="blenderTable"><thead><tr><th scope="col">实例</th><th scope="col">权限</th><th scope="col">操作</th></tr></thead><tbody id="blenderRows"></tbody></table>
@@ -87,11 +94,6 @@ onBeforeUnmount(() => dispose?.())
           <button id="blenderListRetry" class="btn" hidden>重试</button>
         </section>
         <section id="blenderWorkspace" hidden>
-          <div id="blenderToolbar" class="blender-toolbar" hidden>
-            <button class="btn" id="blenderRelease">释放控制权</button>
-            <button class="btn primary" id="blenderSave">保存工程</button>
-            <button class="btn" id="blenderCopy">复制 MCP 地址</button>
-          </div>
           <div id="blenderViewport" class="blender-viewport">
             <div id="blenderLoading" class="blender-loading">
               <img class="blender-mark" src="/assets/blender-logo.svg" alt="">

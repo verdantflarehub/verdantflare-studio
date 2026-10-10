@@ -1602,6 +1602,7 @@
 #blenderHost { gap: 12px; }
 #blenderHost[hidden], #blenderHost [hidden] { display: none !important; }
 .main.blender-active .heading, .main.blender-active #viewportLoader { display: none !important; }
+.blender-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px 24px; }
 .blender-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:9px; color:var(--muted); font-size:13px; }
 .blender-breadcrumb a { color:inherit; text-decoration:none; }
 .blender-breadcrumb a:hover { color:var(--accent); }
@@ -1617,7 +1618,7 @@
 #blenderFrame { display:block; width:100%; aspect-ratio:16/9; min-height:240px; border:0; background:var(--panel); }
 #blenderHost[data-state="loading"] #blenderFrame { position:absolute; inset:0; height:100%; }
 #blenderHost[data-state="ready"] .blender-viewport { min-height:0; }
-.blender-toolbar { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.blender-toolbar { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-left:auto; max-width:100%; }
 .blender-list { border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow:hidden; }
 .blender-list-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px; color:var(--muted); font-size:13px; }
 #blenderSearch { width:300px; max-width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--subtle); color:var(--ink); }
