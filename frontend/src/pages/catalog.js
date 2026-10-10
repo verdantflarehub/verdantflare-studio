@@ -3,8 +3,8 @@
 
 export const CATALOG_APPS = [
   {
-    app_id: 'blender', display_name: 'Blender', group_id: 'blender', brand: 'vf',
-    version: '0.1.2', gpu: 1, models: [],
+    app_id: 'blender', display_name: 'Blender', group_id: 'desktop', brand: 'vf',
+    version: '0.1.3', gpu: 1, models: [],
     tagline: '图形编辑与 Agent 协作的三维工作区。',
     description: '选择独立 Blender 实例，使用图形界面或专用 MCP 编辑场景，将工程保存到项目修订。',
     capabilities: ['scene.get', 'object.create', 'project.save'], dashboard: '#/market?blender=instances'
