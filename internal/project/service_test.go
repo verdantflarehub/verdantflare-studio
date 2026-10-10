@@ -119,7 +119,7 @@ func setup(t *testing.T) *fixture {
 			env = append(env, v)
 		}
 	}
-	env = append(env, "ARTIFACT_DATABASE_URL="+testdb.ConnString(artDB), "ARTIFACT_STORE_ID="+id(), "ARTIFACT_CONTENT_ROOT="+filepath.Join(t.TempDir(), "content"), "ARTIFACT_SERVICE_TOKEN="+token, "ARTIFACT_AUTHORITY_TOKEN="+authToken, "ARTIFACT_AUTHORITY_URL="+authority.URL, "ARTIFACT_LISTEN_ADDR="+addr)
+	env = append(env, "ARTIFACT_DATABASE_URL="+testdb.ConnString(artDB), "ARTIFACT_STORE_ID="+id(), "ARTIFACT_STORAGE_BACKEND=local", "ARTIFACT_CONTENT_ROOT="+filepath.Join(t.TempDir(), "content"), "ARTIFACT_SERVICE_TOKEN="+token, "ARTIFACT_AUTHORITY_TOKEN="+authToken, "ARTIFACT_AUTHORITY_URL="+authority.URL, "ARTIFACT_LISTEN_ADDR="+addr)
 	migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	command := exec.CommandContext(migrateCtx, binary, "migrate")
