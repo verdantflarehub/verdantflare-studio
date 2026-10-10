@@ -8,6 +8,7 @@ export function mountEditor({ alias, container, onStatus }) {
   const controller = new AbortController();
   let bridge, session, version, stopped = false, ready = false, saving, savedGraph, saveTimer, renewTimer, loadTimer, frame, releaseLock;
   let editGeneration = 0, savedGeneration = 0, editTimer, closing;
+  let lockRequest = Promise.resolve();
   const endpoint = `/studio/apps/comfyui/${encodeURIComponent(alias)}/editor/`;
   async function call(action, value, signal = controller.signal) {
     const response = await fetch(endpoint + action, { method:'POST', credentials:'same-origin',
@@ -67,6 +68,9 @@ export function mountEditor({ alias, container, onStatus }) {
         await save();
         if (session && !stopped) await call('close',{session_id:session});
         dispose();
+        // A refresh opens a replacement immediately after close resolves. Wait
+        // for Web Locks to finish releasing the old grant before requesting it.
+        await lockRequest;
       }
       catch (error) {
         if (frame) frame.inert = false;
@@ -133,7 +137,7 @@ export function mountEditor({ alias, container, onStatus }) {
     // from reusing the original tab's reconnect identity as a second writer.
     await new Promise((resolve, reject) => {
       if (!navigator.locks) { reject(Error('此浏览器不支持安全编辑会话。')); return; }
-      navigator.locks.request('vf-comfyui-editor-'+alias,{ifAvailable:true},async lock => {
+      lockRequest = navigator.locks.request('vf-comfyui-editor-'+alias,{ifAvailable:true},async lock => {
         if (!lock) { reject(Error(messages.EDITOR_IN_USE)); return; }
         await new Promise(release=>{releaseLock=release;resolve();});
       }).catch(reject);
