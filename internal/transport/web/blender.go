@@ -65,6 +65,48 @@ func (s *Server) blenderInstances(c *gin.Context) {
 	s.blenderForward(c, p, "/internal/instances")
 }
 
+func (s *Server) blenderManagement(c *gin.Context) {
+	if c.Request.URL.RawQuery != "" || strings.Contains(c.Request.URL.EscapedPath(), "%") || c.GetHeader("Content-Encoding") != "" {
+		c.Status(400)
+		return
+	}
+	path := "/internal/instance-options"
+	if c.Request.Method == "POST" {
+		if len(c.Request.Header.Values("Content-Type")) != 1 || strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {
+			c.Status(415)
+			return
+		}
+		path = "/internal/instances"
+		if alias := c.Param("instance_alias"); alias != "" {
+			if !blenderAlias.MatchString(alias) {
+				c.Status(404)
+				return
+			}
+			path = "/internal/instances/" + alias + "/start"
+		}
+		switch c.Request.URL.Path {
+		case "/studio/apps/blender/instance-projects":
+			path = "/internal/instance-projects"
+		case "/studio/apps/blender/instance-source":
+			path = "/internal/instance-source"
+		case "/studio/apps/blender/instance-project-create":
+			path = "/internal/instance-project-create"
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	} else if id := c.Param("operation_id"); id != "" {
+		if !project.ValidID(id) {
+			c.Status(404)
+			return
+		}
+		path = "/internal/instance-operations/" + id
+	}
+	p, ok := s.authenticateMCP(c)
+	if !ok {
+		return
+	}
+	s.blenderForward(c, p, path)
+}
+
 func (s *Server) blenderForward(c *gin.Context, p project.Principal, path string) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
@@ -123,5 +165,12 @@ func (s *Server) blenderForward(c *gin.Context, p project.Principal, path string
 	}
 	// The first release intentionally uses stateless JSON MCP. Do not fabricate
 	// transport sessions or treat a worker's HTML/SSE response as successful JSON.
+	if path == "/internal/instances" && resp.StatusCode == http.StatusOK {
+		data, err = s.blenderResourceView(c, data)
+		if err != nil {
+			c.Status(http.StatusBadGateway)
+			return
+		}
+	}
 	c.Data(resp.StatusCode, "application/json", data)
 }

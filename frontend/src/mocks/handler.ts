@@ -107,7 +107,7 @@ export async function handleMockRequest(input: MockRequestInput): Promise<Respon
   }
 
   if (basePath === 'resources/workloads') {
-    return jsonResponse(mockWorkloads)
+    return jsonResponse(mockWorkloads())
   }
 
   // 4. Apps & Catalog

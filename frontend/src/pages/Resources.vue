@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { request } from '../platform/client'
 import { useHostStore } from '../platform/hostStore'
+import { formatResource, resourceState, resourceValue } from './resource-metrics.js'
 
 const hostStore = useHostStore()
 
@@ -53,42 +54,28 @@ interface NodeData {
   storage_disks?: DiskData[]
 }
 
+interface ResourceMetric {
+  value: number | null
+  request: number | null
+  limit: number | null
+  sampled_at: string | null
+  quality: string
+}
 interface WorkloadItem {
   name: string
-  display_name?: string
-  namespace?: string
-  pod_name?: string
-  node_name?: string
+  display_name: string
+  namespace: string
+  pod_uid: string
   type: string
-  status?: string
-  ready?: boolean
-  age?: string
-  restarts?: number
-  gpu_index?: number
-  gpu_total_gb?: number | string
-  gpu_used_gb?: number | string
-  gpu_percent?: number | string
-  gpu_temp_c?: number
-  gpu_power_watts?: number
-  cpu_cores_req?: number | string
-  cpu_used_millicores?: number
-  cpu_quota_badge?: string
-  cpu_util_percent?: number
-  mem_used_bytes?: number
-  mem_total_bytes?: number
-  mem_used_percent?: number
-  mem_req_gb?: number | string
+  status: string
+  age: string
+  containers: { name: string; ready: boolean; restarts: number; cpu: ResourceMetric; memory: ResourceMetric; gpu_request: number | null }[]
 }
-
 interface WorkloadsSummary {
   total_pods?: number
-  gpu_pods?: number
-  infra_pods?: number
-  total_gpu_assigned?: number
-  total_vram_used_mb?: number
-  total_cpu_req_millicores?: number
-  total_cpu_req_m?: number
-  total_mem_req_mb?: number
+  total_gpu_requested?: number
+  total_cpu_requested?: number
+  total_memory_requested?: number
 }
 
 const summary = ref<SummaryData>({
@@ -146,130 +133,11 @@ const node = ref<NodeData>({
   ]
 })
 
-const workloadsSummary = ref<WorkloadsSummary>({
-  total_pods: 5,
-  gpu_pods: 2,
-  infra_pods: 3,
-  total_gpu_assigned: 2,
-  total_vram_used_mb: 5939,
-  total_cpu_req_millicores: 18700,
-  total_mem_req_mb: 100556
-})
-
-const workloads = ref<WorkloadItem[]>([
-  {
-    name: 'video-mcp-server',
-    display_name: 'Video MCP 服务',
-    namespace: 'verdantflare',
-    pod_name: 'video-mcp-server-79d8f6cc97-q92k8',
-    node_name: 'verdentflare-5090',
-    type: 'gpu',
-    status: 'Running',
-    ready: true,
-    age: '2d 14h',
-    restarts: 0,
-    gpu_index: 1,
-    gpu_total_gb: '32',
-    gpu_used_gb: '0.0',
-    gpu_percent: '0',
-    gpu_temp_c: 41,
-    gpu_power_watts: 6,
-    cpu_cores_req: '4.0',
-    cpu_used_millicores: 120,
-    cpu_quota_badge: '已预留 4.0 核',
-    cpu_util_percent: 3,
-    mem_used_bytes: 2147483648,
-    mem_total_bytes: 17179869184,
-    mem_used_percent: 12,
-    mem_req_gb: '16.0'
-  },
-  {
-    name: 'image-mcp-server',
-    display_name: 'Image MCP 服务',
-    namespace: 'verdantflare',
-    pod_name: 'image-mcp-server-54df7f8b96-m7b6z',
-    node_name: 'verdentflare-5090',
-    type: 'gpu',
-    status: 'Running',
-    ready: true,
-    age: '2d 14h',
-    restarts: 0,
-    gpu_index: 0,
-    gpu_total_gb: '32',
-    gpu_used_gb: '5.8',
-    gpu_percent: '18.1',
-    gpu_temp_c: 48,
-    gpu_power_watts: 23,
-    cpu_cores_req: '4.0',
-    cpu_used_millicores: 280,
-    cpu_quota_badge: '已预留 4.0 核',
-    cpu_util_percent: 7,
-    mem_used_bytes: 8589934592,
-    mem_total_bytes: 17179869184,
-    mem_used_percent: 50,
-    mem_req_gb: '16.0'
-  },
-  {
-    name: 'station-core',
-    display_name: 'Station Core 控制网关',
-    namespace: 'verdantflare',
-    pod_name: 'station-core-66d5b78cf5-t8z4p',
-    node_name: 'verdentflare-5090',
-    type: 'infra',
-    status: 'Running',
-    ready: true,
-    age: '2d 14h',
-    restarts: 0,
-    cpu_cores_req: '2.0',
-    cpu_used_millicores: 65,
-    cpu_quota_badge: '已预留 2.0 核',
-    cpu_util_percent: 3,
-    mem_used_bytes: 536870912,
-    mem_total_bytes: 4294967296,
-    mem_used_percent: 12,
-    mem_req_gb: '4.0'
-  },
-  {
-    name: 'artifact-s3',
-    display_name: 'Artifact S3 存储服务',
-    namespace: 'verdantflare',
-    pod_name: 'artifact-s3-85f7f8d689-d4pmn',
-    node_name: 'verdentflare-5090',
-    type: 'infra',
-    status: 'Running',
-    ready: true,
-    age: '2d 14h',
-    restarts: 0,
-    cpu_cores_req: '1.0',
-    cpu_used_millicores: 40,
-    cpu_quota_badge: '已预留 1.0 核',
-    cpu_util_percent: 4,
-    mem_used_bytes: 268435456,
-    mem_total_bytes: 2147483648,
-    mem_used_percent: 12,
-    mem_req_gb: '2.0'
-  },
-  {
-    name: 'openclash-egress',
-    display_name: 'OpenClash 网络出口',
-    namespace: 'verdantflare',
-    pod_name: 'openclash-egress-57b8564bc7-2f6wl',
-    node_name: 'verdentflare-5090',
-    type: 'infra',
-    status: 'Running',
-    ready: true,
-    age: '2d 14h',
-    restarts: 0,
-    cpu_cores_req: '1.0',
-    cpu_used_millicores: 35,
-    cpu_quota_badge: '已预留 1.0 核',
-    cpu_util_percent: 3,
-    mem_used_bytes: 335544320,
-    mem_total_bytes: 2147483648,
-    mem_used_percent: 15,
-    mem_req_gb: '2.0'
-  }
-])
+const workloadsSummary = ref<WorkloadsSummary>({})
+const workloads = ref<WorkloadItem[]>([])
+const workloadsState = ref<'loading' | 'ready' | 'error'>('loading')
+const telemetryNow = ref(Date.now())
+let telemetryPending = false
 
 const currentFilter = ref<'all' | 'gpu' | 'infra'>('all')
 const searchQuery = ref('')
@@ -312,6 +180,8 @@ function initTheme() {
 }
 
 async function fetchTelemetry() {
+  if (telemetryPending) return
+  telemetryPending = true
   try {
     const [sRes, gRes, nRes, wRes] = await Promise.all([
       request({ path: 'resources/summary', method: 'GET' }).catch(() => null),
@@ -319,6 +189,17 @@ async function fetchTelemetry() {
       request({ path: 'resources/node', method: 'GET' }).catch(() => null),
       request({ path: 'resources/workloads', method: 'GET' }).catch(() => null)
     ])
+
+    const workloadData = wRes?.ok ? await wRes.json() : null
+    if (workloadData?.schema_version === 2 && Array.isArray(workloadData.workloads) && workloadData.summary) {
+      workloads.value = workloadData.workloads
+      workloadsSummary.value = workloadData.summary
+      workloadsState.value = 'ready'
+    } else {
+      workloads.value = []
+      workloadsSummary.value = {}
+      workloadsState.value = 'error'
+    }
 
     if (sRes && sRes.ok) {
       const data = await sRes.json()
@@ -344,27 +225,21 @@ async function fetchTelemetry() {
       }
     }
 
-    if (wRes && wRes.ok) {
-      const data = await wRes.json()
-      if (data?.summary) {
-        workloadsSummary.value = data.summary
-      }
-      if (data?.workloads && Array.isArray(data.workloads)) {
-        workloads.value = data.workloads
-      }
-    }
-  } catch {}
+  } catch {
+    workloadsState.value = 'error'
+    workloads.value = []
+    workloadsSummary.value = {}
+  } finally {
+    telemetryNow.value = Date.now()
+    telemetryPending = false
+  }
 }
 
 async function handleRefresh() {
   isRefreshing.value = true
   await fetchTelemetry()
-  showToast('遥测数据已刷新')
+  showToast(workloadsState.value === 'error' ? '工作负载遥测暂不可用，请重试' : '遥测请求已完成')
   setTimeout(() => { isRefreshing.value = false }, 500)
-}
-
-function handlePodDiag(name: string) {
-  showToast(`已获取 Pod [${name}] 调度就绪指标：DCGM + cAdvisor 状态正常`)
 }
 
 onMounted(() => {
@@ -711,219 +586,52 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <!-- 5. Workload Quota & Real Telemetry Section -->
         <section class="res-section" id="workloadSection">
-          <div class="res-section-title">
-            <div class="res-section-title-left">
-              <span>已部署工作负载与算力配额对账</span>
-              <span class="res-section-badge highlight" id="wlCountBadge">{{ workloads.length }} 个活跃容器组</span>
-              <span class="res-section-badge">DCGM + cAdvisor 实时同频</span>
-              <span class="res-section-badge amber" style="background:rgba(181,128,50,0.12); color:#b58032; border-color:rgba(181,128,50,0.3);">动态防爆审计就绪</span>
-            </div>
-            <span class="eyebrow">CONTAINER LEVEL QUOTA & ACTUAL IN-USE</span>
-          </div>
-
+          <div class="res-section-title"><div class="res-section-title-left">
+            <span>已部署工作负载与容器用量</span>
+            <span class="res-section-badge">Kubernetes 配置 · metrics-server 采样</span>
+          </div></div>
           <div class="workloads-container">
-            <!-- Summary strip -->
-            <div class="quota-summary-strip" id="quotaSummaryStrip">
-              <div class="quota-item">
-                <span class="quota-item-lbl">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
-                  GPU 卡分配率 (Quotas)
-                </span>
-                <div class="quota-item-val" id="quotaGpuVal">
-                  {{ workloadsSummary.total_gpu_assigned || 2 }} / 2 卡 <small>(100% 绑定)</small>
+            <p v-if="workloadsState === 'loading'" role="status">正在读取工作负载…</p>
+            <p v-else-if="workloadsState === 'error'" role="alert">工作负载遥测暂不可用，请刷新重试。</p>
+            <template v-else>
+              <div class="quota-summary-strip">
+                <div class="quota-item"><span class="quota-item-lbl">容器组</span><div class="quota-item-val">{{ workloadsSummary.total_pods ?? '—' }}</div></div>
+                <div class="quota-item"><span class="quota-item-lbl">活跃 Pod GPU 请求（非实际分配）</span><div class="quota-item-val">{{ workloadsSummary.total_gpu_requested ?? '—' }}</div></div>
+                <div class="quota-item"><span class="quota-item-lbl">活跃 Pod CPU 请求</span><div class="quota-item-val">{{ formatResource(workloadsSummary.total_cpu_requested) }}</div></div>
+                <div class="quota-item"><span class="quota-item-lbl">活跃 Pod 内存请求</span><div class="quota-item-val">{{ formatResource(workloadsSummary.total_memory_requested, 'bytes') }}</div></div>
+              </div>
+              <div class="workload-filters">
+                <div class="workload-tabs">
+                  <button class="workload-tab-btn" :class="{active:currentFilter === 'all'}" @click="currentFilter = 'all'">全部</button>
+                  <button class="workload-tab-btn" :class="{active:currentFilter === 'gpu'}" @click="currentFilter = 'gpu'">配置 GPU</button>
+                  <button class="workload-tab-btn" :class="{active:currentFilter === 'infra'}" @click="currentFilter = 'infra'">未配置 GPU</button>
                 </div>
-                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" style="width: 100%;"></div></div>
+                <div class="workload-search"><input v-model="searchQuery" type="search" aria-label="搜索工作负载" placeholder="搜索应用或命名空间"></div>
               </div>
-
-              <div class="quota-item">
-                <span class="quota-item-lbl">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
-                  显存实际占用 (In-Use VRAM)
-                </span>
-                <div class="quota-item-val" id="quotaVramVal">
-                  {{ ((workloadsSummary.total_vram_used_mb || 5939) / 1024).toFixed(1) }} / 64 GB <small>(9.1% 水位)</small>
-                </div>
-                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" style="width: 9.1%;"></div></div>
-              </div>
-
-              <div class="quota-item">
-                <span class="quota-item-lbl">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
-                  CPU 申请配额 (Requests)
-                </span>
-                <div class="quota-item-val" id="quotaCpuVal">
-                  {{ ((workloadsSummary.total_cpu_req_millicores || 18700) / 1000).toFixed(1) }} / 24 核 <small>(77.9% 预留)</small>
-                </div>
-                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" style="width: 77.9%;"></div></div>
-              </div>
-
-              <div class="quota-item">
-                <span class="quota-item-lbl">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7h20v10H2z"></path></svg>
-                  内存申请配额 (Requests)
-                </span>
-                <div class="quota-item-val" id="quotaMemVal">
-                  {{ ((workloadsSummary.total_mem_req_mb || 100556) / 1024).toFixed(1) }} / 256 GB <small>(38.4% 预留)</small>
-                </div>
-                <div class="quota-mini-meter"><div class="quota-mini-meter-fill" style="width: 38.4%;"></div></div>
-              </div>
-            </div>
-
-            <!-- Filter and search bar -->
-            <div class="workload-filters">
-              <div class="workload-tabs">
-                <button type="button"
-                        class="workload-tab-btn"
-                        :class="{ active: currentFilter === 'all' }"
-                        @click="currentFilter = 'all'">全部工作负载 ({{ workloads.length }})</button>
-                <button type="button"
-                        class="workload-tab-btn"
-                        :class="{ active: currentFilter === 'gpu' }"
-                        @click="currentFilter = 'gpu'">GPU 创作应用 ({{ workloads.filter(w => w.type === 'gpu').length }})</button>
-                <button type="button"
-                        class="workload-tab-btn"
-                        :class="{ active: currentFilter === 'infra' }"
-                        @click="currentFilter = 'infra'">平台与基础设施 ({{ workloads.filter(w => w.type === 'infra').length }})</button>
-              </div>
-              <div class="workload-search">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input type="text"
-                       v-model="searchQuery"
-                       placeholder="过滤 Pod、应用名称或命名空间...">
-              </div>
-            </div>
-
-            <!-- Workload cards list -->
-            <div class="workload-list" id="workloadList">
-              <article v-for="wl in filteredWorkloads"
-                       :key="wl.name"
-                       class="wl-card"
-                       :class="{ 'has-gpu': wl.type === 'gpu' }"
-                       :data-type="wl.type"
-                       :data-name="wl.name">
-                <div class="wl-head">
-                  <div class="wl-id-group">
-                    <div class="wl-app-icon">
-                      <svg v-if="wl.name.includes('video')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                      </svg>
-                      <svg v-else-if="wl.name.includes('image')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                      </svg>
-                    </div>
-                    <div class="wl-title-box">
-                      <div class="wl-title-row">
-                        <span class="wl-name">{{ wl.display_name || wl.name }}</span>
-                        <span class="wl-namespace">{{ wl.namespace || 'verdantflare' }}</span>
-                        <span v-if="wl.type === 'gpu'" class="res-section-badge highlight">GPU 物理直通绑定</span>
+              <p v-if="!workloads.length">暂无工作负载。</p>
+              <p v-else-if="!filteredWorkloads.length">没有符合筛选条件的工作负载。</p>
+              <div class="workload-list">
+                <article v-for="wl in filteredWorkloads" :key="wl.pod_uid" class="wl-card" :class="{'has-gpu':wl.type === 'gpu'}">
+                  <div class="wl-head">
+                    <div class="wl-title-box"><div class="wl-title-row"><span class="wl-name">{{ wl.display_name || wl.name }}</span><span class="wl-namespace">{{ wl.namespace }}</span></div><span class="wl-pod-id">{{ wl.name }}</span></div>
+                    <div class="wl-meta-right"><span class="wl-uptime">{{ wl.age }}</span><span class="wl-status-tag">{{ wl.status }}</span></div>
+                  </div>
+                  <div v-for="container in wl.containers" :key="container.name">
+                    <div class="wl-foot"><span>{{ container.name }} · {{ container.ready ? '就绪' : '未就绪' }} · 重启 {{ container.restarts }} 次</span></div>
+                    <div class="wl-metrics-grid">
+                      <div v-for="kind in (['cpu', 'memory'] as const)" :key="kind" class="wl-metric-cell">
+                        <div class="wl-cell-title">{{ kind === 'cpu' ? 'CPU 使用' : '内存工作集' }}</div>
+                        <div class="wl-actual-val">{{ resourceValue(container[kind], kind === 'cpu' ? 'cores' : 'bytes', telemetryNow) }}</div>
+                        <div class="wl-metric-footnote">请求 {{ formatResource(container[kind].request, kind === 'cpu' ? 'cores' : 'bytes') }} · 上限 {{ formatResource(container[kind].limit, kind === 'cpu' ? 'cores' : 'bytes') }}</div>
+                        <div class="wl-metric-footnote">{{ resourceState(container[kind], telemetryNow) === 'fresh' ? '采样 ' + new Date(container[kind].sampled_at!).toLocaleString('zh-CN') : resourceState(container[kind], telemetryNow) === 'stale' ? '采样已过期' : '未采集' }}</div>
                       </div>
-                      <span class="wl-pod-id">Pod: {{ wl.pod_name || wl.name }} · 节点: {{ wl.node_name || 'verdentflare-5090' }}</span>
+                      <div class="wl-metric-cell"><div class="wl-cell-title">GPU 配置请求</div><div class="wl-actual-val">{{ container.gpu_request ?? '—' }}</div><div class="wl-metric-footnote">实际设备分配与显存用量待绑定确认</div></div>
                     </div>
                   </div>
-                  <div class="wl-meta-right">
-                    <span class="wl-uptime">运行 {{ wl.age || '2d 14h' }} · 重启 {{ wl.restarts || 0 }} 次</span>
-                    <span class="wl-status-tag" :class="{ ok: wl.status === 'Running' || wl.status === 'Ready' }">
-                      <i class="gpu-dot"></i> {{ wl.status || '就绪' }} (Ready 1/1)
-                    </span>
-                  </div>
-                </div>
-
-                <div class="wl-metrics-grid">
-                  <!-- GPU / VRAM Cell -->
-                  <div class="wl-metric-cell">
-                    <div class="wl-cell-title">
-                      <span>GPU / 显存占用</span>
-                      <span class="quota-badge" :class="{ 'highlight-green': wl.type === 'gpu' }">
-                        {{ wl.type === 'gpu' ? '申请 1 卡 (物理直通)' : '无 GPU 绑定' }}
-                      </span>
-                    </div>
-                    <div class="wl-cell-val-row">
-                      <div class="wl-actual-val">
-                        {{ wl.type === 'gpu' ? (wl.gpu_used_gb || '0.0') : '0.0' }} <small>{{ wl.type === 'gpu' ? 'GB 实际占用' : 'MB 显存' }}</small>
-                      </div>
-                      <span class="wl-req-tag">
-                        {{ wl.type === 'gpu' ? `占分配卡 ${wl.gpu_percent || 0}%` : '申请 0 卡 (CPU 密集型)' }}
-                      </span>
-                    </div>
-                    <div class="wl-progress-track">
-                      <div class="wl-progress-fill" :style="{ width: (wl.type === 'gpu' ? (wl.gpu_percent || 0) : 0) + '%' }"></div>
-                    </div>
-                    <div class="wl-metric-footnote">
-                      <span>{{ wl.type === 'gpu' ? `GPU ${wl.gpu_index ?? 0}: RTX 5090 (${wl.gpu_temp_c || 42}°C)` : 'CPU 守护容器' }}</span>
-                      <span>{{ wl.type === 'gpu' ? `功耗 ${wl.gpu_power_watts || 15}W` : '解耦 GPU' }}</span>
-                    </div>
-                  </div>
-
-                  <!-- CPU Cell -->
-                  <div class="wl-metric-cell">
-                    <div class="wl-cell-title">
-                      <span>CPU 算力配额</span>
-                      <span class="quota-badge">{{ wl.cpu_quota_badge || `已预留 ${wl.cpu_cores_req || '1.0'} 核` }}</span>
-                    </div>
-                    <div class="wl-cell-val-row">
-                      <div class="wl-actual-val">
-                        {{ wl.cpu_used_millicores || 80 }}m <small>({{ ((wl.cpu_used_millicores || 80) / 1000).toFixed(2) }} 核)</small>
-                      </div>
-                      <span class="wl-req-tag">请求 {{ wl.cpu_cores_req || '2.0' }} 核</span>
-                    </div>
-                    <div class="wl-progress-track">
-                      <div class="wl-progress-fill" :style="{ width: (wl.cpu_util_percent || 5) + '%' }"></div>
-                    </div>
-                    <div class="wl-metric-footnote">
-                      <span>利用率 {{ wl.cpu_util_percent || 5 }}%</span>
-                      <span>实时 cAdvisor</span>
-                    </div>
-                  </div>
-
-                  <!-- RAM Cell -->
-                  <div class="wl-metric-cell">
-                    <div class="wl-cell-title">
-                      <span>内存实际占用 (RSS)</span>
-                      <span class="quota-badge">配额 {{ wl.mem_req_gb || '4.0' }} GB</span>
-                    </div>
-                    <div class="wl-cell-val-row">
-                      <div class="wl-actual-val">
-                        {{ (wl.mem_used_bytes ? (wl.mem_used_bytes / (1024**3)) : 1.5).toFixed(1) }} <small>GB 驻留内存</small>
-                      </div>
-                      <span class="wl-req-tag">申请 {{ wl.mem_req_gb || '4.0' }} GB</span>
-                    </div>
-                    <div class="wl-progress-track">
-                      <div class="wl-progress-fill" :style="{ width: (wl.mem_used_percent || 25) + '%' }"></div>
-                    </div>
-                    <div class="wl-metric-footnote">
-                      <span>占比配额 {{ wl.mem_used_percent || 25 }}%</span>
-                      <span>零换页保障</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="wl-foot">
-                  <div class="wl-foot-left">
-                    <span v-if="wl.type === 'gpu'" class="wl-tag-chip">CUDA_VISIBLE_DEVICES={{ wl.gpu_index ?? 0 }}</span>
-                    <span v-if="wl.type === 'gpu'" class="wl-tag-chip">直通设备: RTX 5090</span>
-                    <span v-if="wl.type === 'gpu'" class="wl-tag-chip">显存余量: {{ (32 - parseFloat(String(wl.gpu_used_gb || 0))).toFixed(1) }} GB 完全就绪</span>
-                    <span v-else class="wl-tag-chip">无 GPU 绑定</span>
-                    <span class="wl-tag-chip">节点: {{ wl.node_name || 'verdentflare-5090' }}</span>
-                    <span class="wl-tag-chip">就绪待命</span>
-                  </div>
-                  <div class="wl-foot-right">
-                    <button class="wl-btn-detail" type="button" @click="handlePodDiag(wl.name)">查看 Pod 诊断</button>
-                  </div>
-                </div>
-              </article>
-            </div>
+                </article>
+              </div>
+            </template>
           </div>
         </section>
       </div>

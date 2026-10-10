@@ -58,5 +58,6 @@ func (s *Server) authenticateMCP(c *gin.Context) (project.Principal, bool) {
 		mcprpc.Reject(c.Writer, c.Request, empty, 403, -32000, "Identity header mismatch")
 		return project.Principal{}, false
 	}
+	c.Set("verifiedStationToken", token)
 	return principal, true
 }

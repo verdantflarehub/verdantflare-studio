@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from "vue"
 import { mountMarket } from "./market"
+import "../theme/blender-management.css"
 import '../theme/comfyui-management.css'
 
 let dispose: (() => void) | undefined
@@ -82,18 +83,24 @@ onBeforeUnmount(() => dispose?.())
       <section id="blenderHost" hidden>
         <div class="blender-header">
           <nav id="blenderBreadcrumb" class="blender-breadcrumb" aria-label="面包屑"></nav>
+          <button id="blenderCreate" class="btn primary" disabled title="实例创建暂未开放" hidden>创建实例</button>
+          <a id="blenderManageLink" class="btn" hidden>实例详情</a>
           <div id="blenderToolbar" class="blender-toolbar" hidden>
             <button class="btn" id="blenderRelease">释放控制权</button>
             <button class="btn primary" id="blenderSave">保存工程</button>
             <button class="btn" id="blenderCopy">复制 MCP 地址</button>
           </div>
         </div>
-        <section id="blenderList" class="blender-list" aria-label="Blender 实例" hidden>
-          <div class="blender-list-toolbar"><span id="blenderCount"></span><input id="blenderSearch" type="search" placeholder="搜索实例" aria-label="搜索 Blender 实例"></div>
-          <table id="blenderTable"><thead><tr><th scope="col">实例</th><th scope="col">权限</th><th scope="col">操作</th></tr></thead><tbody id="blenderRows"></tbody></table>
+        <section id="blenderList" class="blender-management" aria-label="Blender 实例" hidden>
+          <div class="intro"><div><h1>你的创作环境</h1><p>独立的 Blender 工作区，项目与计算资源在这里管理。</p></div><button class="btn" id="blenderRefresh">刷新</button></div>
+          <dl id="blenderSummary" class="summary panel" hidden></dl>
+          <div class="filterbar"><div id="blenderFilters" class="filters" aria-label="运行状态筛选"><button class="filter" data-status="all" aria-pressed="true">全部</button><button class="filter" data-status="running" aria-pressed="false">运行中</button><button class="filter" data-status="stopped" aria-pressed="false">已停止</button><button class="filter" data-status="failed" aria-pressed="false">异常</button></div><label class="search"><span class="sr-only">搜索实例或项目</span><input id="blenderSearch" type="search" placeholder="搜索实例或项目" aria-label="搜索实例或项目"></label></div>
+          <div id="blenderRows" class="instance-stack"></div>
           <p id="blenderListMessage" role="status" hidden></p>
           <button id="blenderListRetry" class="btn" hidden>重试</button>
         </section>
+        <section id="blenderDetail" class="blender-management" aria-label="Blender 实例详情" hidden></section>
+          <section id="blenderCreateView" class="blender-management" aria-label="创建 Blender 实例" hidden></section>
         <section id="blenderWorkspace" hidden>
           <div id="blenderViewport" class="blender-viewport">
             <div id="blenderLoading" class="blender-loading">

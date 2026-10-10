@@ -69,62 +69,24 @@ export const mockNode = {
   }
 }
 
-export const mockWorkloads = {
-  summary: {
-    total_pods: 6,
-    gpu_pods: 2,
-    infra_pods: 4,
-    total_gpu_assigned: 2,
-    total_vram_used_mb: 18432,
-    total_cpu_req_millicores: 16000,
-    total_mem_req_mb: 32768
-  },
-  workloads: [
-    {
-      name: 'image-mcp-server-pod-01',
-      display_name: 'Image MCP 工作台',
-      type: 'gpu',
-      status: 'Running',
-      gpu_count_req: 1,
-      vram_used_mb: 12288,
-      cpu_cores_req: 4,
-      mem_used_mb: 16384,
-      mount_point: '/data/models/flux'
-    },
-    {
-      name: 'video-mcp-server-pod-01',
-      display_name: 'Video MCP 任务分派器',
-      type: 'gpu',
-      status: 'Ready',
-      gpu_count_req: 1,
-      vram_used_mb: 6144,
-      cpu_cores_req: 4,
-      mem_used_mb: 8192,
-      mount_point: '/data/models/wan'
-    },
-    {
-      name: 'station-core-runtime',
-      display_name: 'Station Core 调度核心',
-      type: 'infra',
-      status: 'Running',
-      gpu_count_req: 0,
-      vram_used_mb: 0,
-      cpu_cores_req: 2,
-      mem_used_mb: 2048,
-      mount_point: ''
-    },
-    {
-      name: 'openclash-egress-gateway',
-      display_name: 'OpenClash 海外网络出口',
-      type: 'infra',
-      status: 'Running',
-      gpu_count_req: 0,
-      vram_used_mb: 0,
-      cpu_cores_req: 1,
-      mem_used_mb: 1024,
-      mount_point: ''
-    }
-  ]
+// Used only when the user explicitly enables mock mode; never a live fallback.
+export function mockWorkloads() {
+  const sampled_at = new Date().toISOString()
+  return {
+    schema_version: 2,
+    updated_at: sampled_at,
+    summary: { total_pods: 1, gpu_pods: 1, infra_pods: 0, total_gpu_requested: 1, total_cpu_requested: 2, total_memory_requested: 4294967296 },
+    workloads: [{
+      name: 'blender-example', display_name: '示例 Blender · 非真实遥测', namespace: 'verdantflare-example',
+      pod_name: 'blender-example', pod_uid: 'mock-pod-uid', instance_alias: 'blenderExample',
+      status: 'Running', age: '示例', type: 'gpu', created_at: sampled_at,
+      containers: [{
+        name: 'blender', ready: true, restarts: 0, gpu_request: 1, gpu_limit: 1,
+        cpu: { value: 0.25, request: 2, limit: 8, sampled_at, quality: 'fresh', scope: 'instance_container', unit: 'cores' },
+        memory: { value: 1610612736, request: 4294967296, limit: 17179869184, sampled_at, quality: 'fresh', scope: 'instance_container', unit: 'bytes' }
+      }]
+    }]
+  }
 }
 
 export const mockHealth = {

@@ -42,6 +42,13 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Set-Cookie", "internal-secret=do-not-forward")
+		if strings.HasPrefix(r.URL.Path, "/internal/instance-") || r.URL.Path == "/internal/instances" || r.URL.Path == "/internal/instances/blenderA/start" {
+			if r.Method == "POST" {
+				w.WriteHeader(202)
+			}
+			_, _ = w.Write([]byte(`{"phase":"accepted"}`))
+			return
+		}
 		if r.Method != "POST" {
 			w.WriteHeader(405)
 			_, _ = w.Write([]byte(`{"code":"POST_ONLY"}`))
@@ -109,6 +116,42 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 	if call("GET", "/mcp/blenderA", "real-session", "", nil).Code != 405 {
 		t.Fatal("method capability not preserved")
 	}
+	operation := id()
+	for _, tc := range []struct {
+		method, path, target, body string
+		status                     int
+	}{
+		{"POST", "/studio/apps/blender/instances", "/internal/instances", `{"name":"Create"}`, 202},
+		{"POST", "/studio/apps/blender/instance-projects", "/internal/instance-projects", `{}`, 202},
+		{"POST", "/studio/apps/blender/instance-source", "/internal/instance-source", `{}`, 202},
+		{"POST", "/studio/apps/blender/instance-project-create", "/internal/instance-project-create", `{}`, 202},
+		{"POST", "/studio/apps/blender/instances/blenderA/start", "/internal/instances/blenderA/start", `{"expected_version":2,"idempotency_key":"start-key"}`, 202},
+		{"GET", "/studio/apps/blender/instance-options", "/internal/instance-options", "", 200},
+		{"GET", "/studio/apps/blender/instance-operations/" + operation, "/internal/instance-operations/" + operation, "", 200},
+	} {
+		w := call(tc.method, tc.path, "real-session", tc.body, nil)
+		if w.Code != tc.status || received[len(received)-1].URL.Path != tc.target || bodies[len(bodies)-1] != tc.body {
+			t.Fatal("management forwarding failed", tc.path, w.Code)
+		}
+	}
+	count := len(received)
+	for _, tc := range []struct {
+		method, path, body string
+		extra              map[string]string
+		status             int
+	}{
+		{"POST", "/studio/apps/blender/instances?target=other", `{}`, nil, 400},
+		{"POST", "/studio/apps/blender/instances", `{}`, map[string]string{"Content-Type": "text/plain"}, 415},
+		{"POST", "/studio/apps/blender/instances", strings.Repeat("x", 16385), nil, 413},
+		{"GET", "/studio/apps/blender/instance-operations/invalid", "", nil, 404},
+		{"POST", "/studio/apps/blender/instances/invalid/start", `{}`, nil, 404},
+		{"POST", "/studio/apps/blender/instances/blenderA/start?target=other", `{}`, nil, 400},
+		{"POST", "/studio/apps/blender/instances/blenderA/start", strings.Repeat("x", 16385), nil, 413},
+	} {
+		if w := call(tc.method, tc.path, "real-session", tc.body, tc.extra); w.Code != tc.status || len(received) != count {
+			t.Fatal("invalid management request forwarded", tc.path, w.Code)
+		}
+	}
 	before := len(received)
 	if call("POST", "/mcp/blenderA", "real-session", body, map[string]string{"X-User-Id": id()}).Code != 403 {
 		t.Fatal("spoofed identity accepted")
@@ -117,6 +160,9 @@ func TestBlenderProxyIdentityIsolationAndProtocol(t *testing.T) {
 		t.Fatal("query override accepted")
 	}
 	revoked = true
+	if call("POST", "/studio/apps/blender/instances", "real-session", `{}`, nil).Code != 401 {
+		t.Fatal("management ignored revocation")
+	}
 	if call("POST", "/mcp/blenderA", "real-session", body, nil).Code != 401 {
 		t.Fatal("revocation ignored")
 	}
