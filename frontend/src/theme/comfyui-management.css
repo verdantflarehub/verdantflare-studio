@@ -40,3 +40,13 @@
 @media(max-width:1180px){.comfyui-management .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}}
 @media(max-width:760px){.comfyui-management .instance-body{grid-template-columns:1fr}.comfyui-management .instance-context{border-right:0;border-bottom:1px solid var(--line)}.comfyui-management .instance-context,.comfyui-management .resource-area{padding:18px}.comfyui-management .instance-top{padding:18px;flex-wrap:wrap}.comfyui-management .resource-heading{align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:18px}.comfyui-management .metrics{gap:20px 14px}.comfyui-management .instance-bottom{padding:18px}.comfyui-management h1{font-size:22px}}
 @media(max-width:760px){.main.comfyui-editor-active{padding:10px 8px 8px}.comfyui-editor-active #comfyuiHost{gap:8px}.comfyui-editor-active .comfyui-editor-status{max-width:100%}}
+
+@media(max-width:768px){
+ body:has(.comfyui-editor-active) .side{overflow-x:hidden}
+ body:has(.comfyui-editor-active) .side-brand{padding:0 10px 18px;justify-content:center}
+ body:has(.comfyui-editor-active) .side-cluster-card,body:has(.comfyui-editor-active) .side-user-info,body:has(.comfyui-editor-active) .side-help-link{display:none}
+ body:has(.comfyui-editor-active) .side-create-btn{padding:0;min-height:36px;justify-content:center}
+ body:has(.comfyui-editor-active) .nav-link{padding:0;justify-content:center;flex-shrink:0}
+ body:has(.comfyui-editor-active) .nav-link .nav-icon{display:inline-flex}
+ body:has(.comfyui-editor-active) .side-user-card{padding:7px;justify-content:center}
+}
