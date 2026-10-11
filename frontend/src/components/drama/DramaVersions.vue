@@ -7,10 +7,10 @@ import DramaDocument from './DramaDocument.vue'
 import DramaFile from './DramaFile.vue'
 const props = defineProps<{ reader: ProjectReader; versions: DramaVersion[]; selections?: DramaSelection[]; selectedKey?: string | null; materialMode?: boolean }>()
 const route = useRoute(), router = useRouter()
-const purposeName: Record<string, string> = { whitebox: '白模工程', lighting: '环境与灯光方案', storyboard: '分镜图', keyframe: '关键帧', segment_video: '片段视频', shot_video: '整镜视频', video: '视频', image: '图像', preview: '预览', audio: '音频', project: '可编辑工程', subtitle: '字幕' }
+const purposeName: Record<string, string> = { whitebox: '白模工程', lighting: '环境与灯光方案', storyboard: '分镜图', keyframe: '关键帧', segment_video: '片段视频', shot_video: '整镜视频', video: '视频', image: '图像', preview: '预览', audio: '音频', project: '可编辑工程', subtitle: '字幕', text_layer: '后期字层' }
 const selectedKeys = computed(() => new Set([props.selectedKey, ...(props.selections || []).map(s => s.version_key)].filter(Boolean)))
 const version = computed(() => route.query.version ? props.versions.find(v => v.key === route.query.version) : props.versions.find(v => selectedKeys.value.has(v.key)) || props.versions.at(-1))
-const comparable = computed(() => props.versions.filter(v => v.key !== version.value?.key && v.state_key === version.value?.state_key && v.purpose === version.value?.purpose && v.segment_key === version.value?.segment_key))
+const comparable = computed(() => props.versions.filter(v => v.key !== version.value?.key && v.state_key === version.value?.state_key && v.purpose === version.value?.purpose && [...new Set(v.file_refs.map(f => f.purpose))].sort().join('/') === [...new Set(version.value?.file_refs.map(f => f.purpose))].sort().join('/') && v.segment_key === version.value?.segment_key))
 const comparison = computed(() => comparable.value.find(v => v.key === route.query.compare))
 const displayed = computed(() => [version.value, comparison.value].filter((v): v is DramaVersion => !!v))
 const reviewName = (state: string) => ({ unreviewed: '未审核', in_review: '审核中', approved: '此版已有审核记录', rejected: '需修改' }[state] || '未审核')
