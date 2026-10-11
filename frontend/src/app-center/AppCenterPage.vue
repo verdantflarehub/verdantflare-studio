@@ -98,12 +98,13 @@ async function perform(card: AppCenterCard, actionId: string) {
     const view = store.state.value
     if (!view) return
     try {
-      if (new URLSearchParams(location.search).get('host') === 'desktop') throw new Error('HOST_UNSUPPORTED')
       const opened = await legacyClient.open(view, card, AbortSignal.timeout(30000))
-      if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
-      store.pinOpen(card.cardKey, card.bindingRevision)
-      const failed = await router.push(legacyLocation(opened, card.cardKey))
-      if (failed) store.takeOpenBinding(card.cardKey)
+      try {
+        if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
+        store.pinOpen(card.cardKey, card.bindingRevision)
+        const failed = await router.push(legacyLocation(opened, card.cardKey))
+        if (failed) store.takeOpenBinding(card.cardKey)
+      } finally { void legacyClient.close(opened) }
     } catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_OPEN_UNAVAILABLE') }
     return
   }

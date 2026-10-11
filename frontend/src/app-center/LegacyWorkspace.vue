@@ -18,7 +18,8 @@ let generation = 0, pending: AbortController | undefined
 const identity = computed(() => JSON.stringify([host.connected, host.identity.user_id, host.identity.organization_id, host.identity.station_id,
   host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]))
 const active = computed(() => !!props.target || !!props.routeError)
-function fail(errorValue: unknown) { error.value = errorValue instanceof Error ? errorValue.message : 'APPCENTER_OPEN_UNAVAILABLE'; selection.value = null }
+function clearSelection() { if (selection.value) void client.close(selection.value.opened); selection.value = null }
+function fail(errorValue: unknown) { error.value = errorValue instanceof Error ? errorValue.message : 'APPCENTER_OPEN_UNAVAILABLE'; clearSelection() }
 async function authorize() {
   const selected = selection.value
   if (!selected) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
@@ -56,15 +57,14 @@ watch(() => [props.target?.route, props.target?.cardKey, props.routeError, ident
   pending?.abort(); pending = new AbortController()
   const previous = selection.value
   if (previous && (previous.identity !== identity.value || target?.adapterId !== previous.opened.adapterId
-    || target.cardKey && target.cardKey !== previous.card.cardKey || props.routeError)) selection.value = null
+    || target.cardKey && target.cardKey !== previous.card.cardKey || props.routeError)) clearSelection()
   const controller = pending
-  if (!active.value) { selection.value = null; error.value = ''; loading.value = false; return }
+  if (!active.value) { clearSelection(); error.value = ''; loading.value = false; return }
   error.value = ''; loading.value = true
+  let opened: LegacyOpened | undefined, adopted = false
   try {
     if (props.routeError) throw new Error(props.routeError)
     if (!target || !host.connected) throw new Error('UNAUTHENTICATED')
-    // Legacy proxy streams need separate desktop forwarding and CSP validation.
-    if (new URLSearchParams(location.search).get('host') === 'desktop') throw new Error('HOST_UNSUPPORTED')
     await store.refresh()
     if (epoch !== generation || controller.signal.aborted) return
     const view = store.state.value
@@ -72,13 +72,14 @@ watch(() => [props.target?.route, props.target?.cardKey, props.routeError, ident
     const card = selectLegacyCard(view, target), expected = store.takeOpenBinding(card.cardKey)
     if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
     if (!store.canExecute(card.cardKey, 'open', card.bindingRevision)) throw new Error(card.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
-    const opened = await client.open(view, card, AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]))
+    opened = await client.open(view, card, AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]))
     if (epoch !== generation || controller.signal.aborted) return
     const current = store.state.value
     if (!current || JSON.stringify(current.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, 'open', card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
-    selection.value = { card, opened, route: target.route, scope: JSON.stringify(view.scope), identity: identity.value }
+    clearSelection()
+    selection.value = { card, opened, route: target.route, scope: JSON.stringify(view.scope), identity: identity.value }; adopted = true
   } catch (e) { if (epoch === generation) fail(e) }
-  finally { if (epoch === generation) loading.value = false }
+  finally { if (opened && !adopted) void client.close(opened); if (epoch === generation) loading.value = false }
 }, { immediate: true, flush: 'sync' })
 watch(() => store.state.value, view => {
   const selected = selection.value
@@ -86,7 +87,7 @@ watch(() => store.state.value, view => {
     pending?.abort(); generation++; loading.value = false; fail(new Error('APPCENTER_BINDING_CHANGED'))
   }
 })
-onBeforeUnmount(() => { generation++; pending?.abort(); selection.value = null })
+onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 </script>
 
 <template>
@@ -97,7 +98,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); selection.value = null }
     <div v-if="error" class="panel legacy-error" role="alert"><p>{{ reasonLabel(error) }}</p><button class="btn" @click="retry++">重试</button></div>
     <template v-if="selection">
       <LegacyBlenderHost v-if="selection.opened.adapterId === 'blender-host-v1'" :key="selection.card.bindingRevision" :route="selection.route" :authorize="authorize" @navigate="navigate" />
-      <LegacyMediaHost v-else :key="selection.card.bindingRevision" :adapter-id="selection.opened.adapterId" :route="selection.route" :title="selection.card.display.name" :authorize="authorize" @navigate="navigate" @error="fail" />
+      <LegacyMediaHost v-else :key="selection.card.bindingRevision" :adapter-id="selection.opened.adapterId" :resource-base="selection.opened.resourceBase" :route="selection.route" :title="selection.card.display.name" :authorize="authorize" @navigate="navigate" @error="fail" @reconnect="retry++" />
     </template>
   </div></main>
 </template>

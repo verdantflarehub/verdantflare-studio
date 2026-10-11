@@ -43,6 +43,7 @@ func TestImageIsolation(t *testing.T) {
 			t.Error("host cookie leaked")
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", `"image-fixture"`)
 		w.Write([]byte(`{"ok":true}`))
 	}))
 	defer upstream.Close()
@@ -82,5 +83,8 @@ func TestImageIsolation(t *testing.T) {
 	cookie := login()
 	if w := call("GET", "/apps/image/api/tasks", "https://studio.example", cookie); w.Code != 200 {
 		t.Fatalf("expected 200 for authenticated API, got %d", w.Code)
+	}
+	if w := call("GET", "/studio/apps/image/api/tasks", "https://studio.example", cookie); w.Header().Get("ETag") != `"image-fixture"` {
+		t.Fatal("gateway dropped the upstream entity validator")
 	}
 }

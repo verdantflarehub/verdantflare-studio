@@ -38,6 +38,10 @@ func (s *Session) valid() bool {
 	return c.authenticated && c.epoch == s.epoch
 }
 
+// Active lets Go-owned workspace registries retire handles after login changes.
+// It is a lifetime check, never a substitute for remote authorization.
+func (s *Session) Active() bool { return s.valid() }
+
 type sessionBody struct {
 	reader  io.Reader
 	closer  io.Closer

@@ -3,7 +3,7 @@ import type { AppCenterCard, AppCenterView } from './schema.generated'
 
 export type LegacyAdapterID = 'image-iframe-v1' | 'video-iframe-v1' | 'blender-host-v1'
 export interface LegacyTarget { adapterId: LegacyAdapterID; route: string; cardKey?: string }
-export interface LegacyOpened { schemaVersion: 1; transport: 'legacy'; adapterId: LegacyAdapterID; bindingId: string; bindingRevision: string; route: string }
+export interface LegacyOpened { schemaVersion: 1; transport: 'legacy'; adapterId: LegacyAdapterID; bindingId: string; bindingRevision: string; route: string; resourceBase?: string }
 const id = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 const mediaPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/
 const invalid = (): never => { throw new AppCenterError(400, 'INVALID_LEGACY_ROUTE') }
@@ -52,14 +52,23 @@ export function selectLegacyCard(view: AppCenterView, target: LegacyTarget): App
   return matches[0]
 }
 
-export function createLegacyClient(fetcher: typeof fetch = fetch) {
-  return { async open(view: AppCenterView, card: AppCenterCard, signal?: AbortSignal): Promise<LegacyOpened> {
+const desktopWorkspace = /^\/studio\/legacy-media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+export function createLegacyClient(fetcher: typeof fetch = fetch, desktop = typeof location !== 'undefined' && new URLSearchParams(location.search).get('host') === 'desktop') {
+  async function close(opened: Pick<LegacyOpened, 'resourceBase'>): Promise<void> {
+    if (!desktop || !opened.resourceBase || !desktopWorkspace.test(opened.resourceBase)) return
+    await fetcher(opened.resourceBase, { method: 'DELETE', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000) }).catch(() => undefined)
+  }
+  return { close, async open(view: AppCenterView, card: AppCenterCard, signal?: AbortSignal): Promise<LegacyOpened> {
     const entry = card.entry
     if (!entry || entry.transport !== 'legacy') throw new AppCenterError(409, 'APPCENTER_OPEN_UNAVAILABLE')
-    const response = await fetcher('/studio/appcenter/v1/open', { method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
+    if (desktop && !['image-iframe-v1', 'video-iframe-v1'].includes(entry.entryId)) throw new AppCenterError(409, 'HOST_UNSUPPORTED')
+    const response = await fetcher(desktop ? '/studio/legacy-media' : '/studio/appcenter/v1/open', { method: 'POST', credentials: desktop ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error', signal,
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schemaVersion: 1, cardKey: card.cardKey, entryId: entry.entryId,
         expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }) })
-    if (!response.body || response.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
+    const resourceBase = desktop ? '/studio/legacy-media/' + response.headers.get('X-Studio-Legacy-Workspace') : undefined
+    if (!response.body || response.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') {
+      await close({ resourceBase }); throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
+    }
     const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true })
     let length = 0, text = ''
     try {
@@ -70,14 +79,15 @@ export function createLegacyClient(fetcher: typeof fetch = fetch) {
       const value = JSON.parse(text)
       if (signal?.aborted) throw new AppCenterError(408, 'REQUEST_CANCELLED')
       if (!response.ok) throw new AppCenterError(response.status, typeof value?.code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(value.code) ? value.code : 'APPCENTER_OPEN_UNAVAILABLE')
+      if (desktop && (!resourceBase || !desktopWorkspace.test(resourceBase))) throw new AppCenterError(409, 'HOST_UNSUPPORTED')
       if (!value || Object.keys(value).sort().join(',') !== 'adapterId,bindingId,bindingRevision,route,schemaVersion,transport'
         || value.schemaVersion !== 1 || value.transport !== 'legacy' || value.adapterId !== entry.entryId
         || typeof value.bindingId !== 'string' || !id.test(value.bindingId) || value.bindingRevision !== card.bindingRevision
         || typeof value.route !== 'string') throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
       const target = legacyTarget(value.route)
       if (!target || target.adapterId !== value.adapterId || target.cardKey || target.route !== value.route) throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
-      return value as LegacyOpened
-    } catch (error) { await reader.cancel().catch(() => undefined); throw error }
+      return desktop ? { ...value, resourceBase } : value as LegacyOpened
+    } catch (error) { await reader.cancel().catch(() => undefined); await close({ resourceBase }); throw error }
     finally { reader.releaseLock() }
   } }
 }

@@ -116,7 +116,7 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		c.Status(502)
 		return
 	}
-	for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition"} {
+	for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition", "ETag"} {
 		if v := resp.Header.Get(key); v != "" {
 			c.Header(key, v)
 		}

@@ -5,6 +5,8 @@ export const statusLabels: Record<string, string> = {
   STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署 · 待对账', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
 }
 export const reasonLabels: Record<string, string> = {
+  LEGACY_WORKSPACE_GONE: '应用连接已释放，请重新打开。', LEGACY_WORKSPACE_LIMIT: '当前应用连接过多，请关闭闲置页面后重试。',
+  INVALID_LEGACY_RESPONSE: '应用内容读取不完整或无法校验，请重新连接。', STUDIO_SESSION_CHANGED: '登录状态已变化，请重新打开应用。',
   APPCENTER_LEGACY_RECOVERY_INVALID: '旧操作记录无法校验，原记录已保留。请检查原操作后恢复。',
   APPCENTER_LEGACY_STORAGE_UNAVAILABLE: '暂时无法读取旧操作记录，新提交已暂停。',
   APPCENTER_LEGACY_CONFLICT: '旧操作记录发生冲突，原记录已保留，请刷新后检查。',

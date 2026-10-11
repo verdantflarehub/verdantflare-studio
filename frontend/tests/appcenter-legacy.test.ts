@@ -9,6 +9,36 @@ const card = { cardKey: key, bindingRevision: digest, entry: { transport: 'legac
 const view = { revision: digest, items: [card] } as AppCenterView
 const opened = { schemaVersion: 1, transport: 'legacy', adapterId: 'image-iframe-v1', bindingId: 'old-deployment', bindingRevision: digest, route: '/market?image=%2Fdashboard%23tasks' }
 
+test('desktop media opens a bound local workspace and releases it without changing the remote JSON contract', async () => {
+  const handle = '01980000-0000-4000-8000-000000000001', calls: string[] = []
+  const client = createLegacyClient(async (url, options) => {
+    calls.push(`${options!.method} ${url}`)
+    assert.equal(options!.credentials, 'omit')
+    if (options!.method === 'DELETE') return new Response(null, { status: 204 })
+    assert.equal(url, '/studio/legacy-media')
+    return Response.json(opened, { headers: { 'X-Studio-Legacy-Workspace': handle } })
+  }, true)
+  const result = await client.open(view, card)
+  assert.deepEqual(result, { ...opened, resourceBase: '/studio/legacy-media/' + handle })
+  await client.close(result)
+  assert.deepEqual(calls, ['POST /studio/legacy-media', 'DELETE /studio/legacy-media/' + handle])
+  await assert.rejects(client.open(view, { ...card, entry: { ...card.entry!, entryId: 'blender-host-v1' } }), /HOST_UNSUPPORTED/)
+  assert.equal(calls.length, 2)
+})
+
+test('desktop rejects missing handles and closes a lease whose reply is stale or invalid', async () => {
+  await assert.rejects(createLegacyClient(async () => Response.json(opened), true).open(view, card), /HOST_UNSUPPORTED/)
+  const controller = new AbortController(), handle = '01980000-0000-4000-8000-000000000001'
+  let closed = 0
+  const client = createLegacyClient(async (_url, options) => {
+    if (options!.method === 'DELETE') { closed++; return new Response(null, { status: 204 }) }
+    controller.abort()
+    return Response.json(opened, { headers: { 'X-Studio-Legacy-Workspace': handle } })
+  }, true)
+  await assert.rejects(client.open(view, card, controller.signal), /REQUEST_CANCELLED/)
+  assert.equal(closed, 1)
+})
+
 test('finite legacy bookmarks preserve explicit card context and reject mixed routes', () => {
   for (const route of [opened.route, '/market?video=%2Fdashboard%2Ftasks%2Fsample', '/market?blender=instances', '/market?blender=blender123&panel=overview']) {
     const target = legacyTarget(route)!

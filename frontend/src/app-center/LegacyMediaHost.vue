@@ -2,13 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
 import { mediaAdapter, validMediaRequest } from './legacy-media'
+import { fetchLegacyMedia } from './legacy-media-transfer'
 
-const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: string; authorize: () => Promise<void> }>()
-const emit = defineEmits<{ navigate: [route: string]; error: [message: string] }>()
+const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: string; resourceBase?: string; authorize: () => Promise<void> }>()
+const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: [] }>()
 const frame = ref<HTMLIFrameElement>(), src = ref(''), state = ref<'loading' | 'ready' | 'error'>('loading'), message = ref('')
 const adapter = computed(() => mediaAdapter(props.adapterId))
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
+let currentBase = ''
 const pending = new Set<number>()
 const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark'
 function post(value: object) { frame.value?.contentWindow?.postMessage({ channel: 'vf-studio', ...value }, '*') }
@@ -18,10 +20,12 @@ function load(force = false) {
   if (!a) return
   const path = new URL(props.route, location.origin).searchParams.get(a.query)!
   const [pathname, hash] = path.split('#')
-  if (!force && currentPath === pathname && src.value && state.value === 'ready') { post({ type: 'route', hash: hash || 'tasks' }); return }
+  const base = props.resourceBase ?? a.prefix
+  if (!force && currentBase === base && currentPath === pathname && src.value && state.value === 'ready') { post({ type: 'route', hash: hash || 'tasks' }); return }
+  currentBase = base
   currentPath = pathname; generation++; controller.abort(); controller = new AbortController(); pending.clear(); clearTimeout(deadline)
   state.value = 'loading'; message.value = '正在加载应用…'
-  src.value = a.prefix + pathname + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
+  src.value = base + pathname + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
   deadline = setTimeout(() => failed('应用尚未响应，请重试。'), 20000)
 }
 async function receive(event: MessageEvent) {
@@ -43,23 +47,24 @@ async function receive(event: MessageEvent) {
     try { await props.authorize() }
     catch { reply({ status: 503, body: new ArrayBuffer(0) }); return }
     if (disposed || epoch !== generation || signal.aborted) return
-    const response = await fetch(a.prefix + data.path, { method, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+    const options: RequestInit = { method, credentials: props.resourceBase ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error',
       headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? data.body : undefined,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) })
-    if (response.status === 401 || response.status === 403) { failed('当前应用访问权限已失效，请返回后重新打开。'); emit('error', message.value) }
+      signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) }
+    const response = props.resourceBase ? await fetchLegacyMedia(fetch, props.resourceBase, data.path, options) : await fetch(a.prefix + data.path, options)
+    if ([401, 403, 409, 410].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
     reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body: await response.arrayBuffer() })
   } catch { reply({ status: 503, body: new ArrayBuffer(0) }) }
   finally { if (epoch === generation) pending.delete(data.id) }
 }
 const observer = new MutationObserver(() => { if (!disposed) post({ type: 'theme', theme: theme() }) })
-watch(() => [props.adapterId, props.route], () => load())
+watch(() => [props.adapterId, props.route, props.resourceBase], () => load())
 onMounted(() => { window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load() })
 onBeforeUnmount(() => { disposed = true; generation++; controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive) })
 </script>
 
 <template>
   <section class="legacy-media-host" :aria-label="title">
-    <div class="legacy-media-status"><p v-if="message" role="status">{{ message }}</p><button v-if="state === 'error'" class="btn" @click="load(true)">重新连接</button></div>
+    <div class="legacy-media-status"><p v-if="message" role="status">{{ message }}</p><button v-if="state === 'error'" class="btn" @click="resourceBase ? emit('reconnect') : load(true)">重新连接</button></div>
     <iframe ref="frame" :src="src" :title="title" data-embedded="true" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" />
   </section>
 </template>

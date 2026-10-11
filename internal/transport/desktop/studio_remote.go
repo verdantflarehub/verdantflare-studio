@@ -45,7 +45,12 @@ func (s *Service) remoteCall(ctx context.Context, path, method string, body []by
 // RemoteAssetHandler wraps Wails' in-process asset server. No local listener or
 // service credential is needed; remote cookies remain exclusively in Go memory.
 func RemoteAssetHandler(s *Service, fallback http.Handler) http.Handler {
+	legacyMedia := newDesktopLegacyMedia(s)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == legacyWorkspacePrefix || strings.HasPrefix(r.URL.Path, legacyWorkspacePrefix+"/") {
+			legacyMedia.ServeHTTP(w, r)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, "/studio/") {
 			fallback.ServeHTTP(w, r)
 			return
