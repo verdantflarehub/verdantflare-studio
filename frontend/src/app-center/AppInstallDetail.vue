@@ -3,7 +3,7 @@ import type { AppCenterCard } from './schema.generated'
 import AppIcon from './AppIcon.vue'
 import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
 import { actionLabels, statusLabels, factLabel, reasonLabel } from './labels'
-import { publisherLabel, observedTime, resourceLabel } from './presentation'
+import { publisherLabel, observedTime, resourceLabel, serviceReasonLabel } from './presentation'
 defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string }>()
 const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string] }>()
 const origins: Record<string, string> = { installation: '安装记录', observation: '现场部署 · 待对账', catalog: '应用目录' }
@@ -24,9 +24,10 @@ const origins: Record<string, string> = { installation: '安装记录', observat
     <div class="detail-columns">
       <section class="panel detail-section"><h3>安装与运行</h3><dl>
         <dt>应用标识</dt><dd>{{ card.appId }}</dd><dt>事实来源</dt><dd>{{ origins[card.origin] }}</dd>
-        <dt>安装版本</dt><dd>{{ card.installedVersion ?? '无已确认安装' }}</dd><dt>目录候选版本</dt><dd>{{ card.candidateVersion ?? '暂无可信候选' }}</dd>
-        <dt>安装状态</dt><dd>{{ card.installation ? factLabel(card.installation.state) : '无安装记录' }}</dd>
-        <dt>服务状态</dt><dd>{{ factLabel(card.service.state) }}<small v-if="card.service.reasonCode">{{ reasonLabel(card.service.reasonCode) }}</small></dd>
+        <dt>安装版本</dt><dd>{{ card.installedVersion ?? (card.installationQuality === 'known' ? '无已确认安装' : '安装版本待确认') }}</dd><dt>目录候选版本</dt><dd>{{ card.candidateVersion ?? '暂无可信候选' }}</dd>
+        <dt>安装状态</dt><dd>{{ card.installationQuality !== 'known' ? '安装事实待确认' : card.installation ? factLabel(card.installation.state) : '无安装记录' }}</dd>
+        <template v-if="card.installation"><dt>安装标识</dt><dd>{{ card.installation.installationId }}</dd></template>
+        <dt>服务状态</dt><dd>{{ factLabel(card.service.state) }}<small v-if="card.service.reasonCode">{{ serviceReasonLabel(card.service.reasonCode) }}</small></dd>
         <dt>服务观测时间</dt><dd>{{ observedTime(card.service.observedAt) }}</dd>
         <dt>应用分组</dt><dd>{{ card.preinstalled ? '系统预装应用' : '普通应用' }}</dd>
       </dl></section>
@@ -38,9 +39,9 @@ const origins: Record<string, string> = { installation: '安装记录', observat
       <section class="panel detail-section"><h3>声明模型</h3><ul v-if="card.display.models?.length" class="detail-tags"><li v-for="model in card.display.models" :key="model">{{ model }}</li></ul><p v-else class="muted">{{ card.display.models ? '未声明模型' : '模型资料待补充' }}</p><p class="muted detail-note">模型名称来自应用资料，下载与运行状态请在应用内查看。</p></section>
       <section class="panel detail-section"><h3>声明能力</h3><ul v-if="card.display.capabilities?.length" class="detail-tags"><li v-for="capability in card.display.capabilities" :key="capability">{{ capability }}</li></ul><p v-else class="muted">{{ card.display.capabilities ? '未声明能力' : '能力资料待补充' }}</p><p class="muted detail-note">实际可用能力取决于服务状态与当前权限。</p></section>
       <section class="panel detail-section"><h3>管理服务声明资源</h3><dl v-if="card.display.resourceTags.length"><template v-for="tag in card.display.resourceTags" :key="tag.kind"><dt>{{ resourceLabel(tag.kind) }}</dt><dd>{{ tag.value }} {{ tag.unit }}</dd></template></dl><p v-else class="muted">未提供资源声明</p><p class="muted detail-note">实例的计算需求与实际占用由应用展示。</p></section>
-      <section class="panel detail-section"><h3>最近操作</h3><dl v-if="card.operation.canRead"><dt>操作状态</dt><dd>{{ factLabel(card.operation.status) }}</dd><dt>当前阶段</dt><dd>{{ factLabel(card.operation.phase) }}</dd><dt>更新时间</dt><dd>{{ observedTime(card.operation.updatedAt) }}</dd><dt>操作标识</dt><dd>{{ card.operation.operationId }}</dd></dl><p v-else class="muted">{{ card.operation.blocking ? '应用正在变更，请稍后刷新。' : '暂无可读取的操作记录' }}</p></section>
+      <section class="panel detail-section"><h3>最近操作</h3><dl v-if="card.operation.canRead"><dt>操作状态</dt><dd>{{ factLabel(card.operation.status) }}</dd><dt>当前阶段</dt><dd>{{ factLabel(card.operation.phase) }}</dd><dt>更新时间</dt><dd>{{ observedTime(card.operation.updatedAt) }}</dd><dt>操作标识</dt><dd>{{ card.operation.operationId }}</dd></dl><p v-else class="muted">{{ card.operation.quality !== 'known' ? '操作信息待确认' : card.operation.blocking ? '应用正在变更，请稍后刷新。' : '暂无可读取的操作记录' }}</p></section>
     </div>
-    <section class="panel detail-section"><h3>导航偏好</h3><AppNavigationPreferences :app-id="card.appId" /></section>
+    <section class="panel detail-section"><h3>导航偏好</h3><AppNavigationPreferences :app-id="card.appId" show-state /></section>
     <button class="btn ghost detail-back" @click="emit('back')">返回应用中心</button>
   </section>
 </template>
