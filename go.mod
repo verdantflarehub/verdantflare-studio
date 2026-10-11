@@ -3,6 +3,8 @@ module github.com/verdantflarehub/verdantflare-studio
 go 1.26.0
 
 require (
+	github.com/dlclark/regexp2 v1.11.5
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6

@@ -357,6 +357,15 @@ func (s *Service) checkWorldContents(ctx context.Context, p Principal, plan worl
 	if source.ManifestRef != plan.SourceRef {
 		return nil, ErrNotReady
 	}
+	request := WorldRegisterRequest{SourceProjectID: m.Source.ProjectID, SourceRevisionID: m.Source.RevisionID, ReviewFileID: m.Source.ReviewFileID}
+	for _, file := range m.Files {
+		request.FileIDs = append(request.FileIDs, file.ID)
+	}
+	// Artifact authorization callbacks need free DB connections: validate after
+	// preparation commits, alongside the existing content checks, outside a tx.
+	if e = s.checkWorldDramaPublication(ctx, p, request); e != nil {
+		return nil, e
+	}
 	refs := []ContentRef{plan.SourceRef}
 	for _, f := range m.Files {
 		v, e := s.content.Metadata(ctx, p, f.Content, Access{ProjectID: m.Source.ProjectID, RevisionID: m.Source.RevisionID})

@@ -238,7 +238,12 @@ func (s *Service) terminal(ctx context.Context, p Principal, c commitRecord, sta
 		return Result{}, e
 	}
 	defer tx.Rollback(context.Background())
-	_, e = tx.Exec(ctx, "UPDATE studio.project_commits SET state=$1,error_code=$2,updated_at=now() WHERE organization_id=$3 AND project_id=$4 AND commit_id=$5 AND state='preparing'", state, cause.Error(), p.OrganizationID, c.ProjectID, c.CommitID)
+	code := cause.Error()
+	var contentErr *contentValidationError
+	if errors.As(cause, &contentErr) {
+		code = ErrInvalid.Error()
+	}
+	_, e = tx.Exec(ctx, "UPDATE studio.project_commits SET state=$1,error_code=$2,updated_at=now() WHERE organization_id=$3 AND project_id=$4 AND commit_id=$5 AND state='preparing'", state, code, p.OrganizationID, c.ProjectID, c.CommitID)
 	if e != nil {
 		return Result{}, e
 	}
@@ -382,6 +387,7 @@ func uniqueRefs(refs []ContentRef) []ContentRef {
 }
 func (s *Service) checkContents(ctx context.Context, p Principal, m Manifest, base string) ([]ContentRef, error) {
 	refs := []ContentRef{}
+	var dramaData []byte
 	previous := map[ContentRef]bool{}
 	if base != "" {
 		old, _, e := revision(ctx, s.db, p.OrganizationID, m.ProjectID, base)
@@ -423,8 +429,16 @@ func (s *Service) checkContents(ctx context.Context, p Principal, m Manifest, ba
 			if !utf8.Valid(data) || (domains[f.ID] && !json.Valid(data)) {
 				return nil, ErrInvalid
 			}
+			for _, document := range m.DomainDocuments {
+				if document.FileID == f.ID && document.Type == "project-content" {
+					dramaData = data
+				}
+			}
 		}
 		refs = append(refs, f.Content)
+	}
+	if err := s.checkDramaRevision(ctx, p, m, base, dramaData); err != nil {
+		return nil, err
 	}
 	for _, a := range m.AssetRefs {
 		if s.assets == nil {

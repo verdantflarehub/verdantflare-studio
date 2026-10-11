@@ -198,6 +198,43 @@ func setup(t *testing.T) *fixture {
 func createRequest() project.CreateRequest {
 	return project.CreateRequest{CommitID: id(), Name: "Portable project", Category: "image", EntryPath: "review.md", EntryText: "# Original review"}
 }
+func TestAIShortDramaCategoryRevisionFlow(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	r := project.CreateRequest{CommitID: id(), Name: "Xie Xiao E", Category: "ai_short_drama", EntryPath: "script.md", EntryText: "# Script V4"}
+	created, e := f.s.Create(ctx, f.p, r)
+	if e != nil || created.Manifest.Category != r.Category {
+		t.Fatal("create did not retain short drama category", e)
+	}
+	listed, e := f.s.List(ctx, f.p, project.ListRequest{Category: r.Category})
+	if e != nil || len(listed.Items) != 1 || listed.Items[0].ProjectID != created.ProjectID || listed.Items[0].Category != r.Category {
+		t.Fatal("short drama filter did not find project", e)
+	}
+	other, e := f.s.List(ctx, f.p, project.ListRequest{Category: "video"})
+	if e != nil || len(other.Items) != 0 {
+		t.Fatal("short drama project leaked into video category", e)
+	}
+	updatedText := "# Script V4 review"
+	entry := created.Manifest.Files[0]
+	updates := []project.FileUpdate{{ID: entry.ID, Path: entry.Path, Role: entry.Role, Text: &updatedText, MIME: "text/markdown"}}
+	updated, e := f.s.Commit(ctx, f.p, project.CommitRequest{ProjectID: created.ProjectID, ExpectedRevisionID: created.RevisionID, CommitID: id(), Changes: &project.Changes{UpsertFiles: &updates}})
+	if e != nil || updated.Manifest.Category != r.Category {
+		t.Fatal("short drama commit changed category", e)
+	}
+	head, e := f.s.Open(ctx, f.p, created.ProjectID, "")
+	if e != nil || head.RevisionID != updated.RevisionID {
+		t.Fatal("short drama head was not restored", e)
+	}
+	previous, e := f.s.Open(ctx, f.p, created.ProjectID, created.RevisionID)
+	if e != nil || previous.Manifest.Files[0].Content != entry.Content {
+		t.Fatal("short drama fixed revision changed", e)
+	}
+	stranger := f.p
+	stranger.SubjectID = id()
+	if _, e := f.s.Open(ctx, stranger, created.ProjectID, ""); !errors.Is(e, project.ErrForbidden) {
+		t.Fatal("ungranted subject opened short drama project", e)
+	}
+}
 func count(t *testing.T, db *pgxpool.Pool, query string) int {
 	t.Helper()
 	var n int

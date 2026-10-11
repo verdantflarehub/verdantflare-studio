@@ -223,6 +223,10 @@ func httpError(w http.ResponseWriter, p Principal, err error) {
 	w.Header().Set("X-Request-Id", p.RequestID)
 	w.WriteHeader(status)
 	var details map[string]string
+	var contentErr *contentValidationError
+	if errors.As(err, &contentErr) {
+		details = map[string]string{"document_type": "project-content", "path": contentErr.Path, "reason": contentErr.Reason}
+	}
 	var conflict *ConflictError
 	if errors.As(err, &conflict) {
 		details = map[string]string{"current_revision_id": conflict.CurrentRevisionID}

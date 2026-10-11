@@ -6,24 +6,29 @@ import { isProjectID, ProjectReader, readerError, type Cast, type Detail, type P
 import ProjectMedia from '../components/ProjectMedia.vue'
 import ProjectPrompt from '../components/ProjectPrompt.vue'
 import ProjectCover from '../components/ProjectCover.vue'
+import ShortDramaProject from '../components/drama/ShortDramaProject.vue'
 
 const route = useRoute(), router = useRouter()
 const query = (key: string) => typeof route.query[key] === 'string' ? route.query[key] as string : ''
 const projectID = computed(() => query('project')), revisionID = computed(() => query('revision'))
 const filter = computed(() => query('category')), search = computed(() => query('q'))
-const categories = [{ key: '', label: '全部项目' }, { key: 'character', label: '角色' }, { key: 'music', label: '音乐' }, { key: 'video', label: '短视频' }]
+const categories = [{ key: '', label: '全部项目' }, { key: 'character', label: '角色设计' }, { key: 'music', label: '音乐制作' }, { key: 'video', label: '短视频制作' }, { key: 'ai_short_drama', label: 'AI短剧' }]
 const categoryName = (key: string) => categories.find(c => c.key === key)?.label || '项目'
 const reader = shallowRef<ProjectReader | null>(null), loading = ref(false), error = ref('')
 const items = ref<ProjectItem[]>([]), cursor = ref(''), listLoading = ref(false), listError = ref(''), listReady = ref(false)
 let request = 0, listRequest = 0, alive = true, signedOut = false
 const project = computed(() => reader.value?.project), content = computed(() => reader.value?.content)
-const character = computed(() => content.value?.character), music = computed(() => content.value?.music), video = computed(() => content.value?.video)
+const character = computed(() => content.value?.character), music = computed(() => content.value?.music), video = computed(() => content.value?.video), drama = computed(() => content.value?.ai_short_drama)
 const tabs = computed(() => project.value?.manifest.category === 'character'
   ? [{ key: 'setting', label: '角色设定' }, { key: 'extensions', label: '角色扩展' }]
   : project.value?.manifest.category === 'music'
     ? [{ key: 'voice', label: '人声训练' }, { key: 'songs', label: '歌曲创作' }, { key: 'mvs', label: 'MV创作' }]
-    : project.value?.manifest.category === 'video' ? [{ key: 'storyboards', label: '故事板' }, { key: 'cast', label: '角色创作' }] : [])
-const activeTab = computed(() => tabs.value.find(t => t.key === query('tab')) || tabs.value[0])
+    : project.value?.manifest.category === 'video' ? [{ key: 'storyboards', label: '故事板' }, { key: 'cast', label: '角色创作' }]
+      : project.value?.manifest.category === 'ai_short_drama' ? [{ key: 'script', label: '剧本与设定' }, { key: 'materials', label: '素材设定' }, { key: 'production', label: '镜头制作' }, { key: 'delivery', label: '成果与交付' }] : [])
+const activeTab = computed(() => tabs.value.find(t => t.key === (({ episodes: 'script', continuity: 'script', tasks: 'production' } as Record<string, string>)[query('tab')] || query('tab'))) || tabs.value[0])
+const dramaEpisode = computed(() => query('episode') ? drama.value?.episodes.find(ep => ep.key === query('episode')) : drama.value?.episodes[0])
+const dramaScene = computed(() => dramaEpisode.value?.scenes.find(scene => scene.key === query('scene')))
+const dramaShot = computed(() => dramaScene.value?.shots.find(shot => shot.key === query('shot')))
 const entries = computed<Detail[]>(() => {
   switch (activeTab.value?.key) {
     case 'extensions': return character.value?.extensions || []
@@ -40,8 +45,8 @@ const fromProject = computed(() => isProjectID(query('from')) && isProjectID(que
 const value = (text?: string | null) => text?.trim() ? text : '未填写'
 const duration = (seconds?: number | null) => seconds == null ? '时长未填写' : `${seconds} 秒`
 function link(change: Record<string, string | undefined>) { return { path: '/projects', query: { ...route.query, ...change } } }
-const listLink = computed(() => link({ project: undefined, revision: undefined, tab: undefined, item: undefined, from: undefined, fromRevision: undefined, fromName: undefined }))
-function openProject(item: ProjectItem) { return link({ project: item.project_id, revision: item.head_revision_id, tab: undefined, item: undefined }) }
+const listLink = computed(() => link({ project: undefined, revision: undefined, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, from: undefined, fromRevision: undefined, fromName: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined }))
+function openProject(item: ProjectItem) { return link({ project: item.project_id, revision: item.head_revision_id, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined }) }
 function castLink(cast: Cast) { return link({ project: cast.project_id!, revision: cast.revision_id!, tab: 'setting', item: undefined, from: project.value!.project_id, fromRevision: project.value!.revision_id, fromName: project.value!.manifest.name }) }
 const positions = new Map<string, number>()
 const scrollStorageKey = 'studio.project.scroll'
@@ -117,11 +122,12 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
         <RouterLink :to="listLink">项目</RouterLink><span>/</span>
         <template v-if="fromProject"><RouterLink :to="link({ project: fromProject.id, revision: fromProject.revision, tab: 'cast', item: undefined, from: undefined, fromRevision: undefined, fromName: undefined })">{{ fromProject.name }}</RouterLink><span>/</span></template>
         <RouterLink :to="{ ...listLink, query: { ...listLink.query, category: project?.manifest.category || filter || undefined } }">{{ categoryName(project?.manifest.category || filter) }}</RouterLink><span>/</span>
-        <template v-if="query('item')"><RouterLink :to="link({ item: undefined, tab: undefined })">{{ project?.manifest.name || '项目' }}</RouterLink><span>/</span><RouterLink :to="link({ item: undefined })">{{ activeTab?.label }}</RouterLink><span>/</span><span aria-current="page">{{ detail?.title || '详情' }}</span></template>
+        <template v-if="drama && query('shot')"><RouterLink :to="link({ episode: undefined, scene: undefined, shot: undefined })">{{ project?.manifest.name || '项目' }}</RouterLink><span>/</span><RouterLink :to="link({ scene: undefined, shot: undefined })">{{ dramaEpisode?.title || '分集' }}</RouterLink><span>/</span><span aria-current="page">{{ dramaShot?.title || '镜头' }}</span></template>
+        <template v-else-if="query('item')"><RouterLink :to="link({ item: undefined, tab: undefined })">{{ project?.manifest.name || '项目' }}</RouterLink><span>/</span><RouterLink :to="link({ item: undefined })">{{ activeTab?.label }}</RouterLink><span>/</span><span aria-current="page">{{ detail?.title || '详情' }}</span></template>
         <span v-else aria-current="page">{{ project?.manifest.name || '项目' }}</span>
       </nav>
       <header class="heading">
-        <div class="heading-left"><div class="eyebrow">PROJECTS</div><h1>{{ projectID ? (detail?.title || project?.manifest.name || '项目') : '项目' }}</h1><p v-if="!projectID">角色、音乐与短视频创作</p></div>
+        <div class="heading-left"><div class="eyebrow">PROJECTS</div><h1>{{ projectID ? (dramaShot ? dramaShot.title : detail?.title || project?.manifest.name || '项目') : '项目' }}</h1><p v-if="!projectID">角色、音乐、短视频与 AI 短剧创作</p></div>
         <button class="btn" :disabled="loading || listLoading" @click="retry">刷新</button>
       </header>
 
@@ -143,8 +149,9 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
       <div v-else-if="loading" class="state" role="status">正在读取项目…</div>
       <div v-else-if="error" class="state error" role="alert">{{ error }}<button class="btn" @click="retry">重试</button></div>
       <template v-else-if="project && reader">
-        <nav v-if="!query('item')" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined })">{{ tab.label }}</RouterLink></nav>
+        <nav v-if="!query('item') && !query('shot')" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined })">{{ tab.label }}</RouterLink></nav>
         <div v-if="!content" class="state">暂无业务内容。</div>
+        <ShortDramaProject v-else-if="drama" :reader="reader" :tab="activeTab?.key || 'script'" />
         <div v-else-if="query('item') && !detail" class="state">当前项目修订中没有这项内容。</div>
         <article v-else-if="detail" :key="`${project.revision_id}:${activeTab?.key}:${detail.key}`" class="sections">
           <section class="panel"><h2>概述</h2><p class="prose">{{ value(detail.overview) }}</p><p v-if="detail.duration_seconds != null" class="muted">{{ duration(detail.duration_seconds) }}</p><dl v-if="detail.fields.length" class="fields"><template v-for="(field, i) in detail.fields" :key="i"><dt>{{ field.label }}</dt><dd>{{ value(field.value) }}</dd></template></dl></section>
@@ -216,9 +223,27 @@ small, .muted { color: var(--muted); }
 .voice-item h3, .voice-item .prose, .voice-item .fields { margin-bottom: 14px; }
 .voice-item :deep(.project-media) + :deep(.project-media) { margin-top: 14px; }
 .video-meta { margin: 8px 0 18px; }
+.drama-back { justify-self: start; }
+.drama-grid { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.drama-episodes { display: grid; gap: 7px; }
+.drama-episodes a { display: grid; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.drama-episodes a.active { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.drama-episodes small { color: var(--muted); }
+.drama-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.drama-scene, .drama-continuity, .drama-run, .drama-delivery { border-top: 1px solid var(--line); padding: 18px 0; }
+.drama-scene h3, .drama-continuity h3, .drama-delivery h3 { margin-bottom: 5px; }
+.drama-shots { display: grid; gap: 6px; margin-top: 12px; }
+.drama-shots a { display: grid; grid-template-columns: 95px minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--panel); }
+.drama-shots a:hover { border-color: var(--accent); }
+.drama-detail { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(250px, .8fr); gap: 24px; align-items: start; }
+.drama-refs { display: flex; flex-wrap: wrap; gap: 7px; }
+.drama-continuity .reference-row { margin-top: 10px; }
+.drama-run { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.drama-delivery-files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 12px; }
+.drama-delivery-files small { display: block; margin-bottom: 8px; }
 .state { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 30px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); margin-bottom: 20px; }
 .error { color: var(--danger); }
 .more { display: flex; justify-content: center; gap: 16px; align-items: center; margin-top: 24px; color: var(--muted); }
-@media (max-width: 1150px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .character-basic { grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: 18px; } }
-@media (max-width: 700px) { .project-browser { padding: 20px 16px 40px; } .cards, .character-basic { grid-template-columns: minmax(0, 1fr); } .panel { padding: 18px; } .fields { grid-template-columns: 84px minmax(0, 1fr); } .business-tabs a { padding: 8px 10px; } .list-tools, input { width: 100%; } .reference-row > :deep(.project-media) { flex-basis: 190px; } }
+@media (max-width: 1150px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .character-basic { grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: 18px; } .drama-grid, .drama-detail { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) { .project-browser { padding: 20px 16px 40px; } .cards, .character-basic, .drama-delivery-files { grid-template-columns: minmax(0, 1fr); } .panel { padding: 18px; } .fields { grid-template-columns: 84px minmax(0, 1fr); } .business-tabs a { padding: 8px 10px; } .list-tools, input { width: 100%; } .reference-row > :deep(.project-media) { flex-basis: 190px; } .drama-shots a { grid-template-columns: 70px minmax(0, 1fr); } .drama-shots a .muted:last-child { grid-column: 2; } }
 </style>

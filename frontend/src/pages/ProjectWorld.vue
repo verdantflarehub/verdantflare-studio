@@ -561,7 +561,7 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
         <div class="section-title"><span>新建项目</span><small>首个保存修订由服务端生成</small></div>
         <div class="form-grid">
           <label>项目名称<input v-model="createName" required maxlength="256" placeholder="例如：小月舞蹈镜头" /></label>
-          <label>分类<select v-model="createCategory"><option value="music">music</option><option value="video">video</option><option value="image">image</option><option value="music-mv">music-mv</option></select></label>
+          <label>分类<select v-model="createCategory"><option value="character">角色设计</option><option value="music">音乐制作</option><option value="video">短视频制作</option><option value="ai_short_drama">AI 短剧制作</option><option value="image">image（历史）</option><option value="music-mv">music-mv（历史）</option></select></label>
           <label>入口 MD 路径<input v-model="createEntryPath" required placeholder="review.md" /></label>
         </div>
         <label>入口内容<textarea v-model="createEntryText" rows="5" maxlength="1048576" /></label>

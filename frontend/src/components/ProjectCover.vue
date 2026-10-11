@@ -57,6 +57,8 @@ onBeforeUnmount(() => {
         ? "♫"
         : project.category === "video"
           ? "▷"
+          : project.category === "ai_short_drama"
+            ? "▤"
           : "◉"
     }}</span>
   </div>

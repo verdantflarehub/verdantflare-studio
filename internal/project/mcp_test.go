@@ -2,6 +2,7 @@ package project_test
 
 import (
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -39,5 +40,51 @@ func TestInternalMCPAuthenticationAndNoNotificationWrites(t *testing.T) {
 				t.Fatal(w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+// Both discovery schemas must admit the new category without replacing the
+// extensible category token with the original three-category UI catalog.
+func TestMCPCategoryDiscoveryRemainsExtensible(t *testing.T) {
+	found := map[string]bool{"project.create": false, "project.list": false}
+	for _, tool := range project.MCPTools() {
+		if _, wanted := found[tool.Name]; !wanted {
+			continue
+		}
+		found[tool.Name] = true
+		properties, ok := tool.InputSchema["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s missing properties", tool.Name)
+		}
+		category, ok := properties["category"].(map[string]any)
+		if !ok || category["type"] != "string" {
+			t.Fatalf("%s missing string category", tool.Name)
+		}
+		if _, restricted := category["enum"]; restricted {
+			t.Fatalf("%s freezes category catalog", tool.Name)
+		}
+		pattern, ok := category["pattern"].(string)
+		if !ok {
+			t.Fatalf("%s missing category validation", tool.Name)
+		}
+		validator, err := regexp.Compile(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []string{"character", "music", "video", "ai_short_drama", "future_category"} {
+			if !validator.MatchString(value) {
+				t.Errorf("%s rejects %q", tool.Name, value)
+			}
+		}
+		for _, value := range []string{"AI短剧", "../script", "ai short drama"} {
+			if validator.MatchString(value) {
+				t.Errorf("%s accepts invalid category %q", tool.Name, value)
+			}
+		}
+	}
+	for name, present := range found {
+		if !present {
+			t.Errorf("missing discovery tool %s", name)
+		}
 	}
 }

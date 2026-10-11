@@ -1,6 +1,7 @@
 package project
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -141,5 +142,32 @@ func TestCentralContractProjectExamples(t *testing.T) {
 		if _, err := Decode(block[1]); err != nil {
 			t.Fatal("contract example rejected:", err)
 		}
+	}
+}
+
+// Classification does not rename files or discard fixed references. A new
+// category must still obey the same manifest integrity rules as older projects.
+func TestProjectCategoryRoundTripPreservesInventory(t *testing.T) {
+	for _, category := range []string{"character", "music", "video", "ai_short_drama", "future_category"} {
+		t.Run(category, func(t *testing.T) {
+			m := example()
+			m.Category = category
+			before, err := json.Marshal(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Decode(before)
+			if err != nil {
+				t.Fatal(err)
+			}
+			after, err := json.Marshal(got)
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatal("category round trip changed inventory", err)
+			}
+			m.Selections[0].FileIDs = []string{id(99)}
+			if m.Validate() == nil {
+				t.Fatal("category bypassed selection reference validation")
+			}
+		})
 	}
 }
