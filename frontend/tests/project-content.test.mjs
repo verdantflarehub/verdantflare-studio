@@ -275,6 +275,8 @@ test('material previews include unselected and rejected attempts without changin
   const material = { versions: [candidate('first', 'approved'), candidate('retry', 'rejected')], selected_versions: [], file_ids: [] }
   const before = JSON.stringify(material)
   assert.equal(materialPreview(material).fileId, 'retry')
+  assert.equal(materialPreview(material).version.state_key, 'wet')
+  assert.equal(materialPreview(material).version.key, 'retry')
   assert.equal(materialPreview(material).selected, false)
   assert.equal(JSON.stringify(material), before)
   material.selected_versions.push({ version_key: 'first', state_key: 'wet', purpose: 'image' })
