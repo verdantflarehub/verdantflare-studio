@@ -5,6 +5,12 @@ export const statusLabels: Record<string, string> = {
   STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署 · 待对账', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
 }
 export const reasonLabels: Record<string, string> = {
+  APPCENTER_RECOVERY_STORAGE_UNAVAILABLE: '恢复存储不可用，新的提交已暂停。请检查存储并确认已有操作状态。',
+  APPCENTER_RECOVERY_SCOPE_CHANGED: '登录状态已变化，请重新登录后检查原操作。',
+  APPCENTER_RECOVERY_LIMIT: '待确认操作过多，请先恢复已有操作。',
+  APPCENTER_RECOVERY_PENDING: '此应用已有待确认请求，请先恢复原请求。',
+  APPCENTER_SUBMISSION_UNKNOWN: '尚无法确认提交结果，请恢复原请求。',
+  CONFLICT: '请求与已有操作冲突，请检查原操作和应用状态。', RELEASE_UNVERIFIED: '此版本尚未完成发行校验。',
   INVALID_LEGACY_ROUTE: '旧入口地址无效，请从应用中心重新打开', LEGACY_ENTRY_AMBIGUOUS: '无法唯一确定此入口对应的应用，请从卡片打开',
   LEGACY_BACKEND_CHANGED: '应用部署或入口配置已变化，请刷新后重试', APPCENTER_INVALID_OPEN: '应用入口响应无法校验，请重试',
   LEGACY_ENTRY_UNMAPPED: '此旧入口尚未完成对象对账，请返回应用中心查看当前入口',

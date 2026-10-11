@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
 import { selectCards } from './controller'
-import { reasonLabel } from './labels'
+import { actionLabels, factLabel, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
@@ -76,6 +76,17 @@ async function perform(card: AppCenterCard, actionId: string) {
   }
   if (action?.kind === 'refresh') { await store.refresh(); return }
   if (!action || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) return
+  if (['install', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) {
+    const impacts: Record<string, string> = {
+      install: '将安装此版本的应用管理服务。', start: '将启动应用管理服务。',
+      stop: '将关闭应用管理服务，相关业务可能暂时无法访问。', restart: '将重启应用管理服务，相关业务可能暂时中断。',
+      delete: '将删除此应用安装。请先确认业务数据和工作已妥善保存。',
+    }
+    if (!window.confirm(`${actionLabels[action.kind]}「${card.display.name}」？\n${impacts[action.kind]}`)) return
+    try { await store.execute(card, actionId); message.value = '' }
+    catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_SUBMISSION_UNKNOWN') }
+    return
+  }
   if (action.kind === 'open' && card.entry?.transport === 'dashboard' && card.installation) {
     store.pinOpen(card.installation.installationId, card.bindingRevision)
     const failed = await router.push(dashboardLocation(card.installation.installationId))
@@ -118,6 +129,17 @@ onBeforeUnmount(() => store.setVisible('directory', false))
     <template v-else>
       <p v-if="store.state.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.state.error) }}<span v-if="store.state.value"> 当前保留上次读取的信息，操作已暂停。</span></p>
       <p v-if="message" class="appcenter-message" role="status">{{ message }}</p>
+      <p v-if="store.commandState.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.commandState.error) }}</p>
+      <section v-if="store.commandState.items.length" class="panel appcenter-recovery" aria-label="操作与恢复">
+        <h2>操作与恢复</h2>
+        <div v-for="item in store.commandState.items" :key="item.record.key" class="recovery-item">
+          <p>{{ item.operation?.app_id ?? JSON.parse(item.record.body).prepared.command.app_id }} · {{ item.operation ? factLabel(item.operation.status) : '提交结果待确认' }}<span v-if="item.operation"> · {{ factLabel(item.operation.phase) }}</span></p>
+          <p v-if="item.operation?.download.percent != null">下载进度 {{ item.operation.download.percent }}%</p>
+          <p v-if="item.operation?.status === 'failed'">操作未完成，请检查应用状态后重新确认。</p>
+          <p v-if="item.error" role="alert">{{ reasonLabel(item.error) }}</p>
+          <button v-if="!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error" class="btn" :disabled="item.busy" @click="store.resumeCommand(item.record.key)">{{ item.busy ? '正在确认…' : item.record.operationId ? '刷新进度' : '恢复原请求' }}</button>
+        </div>
+      </section>
       <template v-if="selectedKey">
         <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform" />
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
@@ -146,6 +168,9 @@ onBeforeUnmount(() => store.setVisible('directory', false))
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
 .appcenter-preinstalled { margin-bottom: 24px; }
 .appcenter-preinstalled h2 { font-size: 18px; margin: 0 0 16px; }
+.appcenter-recovery { padding: 20px; margin: 16px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.appcenter-recovery h2 { font-size: 18px; margin: 0 0 12px; }
+.recovery-item + .recovery-item { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .search-box input { min-width: 160px; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>

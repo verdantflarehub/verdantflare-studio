@@ -64,9 +64,14 @@ func (a *AppCenter) Get(ctx context.Context, token string) Result {
 }
 
 func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map[string]appcenter.Metadata, Result) {
+	view, metadata, _, out := a.readSnapshot(ctx, token, false)
+	return view, metadata, out
+}
+
+func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool) (appcenter.View, map[string]appcenter.Metadata, appcenter.Facts, Result) {
 	id := uuid.Must(uuid.NewV7()).String()
-	fail := func(status int, code string) (appcenter.View, map[string]appcenter.Metadata, Result) {
-		return appcenter.View{}, nil, appCenterError(status, code, id)
+	fail := func(status int, code string) (appcenter.View, map[string]appcenter.Metadata, appcenter.Facts, Result) {
+		return appcenter.View{}, nil, appcenter.Facts{}, appCenterError(status, code, id)
 	}
 	if a == nil || a.station == nil {
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
@@ -83,7 +88,7 @@ func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map
 		}
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 	}
-	if !slices.Contains(identity.Roles, "admin") || !slices.Contains(identity.Scopes, "app:read") {
+	if !slices.Contains(identity.Roles, "admin") || !slices.Contains(identity.Scopes, "app:read") || manage && !slices.Contains(identity.Scopes, "app:manage") {
 		return fail(403, "PERMISSION_DENIED")
 	}
 	actor := dashboardActorFromIdentity(identity)
@@ -217,5 +222,5 @@ func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map
 	if err != nil || len(raw) > 4<<20 {
 		return fail(503, "APPCENTER_LIMIT_EXCEEDED")
 	}
-	return view, metadata, Result{Status: 200, Data: raw, RequestID: id}
+	return view, metadata, facts, Result{Status: 200, Data: raw, RequestID: id}
 }
