@@ -1,0 +1,52 @@
+name: Studio Desktop
+
+on:
+  push:
+    branches: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-desktop-release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build unsigned Windows amd64 acceptance artifacts
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CGO_ENABLED: '0'
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.26.5'
+          cache: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.20.0'
+      - name: Install fixed build tools
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm install --global pnpm@9.15.9
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.22
+          choco install nsis --version=3.11.0 --allow-downgrade --yes --no-progress
+          (Join-Path ${env:ProgramFiles(x86)} 'NSIS') >> $env:GITHUB_PATH
+      - name: Build portable GUI, installer and source evidence
+        id: desktop
+        run: ./scripts/build-desktop.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: studio-desktop-v${{ steps.desktop.outputs.version }}-windows-amd64-unsigned
+          path: build/desktop/dist/
+          if-no-files-found: error
+          retention-days: 30
