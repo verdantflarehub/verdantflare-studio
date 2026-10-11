@@ -30,6 +30,7 @@ func main() {
 	dashboards := application.NewDashboards(s, os.Getenv("STUDIO_DASHBOARD_REGISTRY"))
 	defer dashboards.Shutdown()
 	webServer.EnableDashboards(handler, dashboards)
+	webServer.EnableAppCenter(handler, application.NewAppCenter(s, os.Getenv("STUDIO_APPCENTER_PRESENTATION_REGISTRY")))
 	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences())
 	defer navigation.Shutdown()
 	webServer.EnableNavigation(handler, navigation)

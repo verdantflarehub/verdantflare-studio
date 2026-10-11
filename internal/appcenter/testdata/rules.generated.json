@@ -1,0 +1,1732 @@
+[
+  {
+    "name": "ready-dashboard",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "READY",
+      "primary": "open",
+      "enabled": [
+        "detail",
+        "refresh",
+        "open"
+      ]
+    }
+  },
+  {
+    "name": "ready-no-entry",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {},
+    "expected": {
+      "status": "READY",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "unknown-observation",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "unknown",
+            "state": "unknown",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "STATE_UNKNOWN",
+      "primary": "refresh",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "conflicting-binding",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "conflict",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "BINDING_CONFLICT",
+      "primary": "refresh",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "stopped-no-start",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "stopped",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "STOPPED",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "stopped-can-start",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "stopped",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": [
+              {
+                "kind": "start",
+                "enabled": true,
+                "reasonCode": null,
+                "appVersion": "1.0.0",
+                "releaseDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "expectedWorkloadUID": "00000000-0000-7000-8000-000000000005"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "STOPPED",
+      "primary": "start",
+      "enabled": [
+        "detail",
+        "refresh",
+        "start"
+      ]
+    }
+  },
+  {
+    "name": "pending-is-not-installed",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "pending",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "INSTALLATION_PENDING",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "failed-is-not-startable",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "failed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "INSTALLATION_FAILED",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "degraded",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "degraded",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "DEGRADED",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "entry-denied",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "denied",
+          "reasonCode": "PERMISSION_DENIED",
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "READY",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "entry-incompatible",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "incompatible",
+          "reasonCode": "HOST_INCOMPATIBLE",
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "READY",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "foreign-operation",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": true,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "OPERATION_IN_PROGRESS",
+      "primary": "detail",
+      "enabled": [
+        "detail",
+        "refresh"
+      ]
+    }
+  },
+  {
+    "name": "recovery-required",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "installed",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": true,
+            "operationId": "00000000-0000-7000-8000-000000000006",
+            "protocol": "transition",
+            "status": "recovery_required",
+            "phase": "recovery_required",
+            "canRead": true,
+            "updatedAt": "2026-10-12T00:00:00Z"
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "RECOVERY_REQUIRED",
+      "primary": "progress",
+      "enabled": [
+        "detail",
+        "refresh",
+        "progress"
+      ]
+    }
+  },
+  {
+    "name": "bound-legacy-observation",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "appId": "sample",
+          "origin": "observation",
+          "catalog": null,
+          "installation": null,
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "ready",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "workloadUID": "00000000-0000-7000-8000-000000000005"
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "obs:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "legacy",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "OBSERVED_DEPLOYMENT",
+      "primary": "open",
+      "enabled": [
+        "detail",
+        "refresh",
+        "open"
+      ]
+    }
+  },
+  {
+    "name": "verified-candidate-install",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "catalog:sample",
+          "appId": "sample",
+          "origin": "catalog",
+          "catalog": {
+            "app_id": "sample",
+            "display_name": "Sample",
+            "group_id": "system",
+            "brand": "vf",
+            "models": [],
+            "source": "deploys/sample.yaml",
+            "namespace": "apps",
+            "workload_name": "sample",
+            "version": "1.0.0",
+            "images": [
+              {
+                "component": "app",
+                "image": "example.invalid/app:1.0.0"
+              }
+            ],
+            "model_status": "not_required",
+            "deployment": {
+              "state": "not_installed",
+              "reason": "not_found",
+              "observed_at": "2026-10-12T00:00:00Z",
+              "desired_replicas": null,
+              "ready_replicas": null,
+              "images": []
+            }
+          },
+          "installation": null,
+          "installationQuality": "known",
+          "service": {
+            "quality": "known",
+            "state": "absent",
+            "observedAt": "2026-10-12T00:00:00Z",
+            "reasonCode": null,
+            "observationKey": null,
+            "workloadUID": null
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": false,
+            "operationId": null,
+            "protocol": null,
+            "status": null,
+            "phase": null,
+            "canRead": false,
+            "updatedAt": null
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": [
+              {
+                "kind": "install",
+                "enabled": true,
+                "reasonCode": null,
+                "appVersion": "1.0.0",
+                "releaseDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "expectedWorkloadUID": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "catalog:sample": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": null,
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "NOT_INSTALLED",
+      "primary": "install",
+      "enabled": [
+        "detail",
+        "refresh",
+        "install"
+      ]
+    }
+  }
+]
