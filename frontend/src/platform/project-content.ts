@@ -3,7 +3,7 @@ export interface ContentRef { store_id: string; artifact_id: string; version_id:
 export interface ProjectItem { project_id: string; head_revision_id: string; name: string; category: string }
 export interface ProjectFile { file_id: string; path: string; role?: string; content_ref: ContentRef }
 export interface ProjectOpen {
-  project_id: string; revision_id: string
+  project_id: string; revision_id: string; head_revision_id?: string
   manifest: { name: string; category: string; files: ProjectFile[]; domain_documents: { document_type: string; file_id: string }[]; run_refs?: RunRef[]; asset_refs?: AssetRef[] }
 }
 export interface RunRef { service_id: string; run_id: string }

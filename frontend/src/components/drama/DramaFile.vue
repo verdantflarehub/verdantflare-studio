@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { ProjectReader, readerError } from '../../platform/project-reader'
 import ProjectMedia from '../ProjectMedia.vue'
-const props = defineProps<{ reader: ProjectReader; fileId: string; label: string }>()
+const props = defineProps<{ reader: ProjectReader; fileId: string; label: string; hideLabel?: boolean }>()
 const kind = ref<'image' | 'audio' | 'video' | 'file' | null>(null), error = ref('')
 let serial = 0
 async function inspect() {
@@ -13,5 +13,5 @@ async function inspect() {
 watch(() => [props.reader, props.fileId], inspect, { immediate: true })
 onBeforeUnmount(() => { serial++ })
 </script>
-<template><div class="drama-file"><p class="muted">{{ label }}</p><ProjectMedia v-if="kind" :reader="reader" :file-id="fileId" :kind="kind" :label="label" /><p v-else-if="error" role="alert">{{ error }} <button class="btn" @click="inspect">重试</button></p><p v-else role="status">正在读取文件信息…</p></div></template>
+<template><div class="drama-file"><p v-if="!hideLabel" class="muted">{{ label }}</p><ProjectMedia v-if="kind" :reader="reader" :file-id="fileId" :kind="kind" :label="label" /><p v-else-if="error" role="alert">{{ error }} <button class="btn" @click="inspect">重试</button></p><p v-else role="status">正在读取文件信息…</p></div></template>
 <style scoped>.drama-file { min-width: 0; }.muted { color: var(--muted); margin-bottom: 8px; }</style>

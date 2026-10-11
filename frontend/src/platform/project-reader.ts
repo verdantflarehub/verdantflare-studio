@@ -43,6 +43,7 @@ export class ProjectReader {
     if (project.project_id !== this.projectID || !isProjectID(project.revision_id) || (this.revisionID && project.revision_id !== this.revisionID) || !Array.isArray(project.manifest?.files) || !Array.isArray(project.manifest?.domain_documents)) throw new Error('项目修订返回内容不正确。')
     if (typeof project.manifest.name !== 'string' || typeof project.manifest.category !== 'string' || new Set(project.manifest.files.map(f => f.file_id)).size !== project.manifest.files.length) throw new Error('项目文件清单不正确。')
     this.project = project
+    if (project.head_revision_id !== undefined && !isProjectID(project.head_revision_id)) throw new Error('项目最新修订信息不正确。')
     const documents = project.manifest.domain_documents.filter(d => d.document_type === 'project-content')
     if (documents.length > 1) throw new Error('当前修订包含重复的项目业务文档。')
     if (!documents.length) return

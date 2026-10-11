@@ -14,6 +14,10 @@ export function dramaText(text: string | null | undefined, drama?: ProjectConten
   let result = text || ''
   if (drama) {
     const names = new Map(drama.globals.map(g => [g.key, g.name]))
+    for (const g of drama.globals) {
+      for (const v of g.versions || []) names.set(v.key, `${g.name} · ${v.label}`)
+      if (g.kind === 'character') result = result.replace(new RegExp(`\\b${g.key}_ID_V\\d+\\b`, 'g'), `${g.name}身份参考`)
+    }
     const sceneNames = new Map<string, Set<string>>()
     for (const ep of drama.episodes) for (const scene of ep.scenes) {
       names.set(scene.key, scene.title)

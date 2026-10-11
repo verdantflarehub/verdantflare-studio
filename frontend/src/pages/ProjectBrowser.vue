@@ -18,6 +18,7 @@ const reader = shallowRef<ProjectReader | null>(null), loading = ref(false), err
 const items = ref<ProjectItem[]>([]), cursor = ref(''), listLoading = ref(false), listError = ref(''), listReady = ref(false)
 let request = 0, listRequest = 0, alive = true, signedOut = false
 const project = computed(() => reader.value?.project), content = computed(() => reader.value?.content)
+const historical = computed(() => !!project.value?.head_revision_id && project.value.revision_id !== project.value.head_revision_id)
 const character = computed(() => content.value?.character), music = computed(() => content.value?.music), video = computed(() => content.value?.video), drama = computed(() => content.value?.ai_short_drama)
 const tabs = computed(() => project.value?.manifest.category === 'character'
   ? [{ key: 'setting', label: '角色设定' }, { key: 'extensions', label: '角色扩展' }]
@@ -149,6 +150,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
       <div v-else-if="loading" class="state" role="status">正在读取项目…</div>
       <div v-else-if="error" class="state error" role="alert">{{ error }}<button class="btn" @click="retry">重试</button></div>
       <template v-else-if="project && reader">
+        <section v-if="historical" class="revision-notice" role="status"><div><strong>正在查看历史版本</strong><p>图片、制作版本及选用状态均为当时记录，后续同步的素材不会出现在此版本中。</p></div><RouterLink class="btn" :to="link({ revision: undefined, state: undefined, version: undefined, compare: undefined })">查看最新版本</RouterLink></section>
         <nav v-if="drama || (!query('item') && !query('shot'))" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined, continuity: undefined })">{{ tab.label }}</RouterLink></nav>
         <div v-if="!content" class="state">暂无业务内容。</div>
         <ShortDramaProject v-else-if="drama" :reader="reader" :tab="activeTab?.key || 'script'" />
@@ -187,12 +189,19 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
 </template>
 
 <style scoped>
-.drama-browser { padding: 27px clamp(20px, 3vw, 52px) 70px; }
+.drama-browser { line-height:1.55; padding: 27px clamp(20px, 3vw, 52px) 70px; }
 .drama-browser > .workspace { max-width: 1480px; margin: auto; }
-.drama-browser .heading { align-items: start; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }
-.drama-browser .business-tabs { gap: 22px; border-bottom: 1px solid var(--line); margin: 18px 0 25px; }
-.drama-browser .business-tabs a { padding: 10px 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; font-size: 13px; background: transparent; }
-.drama-browser .business-tabs a.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.drama-browser .heading { align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }
+.drama-browser .heading h1 { font-size:30px; line-height:1.28; font-weight:650; margin-bottom:8px; }
+.drama-browser .eyebrow { display:block; font-size:12px; font-weight:400; letter-spacing:.12em; margin-bottom:10px; }
+.drama-browser .breadcrumbs { font-size:12px; gap:9px; margin-bottom:13px; }
+.drama-browser .business-tabs { gap: 22px; border-bottom: 1px solid var(--line); margin: 0 0 30px; }
+.drama-browser .business-tabs a { padding: 12px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; font-size: 13px; background: transparent; }
+.drama-browser .business-tabs a.active { background:transparent; color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.revision-notice { display:flex; align-items:center; justify-content:space-between; gap:16px; border-left:2px solid var(--accent); background:var(--shell-panel); padding:12px 16px; margin-bottom:22px; font-size:13px; }
+.revision-notice p { color:var(--muted); font-size:12px; margin-top:5px; line-height:1.8; }
+.revision-notice .btn { flex-shrink:0; }
+@media(max-width:800px) { .drama-browser .heading h1 { font-size:25px; }.drama-browser .business-tabs { gap:16px; }.revision-notice { flex-wrap:wrap; } }
 
 .project-browser { overflow-wrap: anywhere; }
 .eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
