@@ -198,6 +198,8 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
 .drama-browser .business-tabs { gap: 22px; border-bottom: 1px solid var(--line); margin: 0 0 30px; }
 .drama-browser .business-tabs a { padding: 12px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; font-size: 13px; background: transparent; }
 .drama-browser .business-tabs a.active { background:transparent; color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.drama-browser :deep(a:focus-visible), .drama-browser :deep(button:focus-visible), .drama-browser :deep(input:focus-visible), .drama-browser :deep(select:focus-visible), .drama-browser :deep(textarea:focus-visible), .drama-browser :deep(summary:focus-visible) { outline:2px solid var(--accent); outline-offset:3px; }
+.drama-browser :deep(.btn:hover) { border-color:var(--accent); }
 .revision-notice { display:flex; align-items:center; justify-content:space-between; gap:16px; border-left:2px solid var(--accent); background:var(--shell-panel); padding:12px 16px; margin-bottom:22px; font-size:13px; }
 .revision-notice p { color:var(--muted); font-size:12px; margin-top:5px; line-height:1.8; }
 .revision-notice .btn { flex-shrink:0; }
