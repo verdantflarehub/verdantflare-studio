@@ -3,10 +3,17 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import Workbench from './pages/Workbench.vue'
-import Market from './pages/Market.vue'
+import LegacyMarket from './pages/Market.vue'
+import AppCenterPage from './app-center/AppCenterPage.vue'
 import Models from './pages/Models.vue'
 import LegacyAppEntry from './pages/LegacyAppEntry.vue'
 import './theme/market.css'
+
+// One explicit release mode selects the whole AppCenter. A request failure
+// must never silently select the legacy catalog or application-name branches.
+const appCenterMode = import.meta.env.VITE_APPCENTER_MODE ?? 'legacy'
+if (!['legacy', 'unified'].includes(appCenterMode)) throw new Error('INVALID_APPCENTER_MODE')
+const Market = appCenterMode === 'unified' ? AppCenterPage : LegacyMarket
 
 const router = createRouter({
   history: createWebHashHistory(),

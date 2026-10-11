@@ -41,6 +41,17 @@ func TestAppCenterSharedRules(t *testing.T) {
 				in := input(v)
 				in.Facts.Items = slices.Clone(in.Facts.Items)
 				in.Facts.Items[0].AppID = app
+				if in.Facts.Items[0].Origin == "catalog" {
+					in.Facts.Items[0].CardKey = "catalog:" + app
+				}
+				if string(in.Facts.Items[0].Catalog) != "null" {
+					var catalog map[string]any
+					if json.Unmarshal(in.Facts.Items[0].Catalog, &catalog) != nil {
+						t.Fatal("fixture catalog")
+					}
+					catalog["app_id"] = app
+					in.Facts.Items[0].Catalog, _ = json.Marshal(catalog)
+				}
 				out, err := Resolve(in)
 				if err != nil {
 					t.Fatal(err)

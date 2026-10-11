@@ -1728,5 +1728,121 @@
         "install"
       ]
     }
+  },
+  {
+    "name": "pending-without-workload",
+    "facts": {
+      "schemaVersion": 1,
+      "requestId": "fixture-request",
+      "scope": {
+        "userId": "00000000-0000-7000-8000-000000000001",
+        "organizationId": "00000000-0000-7000-8000-000000000002",
+        "stationId": "00000000-0000-7000-8000-000000000003",
+        "authorizationEpoch": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generatedAt": "2026-10-12T00:00:00Z",
+      "sources": [
+        {
+          "source": "catalog",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "installations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "observations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        },
+        {
+          "source": "operations",
+          "quality": "known",
+          "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observedAt": "2026-10-12T00:00:00Z",
+          "reasonCode": null
+        }
+      ],
+      "items": [
+        {
+          "cardKey": "installation:00000000-0000-7000-8000-000000000004",
+          "appId": "sample",
+          "origin": "installation",
+          "catalog": null,
+          "installation": {
+            "installationId": "00000000-0000-7000-8000-000000000004",
+            "revision": 2,
+            "appVersion": "1.0.0",
+            "state": "pending",
+            "lastOperationId": null
+          },
+          "installationQuality": "known",
+          "service": {
+            "quality": "unknown",
+            "state": "unknown",
+            "observedAt": null,
+            "reasonCode": "WORKLOAD_BINDING_MISSING",
+            "observationKey": null,
+            "workloadUID": null
+          },
+          "operation": {
+            "quality": "known",
+            "blocking": true,
+            "operationId": "00000000-0000-7000-8000-000000000006",
+            "protocol": "lifecycle",
+            "status": "accepted",
+            "phase": "checking",
+            "canRead": true,
+            "updatedAt": "2026-10-12T00:00:00Z"
+          },
+          "lifecycle": {
+            "policyRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "candidates": []
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "installation:00000000-0000-7000-8000-000000000004": {
+        "Display": {
+          "name": "Sample",
+          "description": "",
+          "groupId": "other",
+          "publisherId": null,
+          "iconRef": null,
+          "resourceTags": [],
+          "quality": "known"
+        },
+        "Entry": {
+          "entryId": "dashboard",
+          "transport": "dashboard",
+          "quality": "known",
+          "availability": "available",
+          "reasonCode": null,
+          "requiresServiceReady": true,
+          "minimumHostVersion": null
+        },
+        "EntryRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "Preinstalled": false
+      }
+    },
+    "expected": {
+      "status": "OPERATION_IN_PROGRESS",
+      "primary": "progress",
+      "enabled": [
+        "detail",
+        "refresh",
+        "progress"
+      ]
+    }
   }
 ]

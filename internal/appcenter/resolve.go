@@ -76,7 +76,7 @@ func state(f Fact) string {
 	if f.InstallationQuality == "conflict" || f.Service.Quality == "conflict" || f.Operation.Quality == "conflict" {
 		return "BINDING_CONFLICT"
 	}
-	if !known(f.InstallationQuality) || !known(f.Service.Quality) || !known(f.Operation.Quality) {
+	if !known(f.InstallationQuality) || !known(f.Operation.Quality) {
 		return "STATE_UNKNOWN"
 	}
 	if f.Operation.Blocking {
@@ -86,6 +86,9 @@ func state(f Fact) string {
 		return "OPERATION_IN_PROGRESS"
 	}
 	if f.Installation == nil {
+		if !known(f.Service.Quality) {
+			return "STATE_UNKNOWN"
+		}
 		if f.Origin == "observation" {
 			return "OBSERVED_DEPLOYMENT"
 		}
@@ -98,6 +101,9 @@ func state(f Fact) string {
 		return "INSTALLATION_FAILED"
 	case "removed":
 		return "INSTALLATION_REMOVED"
+	}
+	if !known(f.Service.Quality) {
+		return "STATE_UNKNOWN"
 	}
 	switch f.Service.State {
 	case "ready":
@@ -152,7 +158,7 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 	}
 	if f.Operation.CanRead && f.Operation.OperationID != nil {
 		c.Actions = append(c.Actions, action("progress", true, ""))
-		if denied != "FACTS_UNAVAILABLE" && denied != "BINDING_CONFLICT" && (f.Operation.Blocking || (f.Installation != nil && f.Installation.State == "failed")) {
+		if denied != "BINDING_CONFLICT" && known(f.InstallationQuality) && known(f.Operation.Quality) && (f.Operation.Blocking || (f.Installation != nil && f.Installation.State == "failed")) {
 			c.PrimaryActionID = "progress"
 		}
 	}
@@ -246,6 +252,20 @@ func Resolve(in Input) (View, error) {
 		seen[item.CardKey] = true
 		if item.Installation != nil && item.CardKey != "installation:"+item.Installation.InstallationID {
 			return empty, ErrInvalid
+		}
+		if item.Origin == "catalog" && item.CardKey != "catalog:"+item.AppID {
+			return empty, ErrInvalid
+		}
+		if item.Origin == "observation" && (item.Service.ObservationKey == nil || item.CardKey != *item.Service.ObservationKey || item.Service.WorkloadUID == nil) {
+			return empty, ErrInvalid
+		}
+		if string(item.Catalog) != "null" {
+			var catalog struct {
+				AppID string `json:"app_id"`
+			}
+			if json.Unmarshal(item.Catalog, &catalog) != nil || catalog.AppID != item.AppID {
+				return empty, ErrInvalid
+			}
 		}
 		kinds := map[string]bool{}
 		for _, c := range item.Lifecycle.Candidates {
