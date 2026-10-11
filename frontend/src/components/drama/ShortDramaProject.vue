@@ -49,7 +49,7 @@ function definitionVersion(kind: string) {
 }
 const shotCount = computed(() => allShots.value.length)
 const budget = computed(() => allShots.value.reduce((n, s) => n + (s.duration_seconds || 0), 0))
-const human = (text?: string | null) => dramaText(text, drama.value).replace(/\*\*/g, '')
+const human = (text?: string | null) => dramaText(text, drama.value).replace(/\*\*/g, '').replace(/^\s*\||\|\s*$/g, '').replace(/\s*\|\s*/g, ' · ').trim()
 const related = computed(() => drama.value.globals.filter(g => material.value && (material.value.input_global_keys.includes(g.key) || g.input_global_keys.includes(material.value.key))))
 const episodeCharacters = computed(() => {
   const used = new Set(drama.value.usages.filter(u => u.target.episode_key === episode.value?.key).map(u => u.global_key))
