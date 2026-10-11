@@ -50,7 +50,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
 .appcenter-detail { display: grid; gap: 20px; }
 .detail-breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; }
 .detail-breadcrumb button { border: 0; padding: 0; background: none; color: inherit; cursor: pointer; }
-.detail-summary, .detail-section { padding: 24px; min-width: 0; }
+.detail-summary, .detail-section { padding: 24px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .detail-title { display: flex; align-items: center; gap: 14px; }
 .detail-title h2 { margin: 0; font-size: 22px; }
 .detail-title p { margin: 5px 0 0; font-size: 12px; }
