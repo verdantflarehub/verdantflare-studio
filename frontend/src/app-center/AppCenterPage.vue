@@ -4,13 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
 import { selectCards } from './controller'
-import { actionLabels, factLabel, reasonLabel } from './labels'
+import { actionLabels, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
 import { createDashboardWebClient } from '../app-dashboard/web-client'
 import { dashboardLocation } from '../app-dashboard/routes'
 import AppInstallDetail from './AppInstallDetail.vue'
+import AppCommandRecovery from './AppCommandRecovery.vue'
 import LegacyWorkspace from './LegacyWorkspace.vue'
 import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 
@@ -119,29 +120,24 @@ watch(directoryVisible, async (visible, previous) => {
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id]), () => {
   query.value = ''; group.value = 'all'; filter.value = 'all'; message.value = ''; listScroll = 0
 })
-onBeforeUnmount(() => store.setVisible('directory', false))
+watch(selectedKey, key => store.setDetail(key), { immediate: true })
+watch(() => !businessRoute.value && !legacy.value.target && !legacy.value.error, active => store.setProgressVisible(active), { immediate: true })
+onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false) })
 </script>
 
 <template>
   <main v-show="!businessRoute && !legacy.target && !legacy.error" class="main appcenter-page"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing" @click="store.refresh()">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
+    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing" @click="store.refresh(true)">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
     <p v-if="!host.connected" class="panel appcenter-message">请登录以查看应用。</p>
     <template v-else>
       <p v-if="store.state.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.state.error) }}<span v-if="store.state.value"> 当前保留上次读取的信息，操作已暂停。</span></p>
       <p v-if="message" class="appcenter-message" role="status">{{ message }}</p>
       <p v-if="store.commandState.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.commandState.error) }}</p>
-      <section v-if="store.commandState.items.length" class="panel appcenter-recovery" aria-label="操作与恢复">
-        <h2>操作与恢复</h2>
-        <div v-for="item in store.commandState.items" :key="item.record.key" class="recovery-item">
-          <p>{{ item.operation?.app_id ?? JSON.parse(item.record.body).prepared.command.app_id }} · {{ item.operation ? factLabel(item.operation.status) : '提交结果待确认' }}<span v-if="item.operation"> · {{ factLabel(item.operation.phase) }}</span></p>
-          <p v-if="item.operation?.download.percent != null">下载进度 {{ item.operation.download.percent }}%</p>
-          <p v-if="item.operation?.status === 'failed'">操作未完成，请检查应用状态后重新确认。</p>
-          <p v-if="item.error" role="alert">{{ reasonLabel(item.error) }}</p>
-          <button v-if="!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error" class="btn" :disabled="item.busy" @click="store.resumeCommand(item.record.key)">{{ item.busy ? '正在确认…' : item.record.operationId ? '刷新进度' : '恢复原请求' }}</button>
-        </div>
-      </section>
+      <AppCommandRecovery v-if="!selectedKey" :state="store.commandState" :titles="titles" @resume="store.resumeCommand" />
       <template v-if="selectedKey">
-        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform" />
+        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
+          <AppCommandRecovery :state="store.commandState" :titles="titles" :app-id="selected.appId" :except-operation-id="store.operationState.value?.operation_id" @resume="store.resumeCommand" />
+        </AppInstallDetail>
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
       </template>
       <section v-else class="catalog-section">
@@ -168,9 +164,6 @@ onBeforeUnmount(() => store.setVisible('directory', false))
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
 .appcenter-preinstalled { margin-bottom: 24px; }
 .appcenter-preinstalled h2 { font-size: 18px; margin: 0 0 16px; }
-.appcenter-recovery { padding: 20px; margin: 16px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.appcenter-recovery h2 { font-size: 18px; margin: 0 0 12px; }
-.recovery-item + .recovery-item { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .search-box input { min-width: 160px; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>

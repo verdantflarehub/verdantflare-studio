@@ -4,8 +4,10 @@ import AppIcon from './AppIcon.vue'
 import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
 import { actionLabels, statusLabels, factLabel, reasonLabel } from './labels'
 import { publisherLabel, observedTime, resourceLabel, serviceReasonLabel } from './presentation'
-defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string }>()
-const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string] }>()
+import AppOperationStatus from './AppOperationStatus.vue'
+import type { OperationProgress } from './operation-progress'
+defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string; operationProgress: OperationProgress }>()
+const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string]; refreshOperation: [] }>()
 const origins: Record<string, string> = { installation: '安装记录', observation: '现场部署 · 待对账', catalog: '应用目录' }
 </script>
 
@@ -21,6 +23,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
         <p v-if="!action.enabled">{{ reasonLabel(action.reasonCode) }}</p>
       </div></div>
     </header>
+    <slot />
     <div class="detail-columns">
       <section class="panel detail-section"><h3>安装与运行</h3><dl>
         <dt>应用标识</dt><dd>{{ card.appId }}</dd><dt>事实来源</dt><dd>{{ origins[card.origin] }}</dd>
@@ -39,7 +42,13 @@ const origins: Record<string, string> = { installation: '安装记录', observat
       <section class="panel detail-section"><h3>声明模型</h3><ul v-if="card.display.models?.length" class="detail-tags"><li v-for="model in card.display.models" :key="model">{{ model }}</li></ul><p v-else class="muted">{{ card.display.models ? '未声明模型' : '模型资料待补充' }}</p><p class="muted detail-note">模型名称来自应用资料，下载与运行状态请在应用内查看。</p></section>
       <section class="panel detail-section"><h3>声明能力</h3><ul v-if="card.display.capabilities?.length" class="detail-tags"><li v-for="capability in card.display.capabilities" :key="capability">{{ capability }}</li></ul><p v-else class="muted">{{ card.display.capabilities ? '未声明能力' : '能力资料待补充' }}</p><p class="muted detail-note">实际可用能力取决于服务状态与当前权限。</p></section>
       <section class="panel detail-section"><h3>管理服务声明资源</h3><dl v-if="card.display.resourceTags.length"><template v-for="tag in card.display.resourceTags" :key="tag.kind"><dt>{{ resourceLabel(tag.kind) }}</dt><dd>{{ tag.value }} {{ tag.unit }}</dd></template></dl><p v-else class="muted">未提供资源声明</p><p class="muted detail-note">实例的计算需求与实际占用由应用展示。</p></section>
-      <section class="panel detail-section"><h3>最近操作</h3><dl v-if="card.operation.canRead"><dt>操作状态</dt><dd>{{ factLabel(card.operation.status) }}</dd><dt>当前阶段</dt><dd>{{ factLabel(card.operation.phase) }}</dd><dt>更新时间</dt><dd>{{ observedTime(card.operation.updatedAt) }}</dd><dt>操作标识</dt><dd>{{ card.operation.operationId }}</dd></dl><p v-else class="muted">{{ card.operation.quality !== 'known' ? '操作信息待确认' : card.operation.blocking ? '应用正在变更，请稍后刷新。' : '暂无可读取的操作记录' }}</p></section>
+      <section class="panel detail-section"><h3>最近操作</h3>
+        <AppOperationStatus v-if="operationProgress.value" :operation="operationProgress.value" :stale="operationProgress.stale" />
+        <dl v-else-if="card.operation.canRead && !['UNAUTHENTICATED', 'PERMISSION_DENIED'].includes(operationProgress.error)"><dt>操作状态</dt><dd>{{ factLabel(card.operation.status) }}</dd><dt>当前阶段</dt><dd>{{ factLabel(card.operation.phase) }}</dd><dt>更新时间</dt><dd>{{ observedTime(card.operation.updatedAt) }}</dd><dt>操作标识</dt><dd>{{ card.operation.operationId }}</dd></dl>
+        <p v-else class="muted">{{ card.operation.quality !== 'known' ? '操作信息待确认' : card.operation.blocking ? '应用正在变更，请稍后刷新。' : '暂无可读取的操作记录' }}</p>
+        <p v-if="operationProgress.error" role="alert">{{ reasonLabel(operationProgress.error) }}</p>
+        <button v-if="card.operation.canRead && card.operation.protocol === 'lifecycle'" class="btn operation-refresh" :disabled="operationProgress.busy" @click="emit('refreshOperation')">{{ operationProgress.busy ? '正在读取…' : '刷新进度' }}</button>
+      </section>
     </div>
     <section class="panel detail-section"><h3>导航偏好</h3><AppNavigationPreferences :app-id="card.appId" show-state /></section>
     <button class="btn ghost detail-back" @click="emit('back')">返回应用中心</button>
@@ -56,6 +65,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
 .detail-title p { margin: 5px 0 0; font-size: 12px; }
 .detail-description { line-height: 1.7; }
 .detail-state { color: var(--accent); font-size: 13px; }
+.operation-refresh { margin-top: 16px; }
 .action-row { flex-wrap: wrap; align-items: start; }
 .detail-action { max-width: 220px; }
 .detail-action p { color: var(--muted); margin: 6px 0 0; font-size: 12px; }

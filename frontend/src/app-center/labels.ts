@@ -5,6 +5,12 @@ export const statusLabels: Record<string, string> = {
   STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署 · 待对账', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
 }
 export const reasonLabels: Record<string, string> = {
+  APPCENTER_LEGACY_RECOVERY_INVALID: '旧操作记录无法校验，原记录已保留。请检查原操作后恢复。',
+  APPCENTER_LEGACY_STORAGE_UNAVAILABLE: '暂时无法读取旧操作记录，新提交已暂停。',
+  APPCENTER_LEGACY_CONFLICT: '旧操作记录发生冲突，原记录已保留，请刷新后检查。',
+  APPCENTER_OPERATION_UNAVAILABLE: '暂时无法读取操作进度，请稍后刷新。',
+  APPCENTER_INVALID_OPERATION: '操作响应与当前应用不一致，请刷新后检查。',
+  SERVICE_UNAVAILABLE: '服务暂时不可用，请检查应用状态后重试。', INTERNAL: '操作发生错误，请检查应用状态。',
   APPCENTER_RECOVERY_STORAGE_UNAVAILABLE: '恢复存储不可用，新的提交已暂停。请检查存储并确认已有操作状态。',
   APPCENTER_RECOVERY_SCOPE_CHANGED: '登录状态已变化，请重新登录后检查原操作。',
   APPCENTER_RECOVERY_LIMIT: '待确认操作过多，请先恢复已有操作。',

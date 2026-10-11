@@ -91,3 +91,5 @@ export const validCommandPrepare = (value: unknown): value is CommandPrepare => 
 export const validCommandSubmit = (value: unknown): value is CommandSubmit => checkCommandSubmit(value)
 
 export const validCommandOperation = (value: unknown): value is CommandOperation => checkCommandOperation(value)
+
+export const validAppCommand = (value: unknown): value is AppCommand => checkAppCommand(value)

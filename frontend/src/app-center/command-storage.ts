@@ -1,26 +1,28 @@
-import { validCommandSubmit } from './schema.generated.ts'
+import { validAppCommand, validCommandSubmit } from './schema.generated.ts'
 import type { Identity } from './controller'
-import type { CommandCore } from './schema.generated'
+import type { AppCommand, CommandCore } from './schema.generated'
 
-export interface PendingCommand { key: string; body: string; operationId: string | null }
+export interface PendingCommand { key: string; body: string; operationId: string | null; protocol?: 'legacy' }
 export interface CommandLease { scope: string; epoch: number }
 export interface CommandStorage {
   load(scope: string): Promise<{ lease: CommandLease; records: PendingCommand[] }>
   put(lease: CommandLease, record: PendingCommand): Promise<void>
   remove(lease: CommandLease, key: string): Promise<void>
   clear(scope: string): Promise<void>
+  importLegacy(lease: CommandLease, records: PendingCommand[]): Promise<void>
 }
 export const commandScope = (identity: Identity) => JSON.stringify([identity.userId, identity.organizationId, identity.stationId])
 export const storageError = () => new Error('APPCENTER_RECOVERY_STORAGE_UNAVAILABLE')
-export function parsePending(record: PendingCommand, scope: string): CommandCore {
-  if (!record || Object.keys(record).sort().join(',') !== 'body,key,operationId' || typeof record.body !== 'string'
+export function parsePending(record: PendingCommand, scope: string): CommandCore | { command: AppCommand } {
+  if (!record || Object.keys(record).sort().join(',') !== (record.protocol === 'legacy' ? 'body,key,operationId,protocol' : 'body,key,operationId') || typeof record.body !== 'string'
     || new TextEncoder().encode(JSON.stringify(record)).length > 16 << 10) throw storageError()
   const value: unknown = JSON.parse(record.body)
-  if (!validCommandSubmit(value) || JSON.stringify(value) !== record.body || value.prepared.command.idempotency_key !== record.key) throw storageError()
+  const input = record.protocol === 'legacy' ? validAppCommand(value) ? { command: value } : null : validCommandSubmit(value) ? value.prepared : null
+  if (!input || JSON.stringify(value) !== record.body || input.command.idempotency_key !== record.key) throw storageError()
   const who: unknown = JSON.parse(scope)
-  if (!Array.isArray(who) || who.length !== 3 || who[1] !== value.prepared.command.organization_id || who[2] !== value.prepared.command.station_id
+  if (!Array.isArray(who) || who.length !== 3 || who[1] !== input.command.organization_id || who[2] !== input.command.station_id
     || record.operationId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record.operationId)) throw storageError()
-  return value.prepared
+  return input
 }
 
 /** Scope epochs make logout invalidate writes from other tabs and late replies. */
@@ -82,5 +84,18 @@ export function createCommandStorage(factory: IDBFactory = globalThis.indexedDB)
     }),
     remove: (lease, key) => transaction(lease.scope, 'readwrite', bucket => { check(bucket, lease); bucket.records = bucket.records.filter(item => item.key !== key) }),
     clear: scope => transaction(scope, 'readwrite', bucket => { bucket.records = []; bucket.epoch++ }, false),
+    importLegacy: (lease, records) => transaction(lease.scope, 'readwrite', bucket => {
+      check(bucket, lease)
+      for (const record of records) {
+        if (record.protocol !== 'legacy') throw storageError()
+        parsePending(record, lease.scope)
+        const index = bucket.records.findIndex(item => item.key === record.key)
+        if (index < 0) { bucket.records.push(record); continue }
+        const old = bucket.records[index]
+        if (old.protocol !== 'legacy' || old.body !== record.body || old.operationId && record.operationId && old.operationId !== record.operationId) throw new Error('APPCENTER_LEGACY_CONFLICT')
+        if (!old.operationId && record.operationId) bucket.records[index] = record
+      }
+      if (bucket.records.length > 100) throw new Error('APPCENTER_RECOVERY_LIMIT')
+    }),
   }
 }

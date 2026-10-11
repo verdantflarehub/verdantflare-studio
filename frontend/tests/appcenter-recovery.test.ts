@@ -29,12 +29,14 @@ function harness() {
     },
     async remove(lease, key) { assert.equal(lease.epoch, epoch); events.push('removed'); records.delete(key) },
     async clear() { epoch++; records.clear() },
+    async importLegacy(lease, imported) { assert.equal(lease.epoch, epoch); for (const item of imported) records.set(item.key, structuredClone(item)) },
   }
   const sent: string[] = []
   const transport: CommandTransport = {
     async prepare(input) { events.push('prepared'); return { ...prepared, command: { ...prepared.command, request_id: input.requestId, idempotency_key: input.idempotencyKey } } },
     async submit(body) { events.push('sent'); sent.push(body); if (failSubmit) throw new Error('APPCENTER_SUBMISSION_UNKNOWN'); return structuredClone(terminal ? { ...operation, status: 'succeeded', phase: 'completed' } : operation) },
     async read() { events.push('read'); return structuredClone(terminal ? { ...operation, status: 'succeeded', phase: 'completed' } : operation) },
+    async legacy(body) { events.push('legacy'); sent.push(body); return structuredClone(operation) },
   }
   let next = 0
   const create = () => createCommands(storage, transport, () => `fixed-key-${++next}`)
@@ -69,11 +71,32 @@ test('terminal submission is read back before deleting durable record', async ()
   assert.deepEqual(h.events, ['prepared', 'saved', 'sent', 'saved', 'read', 'removed'])
   assert.equal(h.records.size, 0); assert.equal(c.state.items[0].operation?.status, 'succeeded')
 })
+test('older nonterminal readback keeps durable record eligible for another read', async () => {
+  const h = harness(), c = h.create(); await c.setScope(identity); h.terminal = true
+  h.transport.read = async () => structuredClone(operation)
+  await c.execute(card, 'install', () => true)
+  assert.equal(h.records.size, 1); assert.equal(c.state.items[0].operation?.status, 'accepted')
+  h.transport.read = async () => ({ ...operation, status: 'succeeded', phase: 'completed' })
+  await c.refreshKnown(new AbortController().signal)
+  assert.equal(h.records.size, 0)
+})
 test('known operation resumes with read only; duplicate app submission is blocked', async () => {
   const h = harness(), c = h.create(); await c.setScope(identity); await c.execute(card, 'install', () => true)
   await assert.rejects(c.execute(card, 'install', () => true), /RECOVERY_PENDING/)
   await c.resume(c.state.items[0].record.key)
   assert.equal(h.sent.length, 1); assert.equal(h.events.at(-2), 'read')
+})
+test('visible polling reads known IDs and never submits uncertain new or legacy requests', async () => {
+  const h = harness(), c = h.create(); await c.setScope(identity); h.failSubmit = true
+  await c.execute(card, 'install', () => true)
+  const unknown = c.state.items[0].record
+  h.records.set('legacy-fixed-key', { key: 'legacy-fixed-key', protocol: 'legacy', operationId: null, body: JSON.stringify({ ...prepared.command, idempotency_key: 'legacy-fixed-key' }) })
+  h.records.set('known-fixed-key', { key: 'known-fixed-key', protocol: 'legacy', operationId: operation.operation_id, body: JSON.stringify({ ...prepared.command, idempotency_key: 'known-fixed-key' }) })
+  await c.setScope(identity); await c.refreshKnown(new AbortController().signal)
+  assert.equal(h.sent.length, 1); assert.equal(h.events.filter(e => e === 'read').length, 1)
+  assert.equal(h.records.get(unknown.key)?.operationId, null)
+  await c.resume('legacy-fixed-key')
+  assert.equal(h.events.includes('legacy'), true); assert.equal(h.sent.at(-1), h.records.get('legacy-fixed-key')?.body)
 })
 test('scope switch while save is pending suppresses submission and late state', async () => {
   const h = harness(), c = h.create(); await c.setScope(identity)
