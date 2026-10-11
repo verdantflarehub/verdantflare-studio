@@ -57,7 +57,7 @@ async function publish() {
     const completed = await publishPrepared(intent, {
       newID: uuidv7, save,
       phase: value => { if (serial === current) message.value = value },
-      call: <T,>(name: string, args: Record<string, unknown>) => { if (actor.value !== identity) throw new Error('登录身份已变化。'); return callTool<T>(name, args, project.project_id) },
+      call: <T,>(name: string, args: Record<string, unknown>) => { if (actor.value !== identity) throw new Error('登录身份已变化。'); return callTool<T>(name, args, name === 'world.commit_status' ? undefined : project.project_id) },
       read: async revision => { if (actor.value !== identity) throw new Error('登录身份已变化。'); const reader = new ProjectReader(project.project_id, revision); try { await reader.load(); if (!reader.project || !reader.rawContent) throw new Error('项目内容暂不可读。'); return { project: reader.project, raw: reader.rawContent } } finally { reader.dispose() } }
     })
     localStorage.removeItem(storageKey)
