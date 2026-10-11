@@ -43,7 +43,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     openBindings.clear()
     controller.clear(who.user_id && who.organization_id && who.station_id ? { userId: who.user_id, organizationId: who.organization_id, stationId: who.station_id } : null)
     if (visible()) void refresh()
-  }, { immediate: true })
+  }, { immediate: true, flush: 'sync' })
   document.addEventListener('visibilitychange', changedVisibility)
   window.addEventListener('studio:logout', clear)
   onScopeDispose(() => { clearTimeout(timer); sharedRefresh.invalidate(); controller.dispose(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear) })

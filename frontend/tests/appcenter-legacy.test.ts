@@ -65,6 +65,10 @@ test('iframe requests stay within the old finite API and do not select arbitrary
   assert.equal(validMediaRequest(image, 'POST', '/api/tasks', '{}'), true)
   assert.equal(validMediaRequest(video, 'GET', '/api/models/test/instances/worker/gpus/0', undefined), true)
   assert.equal(validMediaRequest(video, 'POST', '/api/tasks/task123/result', '{}'), true)
+  assert.equal(validMediaRequest(video, 'GET', '/api/capabilities', undefined), true)
+  assert.equal(validMediaRequest(video, 'POST', '/api/capabilities', '{}'), false)
+  assert.equal(validMediaRequest(video, 'GET', '/api/capabilities/secrets', undefined), false)
+  assert.equal(validMediaRequest(image, 'GET', '/api/capabilities', undefined), false)
   for (const [method, path, body] of [['GET', 'https://other.invalid/api/tasks', undefined], ['DELETE', '/api/tasks', undefined],
     ['GET', '/api/%74asks', undefined], ['GET', '/api/tasks#x', undefined], ['POST', '/api/models', '{}'],
     ['GET', '/api/tasks?q=a\nb', undefined], ['GET', '/api/tasks?q=a\\b', undefined], ['GET', '/api/tasks?q=\u007f', undefined],

@@ -90,7 +90,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); selection.value = null }
 </script>
 
 <template>
-  <main v-if="active" class="main embed-active"><div class="workspace">
+  <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
     <header class="heading"><div class="heading-left"><h1>{{ selection?.card.display.name || '应用入口' }}</h1><p>{{ selection?.card.display.description }}</p></div><button class="btn" @click="router.push('/market')">返回应用中心</button></header>
     <nav aria-label="面包屑"><a href="#/market" @click.prevent="router.push('/market')">应用中心</a><span v-if="selection"> / {{ selection.card.display.name }}</span></nav>
     <p v-if="loading" role="status">正在确认应用入口…</p>
