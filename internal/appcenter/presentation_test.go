@@ -17,6 +17,10 @@ func TestAppCenterPresentationPrecedenceAndIsolation(t *testing.T) {
 	exact.AppVersion = Text("1.0.0")
 	exact.Display.Name = "Exact release"
 	exact.Display.ResourceTags = []ResourceTag{{Kind: "cpu", Value: 2, Unit: "cores", SourceRef: "docs/design/release.md"}}
+	general.Display.Models = &[]string{"App model"}
+	general.Display.Capabilities = &[]string{"app.read"}
+	exact.Display.Models = &[]string{}
+	exact.Display.Capabilities = &[]string{}
 	reg := PresentationRegistry{SchemaVersion: 1, Revision: Digest("registry"), Groups: []Group{{ID: "other", Label: "Other", Order: 1}}, Records: []PresentationRecord{exact, general}}
 	raw, _ := json.Marshal(reg)
 	path := filepath.Join(t.TempDir(), "presentation.json")
@@ -31,10 +35,16 @@ func TestAppCenterPresentationPrecedenceAndIsolation(t *testing.T) {
 	if m.Display.Name != "Exact release" || len(m.Display.ResourceTags) != 1 || m.Entry != nil || source.Quality != "known" {
 		t.Fatal("exact metadata or trust isolation lost")
 	}
+	if m.Display.Models == nil || len(*m.Display.Models) != 0 || m.Display.Capabilities == nil || len(*m.Display.Capabilities) != 0 {
+		t.Fatal("exact empty declarations must not inherit app-level terms")
+	}
 	v.Facts.Items[0].Installation.AppVersion = "2.0.0"
 	_, metadata, _, err = LoadPresentation(context.Background(), path, v.Facts)
 	if err != nil || len(metadata[v.Facts.Items[0].CardKey].Display.ResourceTags) != 0 {
 		t.Fatal("old version resource tags leaked into another version")
+	}
+	if m := metadata[v.Facts.Items[0].CardKey]; m.Display.Models == nil || (*m.Display.Models)[0] != "App model" || m.Display.Capabilities == nil || (*m.Display.Capabilities)[0] != "app.read" {
+		t.Fatal("app-level descriptive terms missing")
 	}
 	_, metadata, source, err = LoadPresentation(context.Background(), "", v.Facts)
 	if err != nil || len(metadata) != 0 || source.Quality != "unknown" {

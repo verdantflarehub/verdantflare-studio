@@ -105,6 +105,28 @@ func TestAppCenterScopeFreshnessAndRevision(t *testing.T) {
 		t.Fatal("stale service still enabled", err)
 	}
 }
+
+func TestAppCenterPresentationChangesNeverGrantOrInvalidateEntryActions(t *testing.T) {
+	in := input(vectors(t)[0])
+	before, err := Resolve(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := in.Metadata[in.Facts.Items[0].CardKey]
+	meta.Display.Models = &[]string{"Example Model"}
+	meta.Display.Capabilities = &[]string{"sample.read"}
+	meta.Display.IconRef = Text("brand:vf")
+	after, err := Resolve(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Revision == after.Revision || before.Items[0].BindingRevision != after.Items[0].BindingRevision {
+		t.Fatal("display revision must change independently of entry binding")
+	}
+	if Digest(before.Items[0].Actions) != Digest(after.Items[0].Actions) || before.Items[0].PrimaryActionID != after.Items[0].PrimaryActionID {
+		t.Fatal("descriptive terms changed action permissions")
+	}
+}
 func TestAppCenterDecoderRejectsAmbiguityAndLeaks(t *testing.T) {
 	v := vectors(t)[0]
 	raw, _ := json.Marshal(v.Facts)

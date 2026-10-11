@@ -30,6 +30,40 @@ function view(): AppCenterView {
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes }); return { promise, resolve } }
 
+test('declared models, capabilities and publishers share directory filtering without granting actions', () => {
+  const v = view(), card = v.items[0]
+  card.display.models = ['Example Model']; card.display.capabilities = ['scene.read']; card.display.publisherId = 'publisher'
+  card.preinstalled = true
+  const before = structuredClone(card.actions), binding = card.bindingRevision
+  for (const query of ['example MODEL', 'SCENE.READ', 'publisher']) {
+    const found = selectCards(v, query, 'system', 'installed')
+    assert.deepEqual(found.items, [card]); assert.deepEqual(found.preinstalled, [card]); assert.equal(found.applications.length, 0)
+    assert.equal(selectCards(v, query, 'other').items.length, 0)
+    assert.equal(selectCards(v, query, 'system', 'active').items.length, 0)
+  }
+  card.display.models = []; card.display.capabilities = []
+  assert.equal(selectCards(v, 'Example Model').items.length, 0)
+  assert.equal(selectCards(v, 'scene.read').items.length, 0)
+  assert.deepEqual(card.actions, before); assert.equal(card.bindingRevision, binding)
+})
+
+test('display arrays preserve missing versus declared empty and reject malformed or duplicate terms', () => {
+  const v = view()
+  assert.equal(validAppCenterView(v), true)
+  for (const name of ['models', 'capabilities'] as const) {
+    v.items[0].display[name] = []
+    assert.equal(validAppCenterView(v), true)
+    v.items[0].display[name] = ['模型 Alpha', 'sample.read']
+    assert.equal(validAppCenterView(v), true)
+    for (const invalid of [['same', 'same'], [''], ['  '], [' padded'], ['bad\nvalue'], ['x'.repeat(129)], Array.from({length:65}, (_, i) => String(i)), null, 'text']) {
+      const bad = structuredClone(v); Object.assign(bad.items[0].display, { [name]: invalid })
+      assert.equal(validAppCenterView(bad), false, `${name}: ${JSON.stringify(invalid)}`)
+    }
+    delete v.items[0].display[name]
+    assert.equal(validAppCenterView(v), true)
+  }
+})
+
 test('menus use the shared snapshot while preserving title, pin and order', () => {
   const v = view()
   const navigation: NavigationEnvelope = { mode: 'preinstalled', preferenceRevision: '7', projection: {

@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import type { AppCenterCard } from './schema.generated'
 import { actionLabels, statusLabels, reasonLabel } from './labels'
+import AppIcon from './AppIcon.vue'
+import { publisherLabel, resourceLabel } from './presentation'
 const props = defineProps<{ card: AppCenterCard; stale: boolean }>()
 const emit = defineEmits<{ action: [card: AppCenterCard, actionId: string] }>()
 const primary = computed(() => props.card.actions.find(action => action.id === props.card.primaryActionId))
@@ -13,13 +15,13 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
 <template>
   <article class="app-card">
     <div class="card-top">
-      <span class="app-icon appcenter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg></span>
+      <button class="appcenter-icon-button" :aria-label="`查看 ${card.display.name} 详情`" @click="emit('action', card, 'detail')"><AppIcon :icon-ref="card.display.iconRef" /></button>
       <div><button class="app-title" @click="emit('action', card, 'detail')">{{ card.display.name }}</button>
-        <div class="brand-version"><span v-if="card.display.publisherId">{{ card.display.publisherId }}</span><span v-if="card.installedVersion || card.candidateVersion">{{ card.installedVersion ?? card.candidateVersion }}</span></div>
+        <div class="brand-version"><span v-if="card.display.publisherId">{{ publisherLabel(card.display.publisherId) }}</span><span v-if="card.installedVersion || card.candidateVersion">{{ card.installedVersion ?? card.candidateVersion }}</span></div>
       </div>
     </div>
-    <p class="desc">{{ card.display.description || '暂无应用说明' }}</p>
-    <div v-if="card.display.resourceTags.length" class="appcenter-tags"><span v-for="tag in card.display.resourceTags" :key="tag.kind">{{ tag.kind.toUpperCase() }} {{ tag.value }} {{ tag.unit }}</span></div>
+    <p class="card-desc">{{ card.display.description || '暂无应用说明' }}</p>
+    <div v-if="card.display.resourceTags.length || card.display.models?.length" class="tags appcenter-tags"><span v-for="tag in card.display.resourceTags" :key="tag.kind" class="tag">{{ resourceLabel(tag.kind) }} {{ tag.value }} {{ tag.unit }}</span><span v-if="card.display.models?.length" class="tag">{{ card.display.models.length }} 项声明模型</span></div>
     <div class="card-foot">
       <span class="status" :class="{ running: card.statusCode === 'READY' && !stale }"><i class="dot" :class="{ on: card.statusCode === 'READY' && !stale }" />{{ stale ? '待刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</span>
       <button v-if="primary" class="btn" :disabled="disabled" :title="hint" @click="emit('action', card, primary.id)">{{ actionLabels[primary.kind] }}</button>
@@ -28,8 +30,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
 </template>
 
 <style scoped>
-.appcenter-icon { color: var(--accent); background: var(--panel); }
-.appcenter-icon svg { width: 26px; height: 26px; }
-.desc { flex: 1; }
+.appcenter-icon-button { padding: 0; border: 0; background: none; cursor: pointer; }
+.card-desc { flex: 1; }
 .appcenter-tags { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 11px; }
 </style>

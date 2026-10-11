@@ -662,6 +662,28 @@
               "unavailable",
               "conflict"
             ]
+          },
+          "models": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\s\u0000-\u001f](?:[^\u0000-\u001f]*[^\\s\u0000-\u001f])?$"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\s\u0000-\u001f](?:[^\u0000-\u001f]*[^\\s\u0000-\u001f])?$"
+            }
           }
         },
         "required": [

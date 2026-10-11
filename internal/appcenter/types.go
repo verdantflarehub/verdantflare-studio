@@ -94,6 +94,8 @@ type Display struct {
 	IconRef      *string       `json:"iconRef"`
 	ResourceTags []ResourceTag `json:"resourceTags"`
 	Quality      string        `json:"quality"`
+	Models       *[]string     `json:"models,omitempty"`
+	Capabilities *[]string     `json:"capabilities,omitempty"`
 }
 type Entry struct {
 	EntryID              string  `json:"entryId"`
