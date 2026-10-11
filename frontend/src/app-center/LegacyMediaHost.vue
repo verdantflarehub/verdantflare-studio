@@ -41,7 +41,7 @@ async function receive(event: MessageEvent) {
   pending.add(data.id)
   try {
     try { await props.authorize() }
-    catch { emit('error', 'APPCENTER_BINDING_CHANGED'); return }
+    catch { reply({ status: 503, body: new ArrayBuffer(0) }); return }
     if (disposed || epoch !== generation || signal.aborted) return
     const response = await fetch(a.prefix + data.path, { method, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
       headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? data.body : undefined,

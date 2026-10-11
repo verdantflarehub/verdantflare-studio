@@ -24,10 +24,18 @@ async function authorize() {
   if (!selected) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
   if (store.state.stale || !store.state.value || Date.parse(store.state.value.validUntil) <= Date.now()) await store.refresh()
   const current = store.state.value
-  if (selection.value !== selected || selected.identity !== identity.value || !current || JSON.stringify(current.scope) !== selected.scope || !store.canExecute(selected.card.cardKey, 'open', selected.card.bindingRevision)) {
+  if (selection.value !== selected || selected.identity !== identity.value || current && (JSON.stringify(current.scope) !== selected.scope
+    || current.items.find(card => card.cardKey === selected.card.cardKey)?.bindingRevision !== selected.card.bindingRevision)) {
     const changed = new Error('APPCENTER_BINDING_CHANGED')
     if (selection.value === selected) fail(changed)
     throw changed
+  }
+  // A hidden page or failed read must block forwarding without erasing the
+  // still-bound workspace or claiming that its identity changed.
+  if (!current || store.state.stale || Date.parse(current.validUntil) <= Date.now()) throw new Error('APPCENTER_DEPENDENCY_UNAVAILABLE')
+  if (!store.canExecute(selected.card.cardKey, 'open', selected.card.bindingRevision)) {
+    const denied = new Error(current.items.find(card => card.cardKey === selected.card.cardKey)?.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
+    fail(denied); throw denied
   }
 }
 async function navigate(route: string) {
