@@ -1,5 +1,7 @@
 # Gin/Vue website build; all build steps use scripts/build.sh.
 FROM node:24-bookworm-slim AS frontend
+ARG VITE_APPCENTER_MODE=legacy
+ENV VITE_APPCENTER_MODE=$VITE_APPCENTER_MODE
 WORKDIR /src/frontend
 COPY frontend/ ./
 COPY scripts/build.sh /src/scripts/build.sh

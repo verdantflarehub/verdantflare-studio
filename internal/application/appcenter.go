@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
+	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 )
 
 // AppCenter reads one authenticated Core snapshot. Display/entry providers are
@@ -18,10 +19,19 @@ type AppCenter struct {
 	station          *Station
 	now              func() time.Time
 	presentationPath string
+	declarationsDir  string
+	dashboards       *Dashboards
 }
 
 func NewAppCenter(station *Station, presentationPath string) *AppCenter {
 	return &AppCenter{station: station, now: time.Now, presentationPath: presentationPath}
+}
+
+// WithDashboards binds the same production resolver used by Dashboard routes.
+// Configure only during startup, before serving requests.
+func (a *AppCenter) WithDashboards(d *Dashboards, declarationsDir string) *AppCenter {
+	a.dashboards, a.declarationsDir = d, declarationsDir
+	return a
 }
 
 func appCenterError(status int, code, requestID string) Result {
@@ -33,8 +43,15 @@ func appCenterError(status int, code, requestID string) Result {
 }
 
 func (a *AppCenter) Get(ctx context.Context, token string) Result {
+	_, _, out := a.read(ctx, token)
+	return out
+}
+
+func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map[string]appcenter.Metadata, Result) {
 	id := uuid.Must(uuid.NewV7()).String()
-	fail := func(status int, code string) Result { return appCenterError(status, code, id) }
+	fail := func(status int, code string) (appcenter.View, map[string]appcenter.Metadata, Result) {
+		return appcenter.View{}, nil, appCenterError(status, code, id)
+	}
 	if a == nil || a.station == nil {
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 	}
@@ -90,12 +107,35 @@ func (a *AppCenter) Get(ctx context.Context, token string) Result {
 		}
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 	}
-	// Entry integration is a separate delivery slice. Never guess an entry
-	// from an application name or call Apps while listing.
+	entries := appcenter.Source{Source: "entries", Quality: "unavailable", ReasonCode: appcenter.Text("ENTRY_UNREGISTERED")}
+	if a.dashboards != nil {
+		registered, err := a.dashboards.source.RegisteredEntries(ctx, a.declarationsDir)
+		if err != nil {
+			if errors.Is(err, dashboard.ErrInvalid) {
+				return fail(502, "APPCENTER_INVALID_ENTRIES")
+			}
+			return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+		}
+		entries = appcenter.Source{Source: "entries", Quality: "known", Revision: appcenter.Text(appcenter.Digest(registered))}
+		for _, fact := range facts.Items {
+			if fact.Installation == nil {
+				continue
+			}
+			e, ok := registered[fact.AppID+"@"+fact.Installation.AppVersion]
+			if !ok {
+				continue
+			}
+			meta := metadata[fact.CardKey]
+			meta.EntryRevision = e.Revision
+			meta.Entry = &appcenter.Entry{EntryID: "dashboard", Transport: "dashboard", Quality: e.Quality,
+				Availability: e.Availability, ReasonCode: appcenter.Text(e.ReasonCode), RequiresServiceReady: true}
+			metadata[fact.CardKey] = meta
+		}
+	}
 	now := a.now().UTC()
 	view, err := appcenter.Resolve(appcenter.Input{Facts: facts, Scope: scope, Now: now, Groups: groups, Metadata: metadata, Sources: []appcenter.Source{
 		presentation,
-		{Source: "entries", Quality: "unavailable", ReasonCode: appcenter.Text("ENTRY_UNREGISTERED")},
+		entries,
 	}})
 	if err != nil {
 		if errors.Is(err, appcenter.ErrUnavailable) {
@@ -107,5 +147,5 @@ func (a *AppCenter) Get(ctx context.Context, token string) Result {
 	if err != nil || len(raw) > 4<<20 {
 		return fail(503, "APPCENTER_LIMIT_EXCEEDED")
 	}
-	return Result{Status: 200, Data: raw, RequestID: id}
+	return view, metadata, Result{Status: 200, Data: raw, RequestID: id}
 }

@@ -75,6 +75,8 @@ type Binding struct {
 	Rules                                                        []Rule
 	Backend                                                      *Backend
 	InstanceEntries                                              []InstanceEntry
+	InstallationRevision                                         int64
+	ReleaseRevision                                              string
 }
 
 type Source interface {
@@ -151,6 +153,12 @@ func validate(actor Actor, binding Binding, installationID string) ([]string, er
 		binding.StationID != actor.StationID || binding.OrganizationID != actor.OrganizationID || !binding.Trusted {
 		return nil, ErrDenied
 	}
+	return validateDefinition(binding)
+}
+
+// validateDefinition is shared by offline metadata and the authenticated loader.
+// It validates release compatibility; it does not grant installation access.
+func validateDefinition(binding Binding) ([]string, error) {
 	d := binding.Declaration
 	if d.SchemaVersion != 1 || !identifier.MatchString(binding.AppID) || !identifier.MatchString(binding.Revision) ||
 		d.AppID != binding.AppID || d.AppVersion != binding.AppVersion || !version.MatchString(d.AppVersion) {
@@ -235,6 +243,12 @@ func validRules(rules []Rule) bool {
 }
 
 func (r *Resolver) Open(ctx context.Context, actor Actor, installationID string) (Launch, error) {
+	return r.OpenChecked(ctx, actor, installationID, nil)
+}
+
+// OpenChecked runs the normal authenticated lookup and release checks before
+// checking the caller's pinned binding, and before allocating any session.
+func (r *Resolver) OpenChecked(ctx context.Context, actor Actor, installationID string, check func(Binding) error) (Launch, error) {
 	if err := ctx.Err(); err != nil {
 		return Launch{}, err
 	}
@@ -251,6 +265,11 @@ func (r *Resolver) Open(ctx context.Context, actor Actor, installationID string)
 	grants, err := validate(actor, binding, installationID)
 	if err != nil {
 		return Launch{}, err
+	}
+	if check != nil {
+		if err := check(binding); err != nil {
+			return Launch{}, err
+		}
 	}
 	id := uuid.NewString()
 	launch := Launch{

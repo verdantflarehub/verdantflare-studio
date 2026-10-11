@@ -6,6 +6,9 @@ export class DashboardTransportError extends Error {
   constructor(readonly code: string) { super(code); this.name = 'DashboardTransportError' }
 }
 export interface OpenedDashboard { launch: DashboardLaunch; context: AppContext; policy: LaunchPolicy }
+export interface AppCenterOpenInput {
+  schemaVersion: 1; cardKey: string; entryId: string; expectedViewRevision: string; expectedBindingRevision: string
+}
 export interface DashboardInstallation { installationId: string; appId: string; appVersion: string }
 export interface InstanceWorkspaceLaunch {
   workspaceSessionId: string; installationId: string; appId: string; instanceId: string; entryId: string
@@ -114,6 +117,15 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
   }
 
   return Object.freeze({
+    async openAppCenter(input: AppCenterOpenInput, installationId: string, signal?: AbortSignal): Promise<OpenedDashboard> {
+      const response = await call('/studio/appcenter/v1/open', 'POST', input, signal)
+      if (response.status !== 200) return failure(codeFrom(response.data))
+      const body = response.data
+      if (!body || typeof body !== 'object' || Array.isArray(body)
+        || Object.keys(body).sort().join(',') !== 'opened,schemaVersion,transport'
+        || body.schemaVersion !== 1 || body.transport !== 'dashboard') return failure('INVALID_DASHBOARD_RESPONSE')
+      return opened({ ...response, data: body.opened }, installationId)
+    },
     async openInstance(sessionId: string, installationId: string, input: {instanceId: string; entryId: string}, signal?: AbortSignal): Promise<InstanceWorkspaceLaunch> {
       if (!identifier.test(input.instanceId) || !identifier.test(input.entryId)) return failure('INVALID_INSTANCE_ENTRY')
       const result = workspace(await call(sessionPath(sessionId) + '/instances/open', 'POST', input, signal), installationId)

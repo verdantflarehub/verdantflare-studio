@@ -5,6 +5,8 @@ export const statusLabels: Record<string, string> = {
   STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署 · 待对账', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
 }
 export const reasonLabels: Record<string, string> = {
+  ENTRY_UNVERIFIED: '入口资料尚未完成校验', HOST_UNSUPPORTED: '当前客户端不支持此入口',
+  APPCENTER_BINDING_CHANGED: '应用状态或入口已变化，请刷新后重新打开', APPCENTER_OPEN_UNAVAILABLE: '此应用当前不可打开',
   ACTION_UNSUPPORTED: '此操作暂不可用', PERMISSION_DENIED: '当前账号没有权限', OPERATION_IN_PROGRESS: '请等待当前操作结束',
   BINDING_CONFLICT: '安装信息发生冲突，请刷新后检查', FACTS_UNAVAILABLE: '无法确认当前状态，请刷新',
   SERVICE_NOT_READY: '应用服务尚未就绪', ENTRY_UNAVAILABLE: '入口暂不可用', ENTRY_UNREGISTERED: '尚无可用入口',

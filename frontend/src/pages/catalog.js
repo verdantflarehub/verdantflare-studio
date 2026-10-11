@@ -1,6 +1,28 @@
 // VerdantFlare Market Catalog Data
 // Source of truth: docs/htmls/verdantflare_studio_market_v1.1.html
 
+export const CATALOG_GROUPS = [
+  { id: 'image', label: 'Image' },
+  { id: 'music', label: 'Music' },
+  { id: 'video', label: 'Video' },
+  { id: 'desktop', label: '创作工具' },
+  { id: 'system', label: '系统应用' },
+];
+
+export function selectCatalogGroups(apps, { group = 'all', query = '', matches = () => true } = {}) {
+  const term = query.trim().toLowerCase();
+  return CATALOG_GROUPS
+    .filter(({ id }) => group === 'all' || id === group)
+    .map(({ id, label }) => ({
+      id,
+      label,
+      apps: apps.filter(app => app.group_id === id && matches(app) &&
+        [app.display_name, app.description, ...(app.models || []), ...(app.capabilities || [])]
+          .join(' ').toLowerCase().includes(term)),
+    }))
+    .filter(section => section.apps.length > 0);
+}
+
 export const CATALOG_APPS = [
   {
     app_id: 'comfyui', display_name: 'ComfyUI', group_id: 'desktop', brand: 'vf',

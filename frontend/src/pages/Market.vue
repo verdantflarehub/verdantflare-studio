@@ -8,6 +8,7 @@ import AppNavigationPreferences from '../components/AppNavigationPreferences.vue
 import PreinstalledApps from '../components/PreinstalledApps.vue'
 import { useNavigationStore } from '../platform/navigationStore'
 import { mountMarket } from "./market"
+import { CATALOG_GROUPS } from "./catalog"
 import "../theme/blender-management.css"
 import '../theme/comfyui-management.css'
 
@@ -165,10 +166,7 @@ onBeforeUnmount(() => dispose?.())
             </div>
             <div class="filters-bar">
               <button class="chip active" data-group="all">全部</button>
-              <button class="chip" data-group="image">Image</button>
-              <button class="chip" data-group="music">Music</button>
-              <button class="chip" data-group="video">Video</button>
-              <button class="chip" data-group="desktop">创作工具</button>
+              <button v-for="group in CATALOG_GROUPS" :key="group.id" class="chip" :data-group="group.id">{{ group.label }}</button>
               <span class="result-count" id="resultCount">等待连接</span>
             </div>
             <div id="catalog"></div>

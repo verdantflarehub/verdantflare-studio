@@ -3,7 +3,7 @@ name: Studio
 env:
   REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
   IMAGE_NAME: wod/verdantflare-station
-  IMAGE_VERSION: studio-v0.5.81
+  IMAGE_VERSION: studio-v0.5.82
 
 on:
   push:
@@ -77,6 +77,8 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
+          build-args: |
+            VITE_APPCENTER_MODE=unified
           tags: ${{ steps.registry.outputs.image }}:${{ env.IMAGE_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

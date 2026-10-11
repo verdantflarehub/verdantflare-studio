@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
@@ -7,12 +7,53 @@ import { selectCards } from './controller'
 import { actionLabels, statusLabels, reasonLabel, factLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
+import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
+import { createDashboardWebClient } from '../app-dashboard/web-client'
+import { dashboardLocation } from '../app-dashboard/routes'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
+store.setVisible('directory', true)
 const query = ref(''), group = ref('all'), filter = ref('all'), message = ref('')
+const theme = ref(document.body.dataset.theme === 'dark' ? 'dark' : 'light')
+try { theme.value = localStorage.getItem('vf_studio_theme') === 'dark' ? 'dark' : 'light' } catch { /* use current theme */ }
+watch(theme, value => {
+  document.body.dataset.theme = value; document.documentElement.dataset.theme = value
+  try { localStorage.setItem('vf_studio_theme', value) } catch { /* theme still works without storage */ }
+}, { immediate: true })
 const selectedKey = computed(() => typeof route.query.card === 'string' ? route.query.card : '')
 const selected = computed(() => store.state.value?.items.find(card => card.cardKey === selectedKey.value))
 const businessRoute = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
+const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
+const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
+const dashboardClient = createDashboardWebClient(location.origin)
+const requestedBindings = new Map<string, string>()
+async function authorizeDashboard(id: string, signal: AbortSignal) {
+  await store.refresh()
+  if (signal.aborted) throw new Error('REQUEST_CANCELLED')
+  const card = store.state.value?.items.find(item => item.installation?.installationId === id)
+  const action = card?.actions.find(item => item.kind === 'open')
+  if (!card || !action || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  const expected = requestedBindings.get(id)
+  if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
+  requestedBindings.delete(id)
+}
+async function openDashboard(id: string, signal?: AbortSignal) {
+  const view = store.state.value, card = view?.items.find(item => item.installation?.installationId === id)
+  const action = card?.actions.find(item => item.kind === 'open')
+  if (!view || !card || !action?.entryId || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  const opened = await dashboardClient.openAppCenter({ schemaVersion: 1, cardKey: card.cardKey, entryId: action.entryId,
+    expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }, id, signal)
+  const current = store.state.value
+  if (signal?.aborted || !current || JSON.stringify(current.scope) !== JSON.stringify(view.scope)
+    || current.items.find(item => item.cardKey === card.cardKey)?.bindingRevision !== card.bindingRevision
+    || opened.context.contextRevision !== view.scope.authorizationEpoch || opened.context.userId !== view.scope.userId
+    || opened.context.organizationId !== view.scope.organizationId || opened.context.stationId !== view.scope.stationId
+    || opened.launch.appVersion !== card.installedVersion || opened.launch.appId !== card.appId) {
+    await dashboardClient.close(opened.launch.dashboardSessionId, AbortSignal.timeout(5000)).catch(() => undefined)
+    throw new Error('APPCENTER_BINDING_CHANGED')
+  }
+  return opened
+}
 const result = computed(() => selectCards(store.state.value, query.value, group.value, filter.value, !store.state.stale))
 const groups = computed(() => {
   const names = new Map((store.state.value?.groups ?? []).map(item => [item.id, item.label]))
@@ -30,6 +71,12 @@ async function perform(card: AppCenterCard, actionId: string) {
   }
   if (action?.kind === 'refresh') { await store.refresh(); return }
   if (!action || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) return
+  if (action.kind === 'open' && card.entry?.transport === 'dashboard' && card.installation) {
+    requestedBindings.set(card.installation.installationId, card.bindingRevision)
+    const failed = await router.push(dashboardLocation(card.installation.installationId))
+    if (failed) requestedBindings.delete(card.installation.installationId)
+    return
+  }
   // The current directory delivery does not promise an unconnected mutation or
   // entry adapter. This dispatcher will gain only the finite contracted kinds.
   message.value = '此操作暂不可用，请稍后重试。'
@@ -37,20 +84,19 @@ async function perform(card: AppCenterCard, actionId: string) {
 watch(selectedKey, async (next, previous) => { if (!next && previous) { await nextTick(); window.scrollTo({ top: listScroll }) } })
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id]), () => {
   query.value = ''; group.value = 'all'; filter.value = 'all'; message.value = ''; listScroll = 0
+  requestedBindings.clear()
 })
-onMounted(() => store.setVisible('directory', true))
 onBeforeUnmount(() => store.setVisible('directory', false))
 </script>
 
 <template>
-  <main class="main appcenter-page"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn" :disabled="store.state.refreshing" @click="store.refresh()">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
+  <main v-show="!businessRoute" class="main appcenter-page"><div class="workspace">
+    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing" @click="store.refresh()">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
     <p v-if="!host.connected" class="panel appcenter-message">请登录以查看应用。</p>
     <template v-else>
       <p v-if="store.state.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.state.error) }}<span v-if="store.state.value"> 当前保留上次读取的信息，操作已暂停。</span></p>
       <p v-if="message" class="appcenter-message" role="status">{{ message }}</p>
-      <section v-if="businessRoute" class="panel appcenter-message"><h2>应用入口暂不可用</h2><p>请返回应用中心查看当前状态。</p><button class="btn" @click="back">返回应用中心</button></section>
-      <section v-else-if="selectedKey" class="appcenter-detail">
+      <section v-if="selectedKey" class="appcenter-detail">
         <button class="btn ghost" @click="back">返回应用中心</button>
         <template v-if="selected">
           <h2>{{ selected.display.name }}</h2><p>{{ selected.display.description || '暂无应用说明' }}</p>
@@ -70,6 +116,8 @@ onBeforeUnmount(() => store.setVisible('directory', false))
       </section>
     </template>
   </div></main>
+  <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
+    :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" />
 </template>
 
 <style scoped>

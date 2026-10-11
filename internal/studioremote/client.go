@@ -77,6 +77,8 @@ func Allowed(method, path string) bool {
 	switch path {
 	case "/studio/appcenter/v1/view":
 		return method == "GET"
+	case "/studio/appcenter/v1/open":
+		return method == "POST"
 	case "/api/login", "/api/logout", "/api/commands", "/studio/dashboards", "/studio/navigation/preferences", "/studio/preinstalled/reconcile", "/mcp":
 		return method == "POST"
 	case "/api/me", "/api/health", "/api/apps", "/api/installations", "/api/resources/gpu", "/api/resources/node", "/api/resources/summary", "/api/resources/workloads", "/studio/dashboard-installations", "/studio/navigation", "/studio/preinstalled":
