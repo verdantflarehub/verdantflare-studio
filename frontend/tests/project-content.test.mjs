@@ -13,7 +13,7 @@ after(() => rmSync(compiled, { recursive: true, force: true }))
 execFileSync(process.execPath, [join(frontend, 'node_modules/typescript/bin/tsc'),
   join(frontend, 'src/platform/project-content.ts'), join(frontend, 'src/platform/drama-presentation.ts'), '--outDir', compiled,
   '--target', 'es2022', '--module', 'commonjs', '--strict', '--skipLibCheck'], { cwd: frontend, stdio: 'pipe' })
-const { materialPreview, dramaText } = createRequire(import.meta.url)(join(compiled, 'drama-presentation.js'))
+const { materialPreview, dramaText, documentSection } = createRequire(import.meta.url)(join(compiled, 'drama-presentation.js'))
 const { parseProjectContent } = createRequire(import.meta.url)(join(compiled, 'project-content.js'))
 // Design remains the contract source; do not duplicate its fixtures in the application.
 const design = process.env.VERDANTFLARE_DESIGN_ROOT || resolve(frontend, '../..')
@@ -294,4 +294,15 @@ test('readable display resolves known codes without changing unknown identifiers
   assert.equal(dramaText(text, drama), '**动作：** 铜戒 交给 谢小娥；P010 保留。阅读场景。')
   assert(text.includes('`P01`'))
   assert.equal(dramaText('<script>unsafe</script>', drama), '<script>unsafe</script>') // Vue renders this as escaped text, never HTML.
+})
+
+
+test('fixed Markdown references isolate their authored section including nested headings', () => {
+  const text = '# Lighting\n\n### Day\n<a id="day"></a>\nDaylight\n#### Detail\nSoft shadows\n### Night\n<a id="night"></a>\nLamp off\n### Dawn\nMorning'
+  assert.equal(documentSection(text, 'night'), '### Night\nLamp off')
+  assert.match(documentSection(text, 'day'), /Soft shadows/)
+  assert.doesNotMatch(documentSection(text, 'day'), /Lamp off/)
+  assert.throws(() => documentSection(text, 'missing'), /没有对应章节/)
+  assert.equal(documentSection(text), text)
+  assert.equal(documentSection('## My Heading\nBody\n## Next\nOther', 'my-heading'), '## My Heading\nBody')
 })

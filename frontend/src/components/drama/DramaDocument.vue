@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { ProjectReader, readerError } from '../../platform/project-reader'
+import { documentSection } from '../../platform/drama-presentation'
 import DramaProse from './DramaProse.vue'
 import ProjectMedia from '../ProjectMedia.vue'
-const props = defineProps<{ reader: ProjectReader; fileId?: string | null; title: string }>()
+const props = defineProps<{ reader: ProjectReader; fileId?: string | null; title: string; anchor?: string; initiallyExpanded?: boolean }>()
 const text = ref(''), expanded = ref(false), busy = ref(false), error = ref(''), structured = ref(false), loaded = ref(false)
 let serial = 0
 async function open() {
@@ -14,12 +15,12 @@ async function open() {
     const result = await props.reader.document(props.fileId)
     if (serial !== current) return
     structured.value = !['text/plain', 'text/markdown'].includes(result.mime)
-    text.value = structured.value ? '' : result.text
+    text.value = structured.value ? '' : documentSection(result.text, props.anchor)
     loaded.value = true
   } catch (cause) { if (serial === current) error.value = readerError(cause) }
   finally { if (serial === current) busy.value = false }
 }
-watch(() => [props.reader, props.fileId], () => { serial++; text.value = ''; expanded.value = false; loaded.value = false; busy.value = false; error.value = ''; structured.value = false })
+watch(() => [props.reader, props.fileId, props.anchor], () => { serial++; text.value = ''; expanded.value = false; loaded.value = false; busy.value = false; error.value = ''; structured.value = false; if (props.initiallyExpanded) void open() }, { immediate: true })
 onBeforeUnmount(() => { serial++ })
 </script>
 <template>

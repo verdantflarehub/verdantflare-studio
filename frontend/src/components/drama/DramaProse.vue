@@ -4,7 +4,7 @@ import { dramaText } from '../../platform/drama-presentation'
 import type { ProjectContent } from '../../platform/project-content'
 const props = defineProps<{ text?: string | null; drama?: ProjectContent['ai_short_drama'] }>()
 // Vue text nodes deliberately escape HTML; authored text never becomes executable markup.
-const lines = computed(() => dramaText(props.text, props.drama).split('\n').map(line => ({
+const lines = computed(() => dramaText(props.text, props.drama).split('\n').filter(line => !/^\s*<a\s+(?:id|name)=["'][^"']+["']\s*>\s*<\/a>\s*$/.test(line)).map(line => ({
   heading: /^#{1,6}\s/.test(line),
   parts: line.replace(/^#{1,6}\s+/, '').split(/(\*\*[^*]+\*\*)/g),
 })))
