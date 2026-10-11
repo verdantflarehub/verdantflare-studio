@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { ProjectReader, readerError } from '../../platform/project-reader'
+import DramaProse from './DramaProse.vue'
 import ProjectMedia from '../ProjectMedia.vue'
 const props = defineProps<{ reader: ProjectReader; fileId?: string | null; title: string }>()
 const text = ref(''), expanded = ref(false), busy = ref(false), error = ref(''), structured = ref(false), loaded = ref(false)
@@ -29,7 +30,7 @@ onBeforeUnmount(() => { serial++ })
       <p v-if="busy" role="status" class="muted">正在读取固定版本…</p>
       <p v-else-if="error" role="alert" class="error">{{ error }}<button class="btn" @click="expanded = false; open()">重试</button></p>
       <template v-else-if="structured"><p class="muted">这份资料为工程记录，可下载查看；页面不展开内部字段。</p><ProjectMedia :reader="reader" :file-id="fileId" kind="file" :label="title" /></template>
-      <pre v-else class="document-text">{{ text }}</pre>
+      <DramaProse v-else class="document-text" :text="text" :drama="reader.content?.ai_short_drama" />
     </div>
   </div>
 </template>

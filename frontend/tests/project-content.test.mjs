@@ -11,8 +11,9 @@ const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const compiled = mkdtempSync(join(tmpdir(), 'vf-project-content-test-'))
 after(() => rmSync(compiled, { recursive: true, force: true }))
 execFileSync(process.execPath, [join(frontend, 'node_modules/typescript/bin/tsc'),
-  join(frontend, 'src/platform/project-content.ts'), '--outDir', compiled,
+  join(frontend, 'src/platform/project-content.ts'), join(frontend, 'src/platform/drama-presentation.ts'), '--outDir', compiled,
   '--target', 'es2022', '--module', 'commonjs', '--strict', '--skipLibCheck'], { cwd: frontend, stdio: 'pipe' })
+const { materialPreview, dramaText } = createRequire(import.meta.url)(join(compiled, 'drama-presentation.js'))
 const { parseProjectContent } = createRequire(import.meta.url)(join(compiled, 'project-content.js'))
 // Design remains the contract source; do not duplicate its fixtures in the application.
 const design = process.env.VERDANTFLARE_DESIGN_ROOT || resolve(frontend, '../..')
@@ -266,4 +267,29 @@ test('current source publication uses an explicit package record instead of curr
   assert.doesNotThrow(() => parse(value, p))
   delete c.publication_record_file_id
   assert.throws(() => parse(value, p))
+})
+
+
+test('material previews include unselected and rejected attempts without changing adoption', () => {
+  const candidate = (key, state) => ({ key, label: key, state_key: 'wet', purpose: 'image', review: { state }, file_refs: [{ file_id: key, purpose: 'image' }] })
+  const material = { versions: [candidate('first', 'approved'), candidate('retry', 'rejected')], selected_versions: [], file_ids: [] }
+  const before = JSON.stringify(material)
+  assert.equal(materialPreview(material).fileId, 'retry')
+  assert.equal(materialPreview(material).selected, false)
+  assert.equal(JSON.stringify(material), before)
+  material.selected_versions.push({ version_key: 'first', state_key: 'wet', purpose: 'image' })
+  assert.equal(materialPreview(material).fileId, 'first')
+  assert.equal(materialPreview(material).selected, true)
+  material.versions.push({ key: 'engineering', file_refs: [{ file_id: 'blend', purpose: 'whitebox' }] })
+  material.selected_versions = []
+  assert.equal(materialPreview(material).fileId, 'retry')
+  assert.equal(materialPreview({ versions: [], selected_versions: [], file_ids: [] }).fileId, undefined)
+})
+
+test('readable display resolves known codes without changing unknown identifiers or source text', () => {
+  const text = '**动作：** `P01` 交给 CH_A；P010 保留。阅读[场景](../scene.md)。'
+  const drama = { globals: [{ key: 'P01', name: '铜戒' }, { key: 'CH_A', name: '谢小娥' }], episodes: [] }
+  assert.equal(dramaText(text, drama), '**动作：** 铜戒 交给 谢小娥；P010 保留。阅读场景。')
+  assert(text.includes('`P01`'))
+  assert.equal(dramaText('<script>unsafe</script>', drama), '<script>unsafe</script>') // Vue renders this as escaped text, never HTML.
 })

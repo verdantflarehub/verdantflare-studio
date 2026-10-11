@@ -24,7 +24,7 @@ const tabs = computed(() => project.value?.manifest.category === 'character'
   : project.value?.manifest.category === 'music'
     ? [{ key: 'voice', label: '人声训练' }, { key: 'songs', label: '歌曲创作' }, { key: 'mvs', label: 'MV创作' }]
     : project.value?.manifest.category === 'video' ? [{ key: 'storyboards', label: '故事板' }, { key: 'cast', label: '角色创作' }]
-      : project.value?.manifest.category === 'ai_short_drama' ? [{ key: 'script', label: '剧本与设定' }, { key: 'materials', label: '素材设定' }, { key: 'production', label: '镜头制作' }, { key: 'delivery', label: '成果与交付' }] : [])
+      : project.value?.manifest.category === 'ai_short_drama' ? [{ key: 'overview', label: '概览' }, { key: 'script', label: '剧本与设定' }, { key: 'materials', label: '素材设定' }, { key: 'production', label: '镜头制作' }, { key: 'delivery', label: '成果与交付' }] : [])
 const activeTab = computed(() => tabs.value.find(t => t.key === (({ episodes: 'script', continuity: 'script', tasks: 'production' } as Record<string, string>)[query('tab')] || query('tab'))) || tabs.value[0])
 const dramaEpisode = computed(() => query('episode') ? drama.value?.episodes.find(ep => ep.key === query('episode')) : drama.value?.episodes[0])
 const dramaScene = computed(() => dramaEpisode.value?.scenes.find(scene => scene.key === query('scene')))
@@ -45,8 +45,8 @@ const fromProject = computed(() => isProjectID(query('from')) && isProjectID(que
 const value = (text?: string | null) => text?.trim() ? text : '未填写'
 const duration = (seconds?: number | null) => seconds == null ? '时长未填写' : `${seconds} 秒`
 function link(change: Record<string, string | undefined>) { return { path: '/projects', query: { ...route.query, ...change } } }
-const listLink = computed(() => link({ project: undefined, revision: undefined, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, from: undefined, fromRevision: undefined, fromName: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined }))
-function openProject(item: ProjectItem) { return link({ project: item.project_id, revision: item.head_revision_id, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined }) }
+const listLink = computed(() => link({ project: undefined, revision: undefined, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, from: undefined, fromRevision: undefined, fromName: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined }))
+function openProject(item: ProjectItem) { return link({ project: item.project_id, revision: item.head_revision_id, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined }) }
 function castLink(cast: Cast) { return link({ project: cast.project_id!, revision: cast.revision_id!, tab: 'setting', item: undefined, from: project.value!.project_id, fromRevision: project.value!.revision_id, fromName: project.value!.manifest.name }) }
 const positions = new Map<string, number>()
 const scrollStorageKey = 'studio.project.scroll'
@@ -116,7 +116,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
 </script>
 
 <template>
-  <main class="main project-browser">
+  <main class="main project-browser" :class="{ 'drama-browser': drama }">
     <div class="workspace">
       <nav v-if="projectID" class="breadcrumbs" aria-label="面包屑">
         <RouterLink :to="listLink">项目</RouterLink><span>/</span>
@@ -127,7 +127,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
         <span v-else aria-current="page">{{ project?.manifest.name || '项目' }}</span>
       </nav>
       <header class="heading">
-        <div class="heading-left"><div class="eyebrow">PROJECTS</div><h1>{{ projectID ? (dramaShot ? dramaShot.title : detail?.title || project?.manifest.name || '项目') : '项目' }}</h1><p v-if="!projectID">角色、音乐、短视频与 AI 短剧创作</p></div>
+        <div class="heading-left"><div class="eyebrow">{{ drama ? 'AI 短剧制作' : 'PROJECTS' }}</div><h1>{{ projectID ? (detail?.title || project?.manifest.name || '项目') : '项目' }}</h1><p v-if="drama">{{ drama.episodes.length }} 集 · {{ drama.episodes.reduce((n, e) => n + e.scenes.reduce((n, s) => n + s.shots.length, 0), 0) }} 镜 · {{ activeTab?.label }}</p><p v-else-if="!projectID">角色、音乐、短视频与 AI 短剧创作</p></div>
         <button class="btn" :disabled="loading || listLoading" @click="retry">刷新</button>
       </header>
 
@@ -149,7 +149,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
       <div v-else-if="loading" class="state" role="status">正在读取项目…</div>
       <div v-else-if="error" class="state error" role="alert">{{ error }}<button class="btn" @click="retry">重试</button></div>
       <template v-else-if="project && reader">
-        <nav v-if="!query('item') && !query('shot')" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined })">{{ tab.label }}</RouterLink></nav>
+        <nav v-if="drama || (!query('item') && !query('shot'))" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined })">{{ tab.label }}</RouterLink></nav>
         <div v-if="!content" class="state">暂无业务内容。</div>
         <ShortDramaProject v-else-if="drama" :reader="reader" :tab="activeTab?.key || 'script'" />
         <div v-else-if="query('item') && !detail" class="state">当前项目修订中没有这项内容。</div>
@@ -187,6 +187,13 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
 </template>
 
 <style scoped>
+.drama-browser { padding: 27px clamp(20px, 3vw, 52px) 70px; }
+.drama-browser > .workspace { max-width: 1480px; margin: auto; }
+.drama-browser .heading { align-items: start; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }
+.drama-browser .business-tabs { gap: 22px; border-bottom: 1px solid var(--line); margin: 18px 0 25px; }
+.drama-browser .business-tabs a { padding: 10px 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; font-size: 13px; background: transparent; }
+.drama-browser .business-tabs a.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
 .project-browser { overflow-wrap: anywhere; }
 .eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
 .breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; font-size: 13px; color: var(--muted); }
