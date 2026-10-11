@@ -54,20 +54,23 @@ export const useHostStore = defineStore('host', () => {
   }
 
   async function fetchSession() {
-    try {
-      const res = await request({ path: 'me', method: 'GET' })
-      if (res.status === 200) {
-        const data = await res.json()
-        setIdentity(data)
-        return data
-      } else {
-        connected.value = false
-        return null
+    // A transient gateway failure must not permanently strand direct project
+    // links without the identity needed for user-scoped local Tips.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await request({ path: 'me', method: 'GET' })
+        if (res.status === 200) {
+          const data = await res.json()
+          setIdentity(data)
+          return data
+        }
+        if (res.status < 500) break
+      } catch {
+        // Retry only this idempotent session read; never replay a mutation.
       }
-    } catch {
-      connected.value = false
-      return null
     }
+    connected.value = false
+    return null
   }
 
   async function fetchCluster() {
