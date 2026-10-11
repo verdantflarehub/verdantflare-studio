@@ -22,6 +22,8 @@ type AppCenter struct {
 	presentationPath string
 	declarationsDir  string
 	preinstalledPath string
+	legacyPath       string
+	legacyBackends   func() map[string]string
 	dashboards       *Dashboards
 }
 
@@ -40,6 +42,11 @@ func (a *AppCenter) WithDashboards(d *Dashboards, declarationsDir string) *AppCe
 // It does not invoke reconciliation or create missing installations.
 func (a *AppCenter) WithPreinstalled(path string) *AppCenter {
 	a.preinstalledPath = path
+	return a
+}
+
+func (a *AppCenter) WithLegacy(path string, backends func() map[string]string) *AppCenter {
+	a.legacyPath, a.legacyBackends = path, backends
 	return a
 }
 
@@ -159,6 +166,39 @@ func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map
 			meta.ArtifactDigest = e.ArtifactDigest
 			meta.Entry = &appcenter.Entry{EntryID: "dashboard", Transport: "dashboard", Quality: e.Quality,
 				Availability: e.Availability, ReasonCode: appcenter.Text(e.ReasonCode), RequiresServiceReady: true}
+			metadata[fact.CardKey] = meta
+		}
+	}
+	if a.legacyPath != "" {
+		backends := map[string]string{}
+		if a.legacyBackends != nil {
+			backends = a.legacyBackends()
+		}
+		bindings, revision, err := appcenter.LoadLegacy(ctx, a.legacyPath, facts, backends)
+		if err != nil {
+			if errors.Is(err, appcenter.ErrInvalid) {
+				return fail(502, "APPCENTER_INVALID_ENTRIES")
+			}
+			return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+		}
+		entries = appcenter.Source{Source: "entries", Quality: "known", Revision: appcenter.Text(appcenter.Digest([]any{entries, revision}))}
+		for _, fact := range facts.Items {
+			binding, ok := bindings[fact.CardKey]
+			if !ok {
+				continue
+			}
+			meta := metadata[fact.CardKey]
+			if meta.Entry != nil {
+				return fail(502, "APPCENTER_INVALID_ENTRIES")
+			}
+			meta.Legacy = &binding
+			meta.EntryRevision = appcenter.Digest([]any{binding, backends[binding.AdapterID]})
+			meta.Entry = &appcenter.Entry{EntryID: binding.AdapterID, Transport: "legacy", Quality: "known", Availability: "available", RequiresServiceReady: true}
+			if fact.Service.WorkloadUID == nil || *fact.Service.WorkloadUID != binding.WorkloadUID {
+				meta.Entry.Availability, meta.Entry.ReasonCode = "unavailable", appcenter.Text("BINDING_CONFLICT")
+			} else if backends[binding.AdapterID] == "" || backends[binding.AdapterID] != binding.BackendRevision {
+				meta.Entry.Availability, meta.Entry.ReasonCode = "unavailable", appcenter.Text("LEGACY_BACKEND_CHANGED")
+			}
 			metadata[fact.CardKey] = meta
 		}
 	}

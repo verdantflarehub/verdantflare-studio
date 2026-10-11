@@ -16,6 +16,7 @@ type Metadata struct {
 	Entry          *Entry
 	EntryRevision  string
 	ArtifactDigest string
+	Legacy         *LegacyBinding
 	Preinstalled   bool
 }
 type Input struct {

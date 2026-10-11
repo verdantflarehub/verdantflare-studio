@@ -26,11 +26,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	handler, webServer := web.NewServer(s, env("STUDIO_PUBLIC_ORIGIN", "http://127.0.0.1:8000"), frontend.Assets(), web.VideoConfig{URL: os.Getenv("STUDIO_VIDEO_URL"), Token: os.Getenv("STUDIO_VIDEO_TOKEN")})
+	videoConfig := web.VideoConfig{URL: os.Getenv("STUDIO_VIDEO_URL"), Token: os.Getenv("STUDIO_VIDEO_TOKEN")}
+	imageConfig := web.ImageConfig{URL: env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-image.svc.cluster.local:8000"), Token: os.Getenv("STUDIO_IMAGE_TOKEN")}
+	handler, webServer := web.NewServer(s, env("STUDIO_PUBLIC_ORIGIN", "http://127.0.0.1:8000"), frontend.Assets(), videoConfig)
 	dashboards := application.NewDashboards(s, os.Getenv("STUDIO_DASHBOARD_REGISTRY"))
 	defer dashboards.Shutdown()
 	webServer.EnableDashboards(handler, dashboards)
 	appCenter := application.NewAppCenter(s, os.Getenv("STUDIO_APPCENTER_PRESENTATION_REGISTRY")).WithDashboards(dashboards, os.Getenv("STUDIO_APPCENTER_DECLARATIONS_DIR")).WithPreinstalled(os.Getenv("STUDIO_PREINSTALLED_CONFIG"))
+	appCenter.WithLegacy(os.Getenv("STUDIO_APPCENTER_LEGACY_REGISTRY"), webServer.LegacyBackends(imageConfig, videoConfig))
 	webServer.EnableAppCenter(handler, appCenter)
 	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences()).WithAppCenter(appCenter)
 	defer navigation.Shutdown()
@@ -38,10 +41,7 @@ func main() {
 	preinstalled := application.NewPreinstalled(s, os.Getenv("STUDIO_PREINSTALLED_CONFIG"), webServer.PreinstalledStore())
 	webServer.EnablePreinstalled(handler, preinstalled)
 
-	webServer.EnableImage(handler, web.ImageConfig{
-		URL:   env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-image.svc.cluster.local:8000"),
-		Token: os.Getenv("STUDIO_IMAGE_TOKEN"),
-	})
+	webServer.EnableImage(handler, imageConfig)
 
 	etcdRaw := env("ETCD_ENDPOINTS", "http://etcd.verdantflare-station.svc.cluster.local:2379")
 	var etcdEndpoints []string

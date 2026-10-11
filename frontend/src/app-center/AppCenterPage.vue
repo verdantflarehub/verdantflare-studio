@@ -11,6 +11,8 @@ import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
 import { createDashboardWebClient } from '../app-dashboard/web-client'
 import { dashboardLocation } from '../app-dashboard/routes'
 import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
+import LegacyWorkspace from './LegacyWorkspace.vue'
+import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
@@ -24,9 +26,14 @@ watch(theme, value => {
 const selectedKey = computed(() => typeof route.query.card === 'string' ? route.query.card : '')
 const selected = computed(() => store.state.value?.items.find(card => card.cardKey === selectedKey.value))
 const businessRoute = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
+const legacy = computed(() => {
+  try { return { target: legacyTarget(route.fullPath), error: '' } }
+  catch (error) { return { target: null, error: error instanceof Error ? error.message : 'INVALID_LEGACY_ROUTE' } }
+})
 const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
 const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
 const dashboardClient = createDashboardWebClient(location.origin)
+const legacyClient = createLegacyClient()
 async function authorizeDashboard(id: string, signal: AbortSignal) {
   await store.refresh()
   if (signal.aborted) throw new Error('REQUEST_CANCELLED')
@@ -76,6 +83,19 @@ async function perform(card: AppCenterCard, actionId: string) {
     if (failed) store.takeOpenBinding(card.installation.installationId)
     return
   }
+  if (action.kind === 'open' && card.entry?.transport === 'legacy') {
+    const view = store.state.value
+    if (!view) return
+    try {
+      if (new URLSearchParams(location.search).get('host') === 'desktop') throw new Error('HOST_UNSUPPORTED')
+      const opened = await legacyClient.open(view, card, AbortSignal.timeout(30000))
+      if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
+      store.pinOpen(card.cardKey, card.bindingRevision)
+      const failed = await router.push(legacyLocation(opened, card.cardKey))
+      if (failed) store.takeOpenBinding(card.cardKey)
+    } catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_OPEN_UNAVAILABLE') }
+    return
+  }
   // The current directory delivery does not promise an unconnected mutation or
   // entry adapter. This dispatcher will gain only the finite contracted kinds.
   message.value = '此操作暂不可用，请稍后重试。'
@@ -88,7 +108,7 @@ onBeforeUnmount(() => store.setVisible('directory', false))
 </script>
 
 <template>
-  <main v-show="!businessRoute" class="main appcenter-page"><div class="workspace">
+  <main v-show="!businessRoute && !legacy.target && !legacy.error" class="main appcenter-page"><div class="workspace">
     <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing" @click="store.refresh()">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
     <p v-if="!host.connected" class="panel appcenter-message">请登录以查看应用。</p>
     <template v-else>
@@ -121,6 +141,7 @@ onBeforeUnmount(() => store.setVisible('directory', false))
   </div></main>
   <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
     :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" />
+  <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" />
 </template>
 
 <style scoped>
