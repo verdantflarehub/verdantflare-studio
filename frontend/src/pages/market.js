@@ -251,7 +251,7 @@ export function mountMarket(options = {}) {
         marketView.hidden = false;
         marketView.style.display = '';
       }
-      if ($('pageTitle')) $('pageTitle').textContent = '应用市场';
+      if ($('pageTitle')) $('pageTitle').textContent = '应用中心';
       if ($('pageSubtitle')) $('pageSubtitle').textContent = '为 Station 安装创作应用，管理模型与运行状态。';
     }
   }

@@ -37,7 +37,7 @@ onBeforeUnmount(() => dispose?.())
       <!-- Clean, Focused Heading Zone for Sub-business Workspace -->
       <header class="heading">
         <div class="heading-left">
-          <h1 id="pageTitle">应用市场</h1>
+          <h1 id="pageTitle">应用中心</h1>
           <p id="pageSubtitle">为 Station 安装创作应用，管理模型与运行状态。</p>
         </div>
         <div class="heading-actions">
@@ -137,7 +137,7 @@ onBeforeUnmount(() => dispose?.())
       </section>
 
       <section id="comfyuiHost" class="comfyui-management" aria-label="ComfyUI 实例" hidden>
-        <div class="topline"><nav class="crumbs" aria-label="面包屑"><a href="#/market">应用市场</a><span>/</span><a href="#/market?comfyui=instances">ComfyUI</a><span id="comfyuiInstanceCrumb" hidden>/ <span id="comfyuiInstanceName" aria-current="page"></span></span></nav><div class="actions"><span id="comfyuiEditorMessage" class="comfyui-editor-status" role="status" hidden></span><button id="comfyuiRefresh" class="btn">刷新</button><button id="comfyuiTheme" class="btn" aria-label="切换主题">◐</button></div></div>
+        <div class="topline"><nav class="crumbs" aria-label="面包屑"><a href="#/market">应用中心</a><span>/</span><a href="#/market?comfyui=instances">ComfyUI</a><span id="comfyuiInstanceCrumb" hidden>/ <span id="comfyuiInstanceName" aria-current="page"></span></span></nav><div class="actions"><span id="comfyuiEditorMessage" class="comfyui-editor-status" role="status" hidden></span><button id="comfyuiRefresh" class="btn">刷新</button><button id="comfyuiTheme" class="btn" aria-label="切换主题">◐</button></div></div>
         <div id="comfyuiDirectory"><div class="intro"><h1>你的 ComfyUI 实例</h1></div>
         <div class="filterbar"><span id="comfyuiCount">我的实例 · —</span><input id="comfyuiSearch" type="search" aria-label="搜索 ComfyUI 实例" placeholder="搜索实例"></div>
         <p id="comfyuiMessage" role="status">正在获取实例…</p>

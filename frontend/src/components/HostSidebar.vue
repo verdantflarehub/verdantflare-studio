@@ -214,7 +214,7 @@ function handleHelpClick() {
           <rect x="3" y="14" width="7" height="7"></rect>
         </svg>
       </span>
-      <span>应用市场</span>
+      <span>应用中心</span>
     </a>
 
     <div class="nav-sub-group" id="groupNav" v-show="activeNav === 'market'">
@@ -291,7 +291,7 @@ function handleHelpClick() {
               class="side-cluster-card"
               id="sideClusterCard"
               @click="openResources"
-              :title="`${hostStore.clusterName} · ${navigation.legacy || resourcesEntry ? '查看资源管理' : '打开应用市场'}`">
+              :title="`${hostStore.clusterName} · ${navigation.legacy || resourcesEntry ? '查看资源管理' : '打开应用中心'}`">
         <div class="side-cluster-row">
           <div class="side-cluster-lead">
             <i class="dot" :class="{ on: hostStore.connected }"></i>
