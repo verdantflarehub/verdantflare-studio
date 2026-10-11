@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
@@ -32,16 +33,16 @@ func TestDesktopCredentialIsolation(t *testing.T) {
 	defer server.Close()
 	station, _ := application.NewStation(server.URL)
 	service := New(station)
-	result := service.Call(application.Request{Method: "POST", Path: "login", Body: json.RawMessage(`{}`)})
+	result := service.Call(context.Background(), application.Request{Method: "POST", Path: "login", Body: json.RawMessage(`{}`)})
 	encoded, _ := json.Marshal(result)
 	if result.Status != 201 || strings.Contains(string(encoded), "private-session") || result.Token != "" {
 		t.Fatal("login leaked credential")
 	}
-	if service.Call(application.Request{Method: "GET", Path: "apps"}).Status != 200 {
+	if service.Call(context.Background(), application.Request{Method: "GET", Path: "apps"}).Status != 200 {
 		t.Fatal("session unavailable")
 	}
-	service.Call(application.Request{Method: "POST", Path: "logout"})
-	if service.Call(application.Request{Method: "GET", Path: "apps"}).Status != 401 {
+	service.Call(context.Background(), application.Request{Method: "POST", Path: "logout"})
+	if service.Call(context.Background(), application.Request{Method: "GET", Path: "apps"}).Status != 401 {
 		t.Fatal("session not cleared")
 	}
 }
@@ -84,7 +85,7 @@ func TestDesktopMCPRevalidatesSessionAndReturnsJSONRPC(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewWithGateway(station, mcp.NewGatewayWithClient(nil))
-	login := service.Call(application.Request{Method: "POST", Path: "login", Body: json.RawMessage(`{}`)})
+	login := service.Call(context.Background(), application.Request{Method: "POST", Path: "login", Body: json.RawMessage(`{}`)})
 	if login.Status != 201 {
 		t.Fatalf("login failed: %d", login.Status)
 	}

@@ -33,17 +33,30 @@ func NewWithGateway(s *application.Station, gateway *mcp.Gateway) *Service {
 	return &Service{station: s, mcpGateway: gateway, workspaces: map[string]*workspace.Workspace{}}
 }
 
-func (s *Service) Call(in application.Request) application.Result {
+// Call receives the cancellable binding context from Wails, not from JavaScript.
+func (s *Service) Call(ctx context.Context, in application.Request) application.Result {
+	if ctx.Err() != nil {
+		return application.Error(503, "SERVICE_UNAVAILABLE")
+	}
 	if s.remote != nil {
-		return s.remoteCall(context.Background(), "/api/"+in.Path, in.Method, in.Body)
+		return s.remoteCall(ctx, "/api/"+in.Path, in.Method, in.Body)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := s.station.Call(context.Background(), s.token, in)
+	if ctx.Err() != nil {
+		return application.Error(503, "SERVICE_UNAVAILABLE")
+	}
+	out := s.station.Call(ctx, s.token, in)
+	if in.Path == "logout" {
+		s.token = ""
+	}
+	if ctx.Err() != nil {
+		return application.Error(503, "SERVICE_UNAVAILABLE")
+	}
 	if in.Path == "login" && out.Status == 201 {
 		s.token = out.Token
 	}
-	if in.Path == "logout" || out.Status == 401 {
+	if out.Status == 401 {
 		s.token = ""
 	}
 	out.Token = ""

@@ -151,6 +151,9 @@ func (c *Client) Send(ctx context.Context, method, path string, body []byte) (Re
 }
 
 func (c *Client) send(ctx context.Context, method, path string, body []byte, expected *uint64) (Response, error) {
+	if ctx.Err() != nil {
+		return Response{}, ErrUnavailable
+	}
 	if !Allowed(method, path) || len(body) > (1<<20)+4096 || method == "GET" && len(body) != 0 {
 		return Response{}, ErrInvalid
 	}
@@ -162,6 +165,10 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte, exp
 	login := path == "/api/login"
 	logout := path == "/api/logout"
 	c.mu.Lock()
+	if ctx.Err() != nil {
+		c.mu.Unlock()
+		return Response{}, ErrUnavailable
+	}
 	if expected != nil && (*expected != c.epoch || login || logout) {
 		c.mu.Unlock()
 		return Response{}, ErrChanged
@@ -244,6 +251,9 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte, exp
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if ctx.Err() != nil {
+		return Response{}, ErrUnavailable
+	}
 	if epoch != c.epoch {
 		return Response{}, ErrChanged
 	}
