@@ -28,7 +28,7 @@ func (s *Server) mcpHandler(c *gin.Context) {
 		mcprpc.Reject(c.Writer, c.Request, empty, 400, -32700, "Invalid JSON-RPC request")
 		return
 	}
-	if mcprpc.Common(c.Writer, request, "verdantflare-studio", "0.1.0") {
+	if mcprpc.CommonWithInstructions(c.Writer, request, "verdantflare-studio", "0.1.0", mcp.ProjectArchiveInstructions) {
 		return
 	}
 	s.mu.Lock()

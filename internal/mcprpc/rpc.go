@@ -167,6 +167,11 @@ func Reject(w http.ResponseWriter, incoming *http.Request, r Request, status, co
 	Error(w, r, status, code, message)
 }
 func Common(w http.ResponseWriter, r Request, name, version string) bool {
+	return CommonWithInstructions(w, r, name, version, "")
+}
+
+// CommonWithInstructions exposes host workflow guidance during MCP initialization.
+func CommonWithInstructions(w http.ResponseWriter, r Request, name, version, instructions string) bool {
 	switch r.Method {
 	case "initialize":
 		if len(r.ID) == 0 {
@@ -184,7 +189,11 @@ func Common(w http.ResponseWriter, r Request, name, version string) bool {
 		if v != "2025-03-26" && v != "2025-06-18" {
 			v = "2025-06-18"
 		}
-		Result(w, r, map[string]any{"protocolVersion": v, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]string{"name": name, "version": version}})
+		result := map[string]any{"protocolVersion": v, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]string{"name": name, "version": version}}
+		if instructions != "" {
+			result["instructions"] = instructions
+		}
+		Result(w, r, result)
 	case "notifications/initialized":
 		if len(r.ID) != 0 {
 			Error(w, r, 400, -32600, "Notification must not have an ID")

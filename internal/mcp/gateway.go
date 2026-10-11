@@ -164,7 +164,12 @@ func (g *Gateway) ListTools() []ToolDefinition {
 	defer g.mu.RUnlock()
 	out := []ToolDefinition{}
 	for _, r := range g.services {
-		out = append(out, r.Tools...)
+		for _, tool := range r.Tools {
+			if archiveGuidanceDomain(r.Domain) {
+				tool.Description += "\n\n" + projectArchiveToolHint
+			}
+			out = append(out, tool)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
