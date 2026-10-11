@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
+	"github.com/verdantflarehub/verdantflare-studio/internal/preinstalled"
 )
 
 type appCenterTransport func(*http.Request) (*http.Response, error)
@@ -18,7 +20,7 @@ type appCenterTransport func(*http.Request) (*http.Response, error)
 func (f appCenterTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestAppCenterAuthenticatedProjection(t *testing.T) {
-	for _, scenario := range []string{"ready", "empty", "denied", "unavailable", "old-core", "wrong-scope", "wrong-request", "duplicate-field", "expired", "invalid-state"} {
+	for _, scenario := range []string{"ready", "empty", "denied", "unavailable", "old-core", "wrong-scope", "wrong-request", "duplicate-field", "expired", "invalid-state", "preinstalled", "preinstalled-other-scope", "preinstalled-other-app", "preinstalled-empty-facts", "preinstalled-invalid", "preinstalled-unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
 			now := time.Now().UTC()
 			raw, err := os.ReadFile("../appcenter/testdata/rules.generated.json")
@@ -54,7 +56,7 @@ func TestAppCenterAuthenticatedProjection(t *testing.T) {
 				case "/appcenter/v1/facts":
 					facts.RequestID = r.Header.Get("X-Request-ID")
 					switch scenario {
-					case "empty":
+					case "empty", "preinstalled-empty-facts":
 						facts.Items = []appcenter.Fact{}
 					case "unavailable":
 						status = 503
@@ -79,15 +81,36 @@ func TestAppCenterAuthenticatedProjection(t *testing.T) {
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
 			})}}
 			a := NewAppCenter(s, "")
+			if strings.HasPrefix(scenario, "preinstalled") {
+				path := filepath.Join(t.TempDir(), "preinstalled.json")
+				config := preinstalled.Config{SchemaVersion: 1, ConfigID: "system", Revision: "1.0.0", OrganizationID: facts.Scope.OrganizationID, StationID: facts.Scope.StationID,
+					Apps: []preinstalled.Release{{AppID: facts.Items[0].AppID, AppVersion: "9.0.0", ReleaseRef: "sample-9", PackageDigest: "sha256:" + strings.Repeat("a", 64), ChartDigest: "sha256:" + strings.Repeat("b", 64), Dependencies: []string{}}}}
+				if scenario == "preinstalled-other-scope" {
+					config.OrganizationID = "00000000-0000-7000-8000-000000000099"
+				}
+				if scenario == "preinstalled-other-app" {
+					config.Apps[0].AppID = "other"
+				}
+				if scenario == "preinstalled-invalid" {
+					config.SchemaVersion = 9
+				}
+				data, _ := json.Marshal(config)
+				if scenario != "preinstalled-unavailable" {
+					if err := os.WriteFile(path, data, 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				a.WithPreinstalled(path)
+			}
 			a.now = func() time.Time { return now }
 			out := a.Get(context.Background(), "test-session")
 			want := 502
 			switch scenario {
-			case "ready", "empty":
+			case "ready", "empty", "preinstalled", "preinstalled-other-scope", "preinstalled-other-app", "preinstalled-empty-facts":
 				want = 200
 			case "denied":
 				want = 403
-			case "unavailable", "expired":
+			case "unavailable", "expired", "preinstalled-unavailable":
 				want = 503
 			}
 			if out.Status != want {
@@ -111,13 +134,19 @@ func TestAppCenterAuthenticatedProjection(t *testing.T) {
 					t.Fatal("missing entry provider hidden")
 				}
 				for _, card := range view.Items {
+					if card.Preinstalled != (scenario == "preinstalled") {
+						t.Fatal("wrong preinstalled policy or scope")
+					}
+					if strings.HasPrefix(scenario, "preinstalled") && (card.InstalledVersion == nil || *card.InstalledVersion != "1.0.0") {
+						t.Fatal("policy replaced installation version")
+					}
 					for _, action := range card.Actions {
 						if action.Kind == "open" && action.Enabled {
 							t.Fatal("entry fabricated")
 						}
 					}
 				}
-				if scenario == "empty" && len(view.Items) != 0 {
+				if (scenario == "empty" || scenario == "preinstalled-empty-facts") && len(view.Items) != 0 {
 					t.Fatal("successful empty list fabricated cards")
 				}
 			}

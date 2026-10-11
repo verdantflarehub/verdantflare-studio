@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 	"github.com/verdantflarehub/verdantflare-studio/internal/navigation"
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
@@ -18,11 +19,19 @@ type Navigation struct {
 	source      navigation.Source
 	preferences navigation.PreferenceStore
 	close       func()
+	appCenter   *AppCenter
 }
 
 func NewNavigation(station *Station, registryPath, dashboardRegistryPath string, store navigation.PreferenceStore) *Navigation {
 	metadata := dashboard.NewRegisteredSource(dashboardRegistryPath, nil)
 	return &Navigation{station: station, source: &navigation.RegisteredSource{Path: registryPath, Artifacts: metadata.RegisteredArtifacts}, preferences: store, close: metadata.Close}
+}
+
+// WithAppCenter binds the same authenticated projection as the directory.
+// This is startup wiring; legacy registry mode still has no App entries.
+func (n *Navigation) WithAppCenter(a *AppCenter) *Navigation {
+	n.appCenter = a
+	return n
 }
 
 func (n *Navigation) Shutdown() {
@@ -106,53 +115,25 @@ func (n *Navigation) input(ctx context.Context, token string) (navigationInput, 
 		out.RequestID = requestID
 		return in, "", out
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.station.base+"/app-installations", nil)
-	if err != nil {
-		return in, "", navigationError(navigation.ErrUnavailable, requestID)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Request-ID", requestID)
-	resp, err := n.station.client.Do(req)
-	if err != nil {
-		return in, "", navigationError(navigation.ErrUnavailable, requestID)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		if resp.StatusCode == 401 || resp.StatusCode == 403 {
-			out := Error(resp.StatusCode, "NAVIGATION_DENIED")
-			out.RequestID = requestID
-			return in, "", out
+	if n.appCenter != nil {
+		view, metadata, result := n.appCenter.read(ctx, token)
+		if result.Status != 200 {
+			return in, "", result
 		}
-		return in, "", navigationError(navigation.ErrUnavailable, requestID)
-	}
-	var payload struct {
-		RequestID string                  `json:"request_id"`
-		StationID string                  `json:"station_id"`
-		Items     []dashboardInstallation `json:"items"`
-	}
-	if strictjson.Decode(resp.Body, 4<<20, &payload) != nil || payload.RequestID != requestID || payload.StationID != actor.StationID || payload.Items == nil || len(payload.Items) > 1000 {
-		return in, "", navigationError(navigation.ErrInvalid, requestID)
-	}
-	seenIDs, seenApps := map[string]bool{}, map[string]bool{}
-	for _, installed := range payload.Items {
-		id, err := uuid.Parse(installed.InstallationID)
-		if err != nil || id.Version() != 7 || id.String() != installed.InstallationID || seenIDs[installed.InstallationID] || installed.StationID != actor.StationID || installed.OrganizationID != actor.OrganizationID || !validDashboardInstallation(installed) {
+		if view.Scope != (appcenter.Scope{UserID: in.Scope.UserID, OrganizationID: in.Scope.OrganizationID, StationID: in.Scope.StationID, AuthorizationEpoch: in.Scope.AuthorizationEpoch}) {
 			return in, "", navigationError(navigation.ErrInvalid, requestID)
 		}
-		seenIDs[installed.InstallationID] = true
-		if installed.State != "installed" {
-			continue
+		bindings, err := appCenterNavigationBindings(view, metadata, catalog)
+		if err != nil {
+			return in, "", navigationError(err, requestID)
 		}
-		if seenApps[installed.AppID] {
-			return in, "", navigationError(navigation.ErrInvalid, requestID)
+		in.Bindings = bindings
+	} else {
+		bindings, result := n.legacyBindings(ctx, token, requestID, actor, catalog)
+		if result.Status != 200 {
+			return in, "", result
 		}
-		seenApps[installed.AppID] = true
-		binding, exists := catalog.Releases[installed.AppID+"@"+installed.AppVersion]
-		if !exists {
-			continue
-		}
-		binding.InstallationID, binding.OrganizationID, binding.StationID, binding.State = installed.InstallationID, installed.OrganizationID, installed.StationID, installed.State
-		in.Bindings = append(in.Bindings, binding)
+		in.Bindings = bindings
 	}
 	prefs, revision, err := n.preferences.Load(ctx, in.Scope)
 	if err != nil {
@@ -163,6 +144,60 @@ func (n *Navigation) input(ctx context.Context, token string) (navigationInput, 
 	}
 	in.Preferences = prefs
 	return in, revision, Result{Status: 200, RequestID: requestID}
+}
+
+// Kept for older embedders; production Web wiring always supplies AppCenter.
+func (n *Navigation) legacyBindings(ctx context.Context, token, requestID string, actor dashboard.Actor, catalog navigation.Catalog) ([]navigation.Binding, Result) {
+	bindings := []navigation.Binding{}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, n.station.base+"/app-installations", nil)
+	if err != nil {
+		return nil, navigationError(navigation.ErrUnavailable, requestID)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Request-ID", requestID)
+	resp, err := n.station.client.Do(req)
+	if err != nil {
+		return nil, navigationError(navigation.ErrUnavailable, requestID)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			out := Error(resp.StatusCode, "NAVIGATION_DENIED")
+			out.RequestID = requestID
+			return nil, out
+		}
+		return nil, navigationError(navigation.ErrUnavailable, requestID)
+	}
+	var payload struct {
+		RequestID string                  `json:"request_id"`
+		StationID string                  `json:"station_id"`
+		Items     []dashboardInstallation `json:"items"`
+	}
+	if strictjson.Decode(resp.Body, 4<<20, &payload) != nil || payload.RequestID != requestID || payload.StationID != actor.StationID || payload.Items == nil || len(payload.Items) > 1000 {
+		return nil, navigationError(navigation.ErrInvalid, requestID)
+	}
+	seenIDs, seenApps := map[string]bool{}, map[string]bool{}
+	for _, installed := range payload.Items {
+		id, err := uuid.Parse(installed.InstallationID)
+		if err != nil || id.Version() != 7 || id.String() != installed.InstallationID || seenIDs[installed.InstallationID] || installed.StationID != actor.StationID || installed.OrganizationID != actor.OrganizationID || !validDashboardInstallation(installed) {
+			return nil, navigationError(navigation.ErrInvalid, requestID)
+		}
+		seenIDs[installed.InstallationID] = true
+		if installed.State != "installed" {
+			continue
+		}
+		if seenApps[installed.AppID] {
+			return nil, navigationError(navigation.ErrInvalid, requestID)
+		}
+		seenApps[installed.AppID] = true
+		binding, exists := catalog.Releases[installed.AppID+"@"+installed.AppVersion]
+		if !exists {
+			continue
+		}
+		binding.InstallationID, binding.OrganizationID, binding.StationID, binding.State = installed.InstallationID, installed.OrganizationID, installed.StationID, installed.State
+		bindings = append(bindings, binding)
+	}
+	return bindings, Result{Status: 200, RequestID: requestID}
 }
 
 func navigationResult(in navigationInput, revision string, out Result) Result {

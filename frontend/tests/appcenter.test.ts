@@ -4,6 +4,8 @@ import { AppCenterError, createAppCenterController, decodeView, selectCards } fr
 import { createAppCenterTransport } from '../src/app-center/transport.ts'
 import { validAppCenterView } from '../src/app-center/schema.generated.ts'
 import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.generated.ts'
+import { appCenterNavigationEntries } from '../src/app-center/navigation.ts'
+import type { NavigationEnvelope } from '../src/navigation/controller.ts'
 
 const now = Date.parse('2026-10-12T00:00:00Z'), digest = `sha256:${'a'.repeat(64)}`
 const id = (n: number) => `00000000-0000-7000-8000-${String(n).padStart(12, '0')}`
@@ -27,6 +29,68 @@ function view(): AppCenterView {
     groups: [{ id: 'system', label: 'System', order: 1 }], items: [card] }
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes }); return { promise, resolve } }
+
+test('menus use the shared snapshot while preserving title, pin and order', () => {
+  const v = view()
+  const navigation: NavigationEnvelope = { mode: 'preinstalled', preferenceRevision: '7', projection: {
+    scope: v.scope, revision: digest, entries: [{ installationId: id(4), appId: 'sample', appVersion: '1.0.0', entryId: 'main',
+      title: 'My title', iconRef: 'app', route: '/', group: 'applications', order: 17, pinned: false, pinSource: 'user', availability: 'unknown' }],
+  } }
+  const state = { status: 'ready' as const, value: v, stale: false, error: '', refreshing: false }
+  const entry = appCenterNavigationEntries(navigation, state, now)[0]
+  assert.equal(entry.availability, 'ready')
+  assert.equal(entry.title, 'My title')
+  assert.equal(entry.order, 17)
+  assert.equal(entry.pinned, false)
+  assert.equal(entry.bindingRevision, v.items[0].bindingRevision)
+  assert.equal(entry.entryId, 'main', 'navigation entry is not the Dashboard entry')
+  for (const scenario of ['expired', 'failed', 'stale', 'scope', 'version', 'reinstalled', 'blocked', 'wrong-entry', 'wrong-transport', 'removed']) {
+    const next = structuredClone(state), nav = structuredClone(navigation)
+    let at = now
+    switch (scenario) {
+      case 'expired': at += 15001; break
+      case 'failed': next.stale = true; next.error = 'SOURCE_UNAVAILABLE'; break
+      case 'stale': next.stale = true; break
+      case 'scope': next.value.scope.authorizationEpoch = 'changed'; break
+      case 'version': next.value.items[0].installedVersion = '1.1.0'; break
+      case 'reinstalled': next.value.items[0].installation!.installationId = id(9); break
+      case 'blocked': next.value.items[0].actions[1].enabled = false; next.value.items[0].actions[1].reasonCode = 'OPERATION_IN_PROGRESS'; break
+      case 'wrong-entry': next.value.items[0].actions[1].entryId = 'other'; break
+      case 'wrong-transport': next.value.items[0].entry!.transport = 'legacy'; break
+      case 'removed': next.value.items = []; break
+    }
+    const closed = appCenterNavigationEntries(nav, next, at)[0]
+    assert.notEqual(closed.availability, 'ready', scenario)
+    assert.equal(closed.bindingRevision, undefined, scenario)
+    assert.equal(closed.title, 'My title')
+    assert.equal(closed.pinned, false)
+  }
+  state.value.items[0].service.state = 'stopped'
+  state.value.items[0].actions[1].enabled = false
+  state.value.items[0].actions[1].reasonCode = 'SERVICE_NOT_READY'
+  assert.equal(appCenterNavigationEntries(navigation, state, now)[0].availability, 'offline')
+  assert.equal(appCenterNavigationEntries(navigation, state, now)[0].openReason, 'SERVICE_NOT_READY')
+  assert.equal(navigation.projection.entries[0].availability, 'unknown', 'source preferences not mutated')
+})
+
+test('preinstalled and normal sections partition the same search and count result', () => {
+  const v = view(), second = structuredClone(v.items[0])
+  v.items[0].preinstalled = true
+  second.cardKey = `installation:${id(9)}`; second.installation!.installationId = id(9)
+  second.appId = 'another'; second.display.name = 'Another'; second.preinstalled = false
+  v.items.push(second)
+  const all = selectCards(v)
+  assert.equal(all.counts.all, 2)
+  assert.equal(all.counts.installed, 2)
+  assert.deepEqual(all.preinstalled.map(card => card.cardKey), [v.items[0].cardKey])
+  assert.deepEqual(all.applications.map(card => card.cardKey), [second.cardKey])
+  assert.equal(new Set([...all.preinstalled, ...all.applications].map(card => card.cardKey)).size, all.items.length)
+  const search = selectCards(v, 'Another')
+  assert.equal(search.preinstalled.length, 0)
+  assert.equal(search.applications.length, 1)
+  assert.equal(search.counts.all, 2)
+  assert.equal(selectCards(v, '', 'system', 'installed').preinstalled.length, 1)
+})
 
 test('generated schema rejects malformed values and executable extensions', () => {
   assert.equal(validAppCenterView(view()), true)

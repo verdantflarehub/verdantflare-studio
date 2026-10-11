@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
+	"github.com/verdantflarehub/verdantflare-studio/internal/preinstalled"
 )
 
 // AppCenter reads one authenticated Core snapshot. Display/entry providers are
@@ -20,6 +21,7 @@ type AppCenter struct {
 	now              func() time.Time
 	presentationPath string
 	declarationsDir  string
+	preinstalledPath string
 	dashboards       *Dashboards
 }
 
@@ -31,6 +33,13 @@ func NewAppCenter(station *Station, presentationPath string) *AppCenter {
 // Configure only during startup, before serving requests.
 func (a *AppCenter) WithDashboards(d *Dashboards, declarationsDir string) *AppCenter {
 	a.dashboards, a.declarationsDir = d, declarationsDir
+	return a
+}
+
+// WithPreinstalled uses the existing host policy only to classify real cards.
+// It does not invoke reconciliation or create missing installations.
+func (a *AppCenter) WithPreinstalled(path string) *AppCenter {
+	a.preinstalledPath = path
 	return a
 }
 
@@ -108,6 +117,26 @@ func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 	}
 	entries := appcenter.Source{Source: "entries", Quality: "unavailable", ReasonCode: appcenter.Text("ENTRY_UNREGISTERED")}
+	if a.preinstalledPath != "" {
+		config, err := preinstalled.LoadConfig(a.preinstalledPath)
+		if err != nil {
+			if errors.Is(err, preinstalled.ErrInvalid) {
+				return fail(502, "APPCENTER_INVALID_PREINSTALLED")
+			}
+			return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+		}
+		if config.OrganizationID == scope.OrganizationID && config.StationID == scope.StationID {
+			apps := map[string]bool{}
+			for _, release := range config.Apps {
+				apps[release.AppID] = true
+			}
+			for _, fact := range facts.Items {
+				meta := metadata[fact.CardKey]
+				meta.Preinstalled = apps[fact.AppID]
+				metadata[fact.CardKey] = meta
+			}
+		}
+	}
 	if a.dashboards != nil {
 		registered, err := a.dashboards.source.RegisteredEntries(ctx, a.declarationsDir)
 		if err != nil {
@@ -127,6 +156,7 @@ func (a *AppCenter) read(ctx context.Context, token string) (appcenter.View, map
 			}
 			meta := metadata[fact.CardKey]
 			meta.EntryRevision = e.Revision
+			meta.ArtifactDigest = e.ArtifactDigest
 			meta.Entry = &appcenter.Entry{EntryID: "dashboard", Transport: "dashboard", Quality: e.Quality,
 				Availability: e.Availability, ReasonCode: appcenter.Text(e.ReasonCode), RequiresServiceReady: true}
 			metadata[fact.CardKey] = meta

@@ -49,7 +49,7 @@ export function selectCards(view: AppCenterView | null, query = '', group = 'all
   const items = all.filter(card => (group === 'all' || card.display.groupId === group)
     && (filter === 'all' || filter === 'installed' && installed(card) || filter === 'active' && active(card))
     && (!needle || [card.display.name, card.display.description, card.appId].some(text => text.toLocaleLowerCase().includes(needle))))
-  return { items, counts: {
+  return { items, preinstalled: items.filter(card => card.preinstalled), applications: items.filter(card => !card.preinstalled), counts: {
     all: view && fresh ? all.length : null,
     installed: view && fresh && all.every(card => card.installationQuality === 'known') ? all.filter(installed).length : null,
     active: view && fresh && all.every(card => card.operation.quality === 'known') ? all.filter(active).length : null,

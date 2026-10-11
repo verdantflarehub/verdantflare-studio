@@ -14,10 +14,11 @@ import (
 // Revision is scoped to this release, so unrelated registry edits do not revoke
 // an AppCenter card's binding. Runtime loading still verifies original bytes.
 type RegisteredEntry struct {
-	Revision     string
-	Quality      string
-	Availability string
-	ReasonCode   string
+	Revision       string
+	ArtifactDigest string
+	Quality        string
+	Availability   string
+	ReasonCode     string
 }
 
 func releaseRevision(release RegisteredRelease) string {
@@ -43,7 +44,7 @@ func (s *RegisteredSource) RegisteredEntries(ctx context.Context, directory stri
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry := RegisteredEntry{Revision: releaseRevision(release), Quality: "unknown", Availability: "unavailable", ReasonCode: "ENTRY_UNVERIFIED"}
+		entry := RegisteredEntry{Revision: releaseRevision(release), ArtifactDigest: release.ArtifactDigest, Quality: "unknown", Availability: "unavailable", ReasonCode: "ENTRY_UNVERIFIED"}
 		key := release.AppID + "@" + release.AppVersion
 		entries[key] = entry
 		if root == nil {

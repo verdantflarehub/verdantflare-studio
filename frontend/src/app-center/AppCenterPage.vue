@@ -10,6 +10,7 @@ import AppCard from './AppCard.vue'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
 import { createDashboardWebClient } from '../app-dashboard/web-client'
 import { dashboardLocation } from '../app-dashboard/routes'
+import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
@@ -26,16 +27,14 @@ const businessRoute = computed(() => route.name === 'app-dashboard' || route.nam
 const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
 const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
 const dashboardClient = createDashboardWebClient(location.origin)
-const requestedBindings = new Map<string, string>()
 async function authorizeDashboard(id: string, signal: AbortSignal) {
   await store.refresh()
   if (signal.aborted) throw new Error('REQUEST_CANCELLED')
   const card = store.state.value?.items.find(item => item.installation?.installationId === id)
   const action = card?.actions.find(item => item.kind === 'open')
   if (!card || !action || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
-  const expected = requestedBindings.get(id)
+  const expected = store.takeOpenBinding(id)
   if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
-  requestedBindings.delete(id)
 }
 async function openDashboard(id: string, signal?: AbortSignal) {
   const view = store.state.value, card = view?.items.find(item => item.installation?.installationId === id)
@@ -72,9 +71,9 @@ async function perform(card: AppCenterCard, actionId: string) {
   if (action?.kind === 'refresh') { await store.refresh(); return }
   if (!action || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) return
   if (action.kind === 'open' && card.entry?.transport === 'dashboard' && card.installation) {
-    requestedBindings.set(card.installation.installationId, card.bindingRevision)
+    store.pinOpen(card.installation.installationId, card.bindingRevision)
     const failed = await router.push(dashboardLocation(card.installation.installationId))
-    if (failed) requestedBindings.delete(card.installation.installationId)
+    if (failed) store.takeOpenBinding(card.installation.installationId)
     return
   }
   // The current directory delivery does not promise an unconnected mutation or
@@ -84,7 +83,6 @@ async function perform(card: AppCenterCard, actionId: string) {
 watch(selectedKey, async (next, previous) => { if (!next && previous) { await nextTick(); window.scrollTo({ top: listScroll }) } })
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id]), () => {
   query.value = ''; group.value = 'all'; filter.value = 'all'; message.value = ''; listScroll = 0
-  requestedBindings.clear()
 })
 onBeforeUnmount(() => store.setVisible('directory', false))
 </script>
@@ -100,6 +98,7 @@ onBeforeUnmount(() => store.setVisible('directory', false))
         <button class="btn ghost" @click="back">返回应用中心</button>
         <template v-if="selected">
           <h2>{{ selected.display.name }}</h2><p>{{ selected.display.description || '暂无应用说明' }}</p>
+          <AppNavigationPreferences :app-id="selected.appId" />
           <dl class="panel appcenter-facts"><dt>状态</dt><dd>{{ statusLabels[selected.statusCode] ?? '状态待确认' }}</dd><dt>安装版本</dt><dd>{{ selected.installedVersion ?? '无已确认安装' }}</dd><dt>候选版本</dt><dd>{{ selected.candidateVersion ?? '暂无' }}</dd><dt>安装状态</dt><dd>{{ selected.installation ? factLabel(selected.installation.state) : '无安装记录' }}</dd><dt>服务状态</dt><dd>{{ factLabel(selected.service.state) }}</dd><dt>入口</dt><dd>{{ selected.entry ? factLabel(selected.entry.availability) : '尚无可用入口' }}</dd></dl>
           <div class="action-row"><template v-for="action in selected.actions.filter(item => item.kind !== 'detail')" :key="action.id"><div><button class="btn" :disabled="!action.enabled || store.state.stale && action.kind !== 'refresh'" @click="perform(selected, action.id)">{{ actionLabels[action.kind] }}</button><p v-if="!action.enabled" class="muted">{{ reasonLabel(action.reasonCode) }}</p></div></template></div>
           <section v-if="selected.operation.canRead" class="panel appcenter-message"><h3>最近操作</h3><p>{{ factLabel(selected.operation.status) }} · {{ factLabel(selected.operation.phase) }}</p></section>
@@ -112,7 +111,11 @@ onBeforeUnmount(() => store.setVisible('directory', false))
         <p v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="panel appcenter-message" role="status">正在读取应用信息…</p>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
         <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
-        <div class="appcenter-grid"><AppCard v-for="card in result.items" :key="card.cardKey" :card="card" :stale="store.state.stale" @action="perform" /></div>
+        <section v-if="result.preinstalled.length" class="appcenter-preinstalled" aria-label="系统预装应用">
+          <h2>系统预装应用</h2>
+          <div class="appcenter-grid"><AppCard v-for="card in result.preinstalled" :key="card.cardKey" :card="card" :stale="store.state.stale" @action="perform" /></div>
+        </section>
+        <div class="appcenter-grid"><AppCard v-for="card in result.applications" :key="card.cardKey" :card="card" :stale="store.state.stale" @action="perform" /></div>
       </section>
     </template>
   </div></main>
@@ -128,6 +131,8 @@ onBeforeUnmount(() => store.setVisible('directory', false))
 .appcenter-facts dt { color: var(--muted); }
 .appcenter-detail .action-row { flex-wrap: wrap; align-items: start; }
 .appcenter-detail .action-row p { font-size: 12px; margin-top: 6px; }
+.appcenter-preinstalled { margin-bottom: 24px; }
+.appcenter-preinstalled h2 { font-size: 18px; margin: 0 0 16px; }
 .search-box input { min-width: 160px; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>

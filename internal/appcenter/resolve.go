@@ -12,10 +12,11 @@ import (
 // Metadata is supplied by the platform's verified registry reader, never by
 // the browser or a running App. EntryRevision binds the exact trusted material.
 type Metadata struct {
-	Display       *Display
-	Entry         *Entry
-	EntryRevision string
-	Preinstalled  bool
+	Display        *Display
+	Entry          *Entry
+	EntryRevision  string
+	ArtifactDigest string
+	Preinstalled   bool
 }
 type Input struct {
 	Facts    Facts
