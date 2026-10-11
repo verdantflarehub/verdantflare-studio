@@ -23,6 +23,9 @@ importers:
       vue-router:
         specifier: 4.6.4
         version: 4.6.4(vue@3.5.30(typescript@5.9.3))
+      wujie:
+        specifier: 2.1.0
+        version: 2.1.0
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: 6.0.4
@@ -51,6 +54,10 @@ packages:
     resolution: {integrity: sha512-E8lTAYNB1KW+FH+VGJuZM1ioAx2E6oVlvQFRrf5P8ZZmsiJXYAD9vTFV7yyEURNzgh1dFqMZuO6tUwcARbqFCA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  '@babel/runtime@7.29.10':
+    resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
@@ -605,6 +612,9 @@ packages:
       typescript:
         optional: true
 
+  wujie@2.1.0:
+    resolution: {integrity: sha512-qLkI9M30WRlQGlqJJKUDz0FJon30XnH0amUepOaCWwOohhqhvgfP7jeLTykuQfoGm1R7tnqvB7U59G/DW+ud4A==}
+
 snapshots:
 
   '@babel/helper-string-parser@7.29.7': {}
@@ -614,6 +624,8 @@ snapshots:
   '@babel/parser@7.29.8':
     dependencies:
       '@babel/types': 7.29.8
+
+  '@babel/runtime@7.29.10': {}
 
   '@babel/types@7.29.8':
     dependencies:
@@ -1051,3 +1063,7 @@ snapshots:
       '@vue/shared': 3.5.30
     optionalDependencies:
       typescript: 5.9.3
+
+  wujie@2.1.0:
+    dependencies:
+      '@babel/runtime': 7.29.10

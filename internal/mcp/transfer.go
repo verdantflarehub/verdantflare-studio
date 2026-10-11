@@ -65,8 +65,12 @@ func (g *Gateway) Transfer(ctx context.Context, p project.Principal, method, pat
 	if !ok || !found || !endpointValid(svc.Endpoint) {
 		return nil, 503, errors.New("content service unavailable")
 	}
-	u, err := url.Parse(svc.Endpoint)
-	if err != nil || u.Path != "/mcp" {
+	origin, ok := g.BusinessEndpoint("artifact")
+	if !ok {
+		return nil, 503, errors.New("invalid content service endpoint")
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
 		return nil, 503, errors.New("invalid content service endpoint")
 	}
 	token := g.resolveToken("artifact")

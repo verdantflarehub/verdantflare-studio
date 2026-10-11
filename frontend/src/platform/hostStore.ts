@@ -15,15 +15,14 @@ export interface HostIdentity {
 export const useHostStore = defineStore('host', () => {
   const connected = ref(false)
   const identity = ref<HostIdentity>({})
-  const clusterName = ref('5090集群')
-  const clusterHost = ref('k8s.dev.verdantflarehub.com')
-  const gpuCount = ref(2)
-  const gpuModel = ref('RTX 5090')
-  const coreStatus = ref('就绪')
+  const clusterName = ref('Station')
+  const clusterHost = computed(() => identity.value.station_id || '未连接')
+  const coreStatus = ref<string | null>(null)
   const loginOpen = ref(false)
+  let identityEpoch = 0
 
   const displayName = computed(() => {
-    return identity.value.username || identity.value.user_id || (connected.value ? 'admin' : '等待连接')
+    return identity.value.username || identity.value.user_id || '等待连接'
   })
 
   const teamName = computed(() => {
@@ -32,79 +31,56 @@ export const useHostStore = defineStore('host', () => {
 
   const avatar = computed(() => {
     const name = displayName.value
-    if (!name || name === '等待连接' || name === 'admin') return 'VF'
+    if (!name || name === '等待连接') return 'VF'
     return name.slice(0, 2).toUpperCase()
   })
 
   const clusterMeta = computed(() => {
     if (!connected.value) return '等待连接 Station'
-    const gpuText = gpuCount.value > 0 ? `${gpuCount.value} 卡 ${gpuModel.value}` : gpuModel.value
-    return `Core ${coreStatus.value} · ${gpuText}`
+    return `Core ${coreStatus.value ?? '状态未知'}`
   })
 
   function setIdentity(nextIdentity: HostIdentity) {
+    identityEpoch++
     identity.value = nextIdentity || {}
     connected.value = Boolean(nextIdentity && (nextIdentity.username || nextIdentity.user_id))
-  }
-
-  function setGpuCount(count: number) {
-    if (count != null && count > 0) {
-      gpuCount.value = count
-    }
+    coreStatus.value = null
   }
 
   async function fetchSession() {
+    const epoch = identityEpoch
     // A transient gateway failure must not permanently strand direct project
     // links without the identity needed for user-scoped local Tips.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await request({ path: 'me', method: 'GET' })
+        const res = await request({ path: 'me', method: 'GET' }, { realOnly: true })
+        if (epoch !== identityEpoch) return null
         if (res.status === 200) {
           const data = await res.json()
+          if (epoch !== identityEpoch) return null
           setIdentity(data)
           return data
         }
         if (res.status < 500) break
       } catch {
+        if (epoch !== identityEpoch) return null
         // Retry only this idempotent session read; never replay a mutation.
       }
     }
-    connected.value = false
+    if (epoch === identityEpoch) setIdentity({})
     return null
   }
 
   async function fetchCluster() {
+    const epoch = identityEpoch, stationId = identity.value.station_id
+    if (!connected.value || !stationId) return
     try {
-      const [sumRes, gpuRes, healthRes] = await Promise.all([
-        request({ path: 'resources/summary', method: 'GET' }).catch(() => null),
-        request({ path: 'resources/gpu', method: 'GET' }).catch(() => null),
-        request({ path: 'health', method: 'GET' }).catch(() => null)
-      ])
-      if (sumRes && sumRes.status === 200) {
-        const data = await sumRes.json()
-        if (data.summary?.total_gpus != null) {
-          gpuCount.value = data.summary.total_gpus
-        }
-      }
-      if (gpuRes && gpuRes.status === 200) {
-        const data = await gpuRes.json()
-        if (data.gpus && data.gpus.length > 0) {
-          gpuCount.value = data.gpus.length
-          const model = data.gpus[0].model_name
-          if (model && model.includes('5090')) {
-            gpuModel.value = 'RTX 5090'
-          } else if (model) {
-            gpuModel.value = model
-          }
-        }
-      }
-      if (healthRes && healthRes.status === 200) {
-        const data = await healthRes.json()
-        if (data.components?.core) {
-          coreStatus.value = data.components.core === 'Ready' ? '就绪' : data.components.core
-        }
-      }
-    } catch {}
+      const res = await request({ path: 'health', method: 'GET' }, { realOnly: true })
+      const data = res.status === 200 ? await res.json() : null
+      if (epoch !== identityEpoch) return
+      coreStatus.value = data?.station_id === stationId && data?.components?.core === 'Ready' ? '就绪'
+        : data?.station_id === stationId && data?.components?.core === 'NotReady' ? '未就绪' : null
+    } catch { if (epoch === identityEpoch) coreStatus.value = null }
   }
 
   async function init() {
@@ -119,8 +95,6 @@ export const useHostStore = defineStore('host', () => {
     identity,
     clusterName,
     clusterHost,
-    gpuCount,
-    gpuModel,
     coreStatus,
     loginOpen,
     displayName,
@@ -128,7 +102,6 @@ export const useHostStore = defineStore('host', () => {
     avatar,
     clusterMeta,
     setIdentity,
-    setGpuCount,
     fetchSession,
     fetchCluster,
     init

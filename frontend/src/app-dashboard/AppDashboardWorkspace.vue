@@ -1,0 +1,187 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import type { RouteLocationNormalized } from 'vue-router'
+import { useHostStore } from '../platform/hostStore'
+import AppDashboardHost from './AppDashboardHost.vue'
+import AppInstanceHost from './AppInstanceHost.vue'
+import { createDashboardWebClient } from './web-client'
+import type { OpenedDashboard } from './web-client'
+import { DashboardSessions } from './sessions'
+import { dashboardLocation, dashboardRoutePath, installationPattern, instanceWorkspaceLocation } from './routes'
+import type { SDKAdapters } from './types'
+import { createNavigationTransport } from '../navigation/transport'
+import { decodeNavigation } from '../navigation/controller'
+import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
+import { createFileAccess } from './files'
+
+const props = defineProps<{ active: boolean; installationId: string; titles: Record<string, string> }>()
+const route = useRoute(), router = useRouter(), identity = useHostStore()
+const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
+const sessions = client ? new DashboardSessions(client) : undefined
+const host = ref<InstanceType<typeof AppDashboardHost>>()
+const instanceHost = ref<InstanceType<typeof AppInstanceHost>>()
+const workspaceId = computed(() => route.name === 'app-instance' && typeof route.params.workspaceSessionId === 'string' ? route.params.workspaceSessionId : '')
+type Selection = OpenedDashboard & { authorizationEpoch: string; adapters: SDKAdapters; route: string; releaseSession(): Promise<void> }
+const selection = shallowRef<Selection | null>(null)
+let previousSelection: Selection | null = null
+const state = ref<'idle' | 'resolving' | 'resolved' | 'ready' | 'error'>('idle')
+const error = ref(''), retry = ref(0)
+let revision = 0, scope = '', pending: AbortController | undefined
+const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([identity.identity.user_id,
+  identity.identity.organization_id, identity.identity.station_id,
+  [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
+const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
+const title = computed(() => selection.value?.launch.installationId === props.installationId
+  ? props.titles[selection.value.context.appId] ?? selection.value.context.appId : '应用控制台')
+const confirmDiscard = async () => window.confirm('控制台有未保存的修改，确定放弃并关闭吗？')
+const messages: Record<string, string> = {
+  UNAUTHENTICATED: '请先登录，再打开应用控制台。',
+  DASHBOARD_DENIED: '当前账号无权打开此控制台，或安装授权已改变。',
+  DASHBOARD_UNAVAILABLE: '应用控制台暂时不可用，请稍后重试。',
+  DASHBOARD_UNSUPPORTED: '此应用控制台需要尚未提供的接入能力。',
+  INVALID_DASHBOARD_BINDING: '应用控制台版本校验失败，请联系管理员核对安装。',
+  DASHBOARD_SESSION_EXPIRED: '控制台会话已过期，请重新打开。',
+  SESSION_REVOKED: '控制台会话已失效，请重新打开。',
+  DESKTOP_DASHBOARD_UNAVAILABLE: '桌面客户端的应用控制台接入尚未完成。',
+  INVALID_PATH: '控制台地址无效，请从应用中心重新打开。',
+}
+function showError(value: unknown) {
+  const code = value instanceof Error ? value.message : String(value)
+  error.value = messages[code] ?? '应用控制台加载失败，请检查连接后重试。'
+  state.value = 'error'
+}
+
+function adapters(opened: OpenedDashboard): SDKAdapters {
+  const id = opened.launch.dashboardSessionId
+  const files = createFileAccess({ expiresAt: opened.launch.expiresAt, async authorize(capability, signal) {
+    const current = await client!.inspect(id, opened.launch.installationId, signal)
+    if (['userId', 'organizationId', 'stationId', 'appId', 'installationId', 'contextRevision'].some(key =>
+      current.context[key as keyof typeof current.context] !== opened.context[key as keyof typeof opened.context])) throw new Error('CONTEXT_CHANGED')
+    if (!current.launch.grantedCapabilities.includes(capability)) throw new Error('CAPABILITY_DENIED')
+  } })
+  return {
+    async navigate(input, signal) {
+      await client!.inspect(id, opened.launch.installationId, signal)
+      if (input.target === 'appcenter') {
+        if (input.path !== '/') throw new Error('INVALID_PATH')
+        await router.push('/market')
+      } else await router.push(dashboardLocation(opened.launch.installationId, input.path))
+    },
+    requestApp: (input, signal) => client!.request(id, input, signal),
+    async callCapability(name, input, signal) {
+      if (name === 'files.read') return files.read(input, signal)
+      if (name === 'workspace.local' && new URLSearchParams(location.search).get('host') !== 'desktop') throw new Error('DESKTOP_REQUIRED')
+      if (name !== 'navigation.openApp') return client!.capability(id, name, input, signal)
+      const target = decodeAppTarget(input)
+      const current = await client!.inspect(id, opened.launch.installationId, signal)
+      if (!current.launch.grantedCapabilities.includes(name)) throw new Error('CAPABILITY_DENIED')
+      const navigation = decodeNavigation(await createNavigationTransport().read(signal), current.context)
+      if (signal.aborted) throw new Error('REQUEST_CANCELLED')
+      if (navigation.projection.scope.authorizationEpoch !== current.context.contextRevision) throw new Error('CONTEXT_CHANGED')
+      const failed = await router.push(appTargetLocation(target, navigation))
+      if (failed) throw new Error('NAVIGATION_CANCELLED')
+      return null
+    },
+    selectFiles: files.select,
+    releaseFiles: files.clear,
+    async openInstance(input, signal) {
+      const launch = await client!.openInstance(id, opened.launch.installationId, input, signal)
+      try {
+        if (signal.aborted || opened.context.contextRevision !== selection.value?.context.contextRevision) throw new Error('REQUEST_CANCELLED')
+        const failed = await router.push(instanceWorkspaceLocation(launch.installationId, launch.workspaceSessionId))
+        if (failed) throw new Error('NAVIGATION_CANCELLED')
+      } catch (cause) {
+        await client!.closeWorkspace(launch.workspaceSessionId, AbortSignal.timeout(5000)).catch(()=>undefined)
+        throw cause
+      }
+    },
+    hasUserActivation: () => navigator.userActivation?.isActive === true,
+    reportListenerError: () => { console.warn('APP_DASHBOARD_LISTENER_FAILED') },
+  }
+}
+
+watch([() => props.active, () => props.installationId, () => route.query.path, workspaceId, actorScope, retry], async () => {
+  const current = ++revision
+  pending?.abort()
+  if (scope !== actorScope.value) {
+    scope = actorScope.value
+    selection.value = null; previousSelection = null
+    await Promise.allSettled([host.value?.revoke(), sessions?.revoke()])
+  }
+  if (current !== revision) return
+  if (!props.active) { state.value = 'idle'; return }
+  if (!scope) { showError(new Error('UNAUTHENTICATED')); return }
+  if (workspaceId.value) { state.value = 'idle'; error.value = ''; return }
+  state.value = 'resolving'; error.value = ''
+  const controller = new AbortController(); pending = controller
+  try {
+    if (!sessions) throw new Error('DESKTOP_DASHBOARD_UNAVAILABLE')
+    if (!installationPattern.test(props.installationId)) throw new Error('INVALID_PATH')
+    const appRoute = dashboardRoutePath(route.query.path)
+    const opened = await sessions.select(props.installationId, controller.signal)
+    if (current !== revision || controller.signal.aborted) return
+    selection.value = { ...opened, authorizationEpoch: opened.context.contextRevision, route: appRoute,
+      adapters: adapters(opened), releaseSession: () => sessions.release(opened.launch.installationId, opened.launch.dashboardSessionId) }
+    state.value = 'resolved'
+  } catch (cause) {
+    if (current !== revision || controller.signal.aborted) return
+    if (cause instanceof Error && ['DASHBOARD_DENIED', 'DASHBOARD_SESSION_EXPIRED', 'SESSION_EXPIRED', 'UNAUTHENTICATED'].includes(cause.message)) {
+      selection.value = null; previousSelection = null
+      await Promise.allSettled([host.value?.revoke(), sessions?.revoke()])
+      if (current !== revision) return
+    }
+    showError(cause)
+  }
+}, { immediate: true })
+
+async function cancelled() {
+  const unused = selection.value
+  selection.value = previousSelection
+  if (unused && unused.launch.dashboardSessionId !== previousSelection?.launch.dashboardSessionId) await unused.releaseSession()
+  await router.replace(previousSelection ? dashboardLocation(previousSelection.launch.installationId, previousSelection.route) : '/market')
+}
+function ready() { previousSelection = selection.value; state.value = 'ready' }
+function dashboardError(code: string) { if (!workspaceId.value) showError(code) }
+async function close() {
+  if (!await host.value?.closeActive()) return
+  previousSelection = null
+  await router.push('/market')
+}
+async function prepareNavigation(to: RouteLocationNormalized) {
+  const staysInAppCenter = to.path === '/market' || to.name === 'app-dashboard' || to.name === 'app-instance'
+  if (!staysInAppCenter && !await (host.value?.prepareLeave() ?? true)) return false
+  if (workspaceId.value && to.params.workspaceSessionId !== workspaceId.value) return await instanceHost.value?.prepareClose() ?? true
+  return true
+}
+onBeforeRouteLeave(prepareNavigation)
+onBeforeRouteUpdate(prepareNavigation)
+onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
+</script>
+
+<template>
+  <main v-show="active" class="main embed-active">
+    <div class="workspace">
+      <header class="heading">
+        <div class="heading-left"><h1>{{ title }}</h1><p>{{ workspaceId ? '实例工作区' : '配置应用，管理运行实例。' }}</p></div>
+        <div class="heading-actions"><button class="btn" @click="router.push('/market')">返回应用中心</button>
+          <button v-if="workspaceId" class="btn ghost" @click="router.push(dashboardLocation(installationId))">关闭工作区并返回控制台</button>
+          <button v-else class="btn ghost" :disabled="state !== 'ready'" @click="close">关闭控制台</button></div>
+      </header>
+      <nav class="dashboard-breadcrumb" aria-label="面包屑"><a href="#/market">应用中心</a><span aria-hidden="true"> / </span><span>{{ title }}</span></nav>
+      <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
+      <div v-if="state === 'error'" class="dashboard-error" role="alert"><p>{{ error }}</p><button class="btn" @click="retry++">重试</button></div>
+      <AppDashboardHost ref="host" v-show="visible" :selection="selection" :visible="visible"
+        :confirm-discard="confirmDiscard"
+        @ready="ready" @error="dashboardError" @cancelled="cancelled" @retry="retry++" />
+      <AppInstanceHost v-if="workspaceId && actorScope" :key="actorScope + workspaceId" ref="instanceHost"
+        :workspace-session-id="workspaceId" :installation-id="installationId" />
+    </div>
+  </main>
+</template>
+
+<style scoped>
+.dashboard-breadcrumb { margin-bottom: 20px; color: var(--muted); }
+.dashboard-breadcrumb a { color: var(--ink); }
+.dashboard-error { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+</style>

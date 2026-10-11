@@ -25,11 +25,15 @@ func (s *Server) BlenderContentHandler() http.Handler {
 		if s.mcpGateway == nil {
 			return "", false
 		}
-		return s.mcpGateway.ServiceEndpoint(domain)
+		return s.mcpGateway.BusinessEndpoint(domain)
 	})
 }
 
 func blenderContentHandler(resolve func(string) (string, bool)) http.Handler {
+	return blenderContentHandlerWithTransport(resolve, nil)
+}
+
+func blenderContentHandlerWithTransport(resolve func(string) (string, bool), outbound http.RoundTripper) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -99,22 +103,25 @@ func blenderContentHandler(resolve func(string) (string, bool)) http.Handler {
 			return
 		}
 		endpoint, ok := "", false
-		expectedPath := "/mcp"
 		if domain == "station-core" {
-			endpoint, ok, expectedPath = strings.TrimSuffix(os.Getenv("STATION_CORE_URL"), "/"), true, ""
+			endpoint, ok = strings.TrimSuffix(os.Getenv("STATION_CORE_URL"), "/"), true
 		} else {
 			endpoint, ok = resolve(domain)
 		}
 		u, err := url.Parse(endpoint)
-		if !ok || err != nil || u.Host == "" || u.User != nil || u.Path != expectedPath || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && u.Scheme != "http") {
+		if !ok || err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawPath != "" || u.RawQuery != "" || u.ForceQuery || strings.Contains(endpoint, "#") || (u.Scheme != "https" && u.Scheme != "http") {
 			http.Error(w, "Service unavailable", 503)
 			return
 		}
 		u.Path = path
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.Proxy = nil
-		transport.ResponseHeaderTimeout = 30 * time.Second
-		defer transport.CloseIdleConnections()
+		transport := outbound
+		if transport == nil {
+			direct := http.DefaultTransport.(*http.Transport).Clone()
+			direct.Proxy = nil
+			direct.ResponseHeaderTimeout = 30 * time.Second
+			defer direct.CloseIdleConnections()
+			transport = direct
+		}
 		proxy := &httputil.ReverseProxy{
 			Transport: transport,
 			Rewrite: func(pr *httputil.ProxyRequest) {

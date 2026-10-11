@@ -49,3 +49,18 @@ func TestExactShape(t *testing.T) {
 		t.Fatal("accepted oversized input")
 	}
 }
+
+func TestOpaqueAppValuesAllowNullButRejectAmbiguousJSON(t *testing.T) {
+	for _, input := range []string{`null`, `[null,{"configuration":null}]`, `{"value":0.25,"enabled":true}`} {
+		data, err := ReadValue(strings.NewReader(input), 1024)
+		if err != nil || string(data) != input {
+			t.Fatal("App JSON changed", err)
+		}
+	}
+	for _, input := range []string{`{"x":null,"x":1}`, `{"x":1,"\u0078":2}`, `1e1000`, `null null`,
+		strings.Repeat("[", 34) + "null" + strings.Repeat("]", 34), strings.Repeat(" ", 1025), "\"\xff\""} {
+		if _, err := ReadValue(strings.NewReader(input), 1024); err == nil {
+			t.Fatal("invalid opaque JSON accepted")
+		}
+	}
+}

@@ -8,7 +8,7 @@ import { mergeCatalogWithLive } from './catalog'
 import { useHostStore } from '../platform/hostStore'
 
 // Studio Market interaction adapter aligned with verdantflare_studio_market_v1.1.html
-export function mountMarket() {
+export function mountMarket(options = {}) {
   const hostStore = useHostStore();
   const controller = new AbortController();
   const listen = (target, event, handler) => target.addEventListener(event, handler, { signal: controller.signal });
@@ -31,6 +31,7 @@ export function mountMarket() {
   const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let identity = {};
+  let dashboards = [];
   const operations = new Map();
   let operationPolling = false;
   const terminal = op => op && ['succeeded', 'failed'].includes(op.status);
@@ -72,6 +73,7 @@ export function mountMarket() {
   }
 
   function badge(a) {
+    if (dashboards.some(item => item.appId === a.app_id)) return '<span class="status"><i class="dot"></i>已安装</span>';
     if (a.app_id === 'comfyui') return '<span class="status"><i class="dot"></i>实例入口</span>';
     const state = a.deployment?.state || 'not_installed';
     const isRunning = state === 'ready' || state === 'running';
@@ -81,6 +83,8 @@ export function mountMarket() {
   }
 
   function primaryBtn(a) {
+    const dashboard = dashboards.find(item => item.appId === a.app_id);
+    if (dashboard) return `<button class="btn primary" data-open-dashboard="${esc(dashboard.installationId)}">打开控制台</button>`;
     if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">打开</button>';
     if(a.app_id==='comfyui')return '<button class="btn primary" data-open-comfyui="true">打开</button>';
     const op = operations.get(a.app_id);
@@ -121,6 +125,7 @@ export function mountMarket() {
     blender.close();
     connected = false;
     identity = {};
+    dashboards = [];
     hostStore.setIdentity({});
     operations.clear();
     apps = mergeCatalogWithLive([]);
@@ -264,6 +269,10 @@ export function mountMarket() {
       const changed = identity.user_id !== nextIdentity.user_id || identity.organization_id !== nextIdentity.organization_id || identity.station_id !== nextIdentity.station_id;
       identity = nextIdentity;
       hostStore.setIdentity(nextIdentity);
+      options.onCatalog?.(apps);
+      dashboards = await Promise.resolve(options.loadDashboards?.() ?? []).catch(() => []);
+      if (controller.signal.aborted) return;
+      options.onInstallationsChanged?.();
       hostStore.fetchCluster();
       if (changed) {
         operations.clear();
@@ -277,6 +286,7 @@ export function mountMarket() {
       }
     } catch (e) {
       connected = false;
+      dashboards = [];
       apps = mergeCatalogWithLive([]);
       render();
       if (selected) closeDetail();
@@ -359,12 +369,14 @@ export function mountMarket() {
   async function pollOperations() {
     if (operationPolling || !connected) return;
     operationPolling = true;
+    let completed = false;
     try {
       for (const entry of operations.values()) {
         if (entry.sending || entry.rejected || terminal(entry.op)) continue;
         try {
           if (entry.op) {
             entry.op = await api('operations/' + entry.op.operation_id);
+            completed ||= terminal(entry.op);
             entry.error = '';
           } else {
             await submit(entry);
@@ -375,6 +387,7 @@ export function mountMarket() {
         }
       }
       saveOperations();
+      if (completed && !controller.signal.aborted) await refresh();
       if (selected) {
         const a = apps.find(x => x.app_id === selected);
         if (a) drawDetail(a);
@@ -385,6 +398,7 @@ export function mountMarket() {
   }
 
   function drawDetail(a) {
+    options.onDetail?.(a.app_id);
     const entry = operations.get(a.app_id), op = entry?.op, busy = entry && !entry.rejected && !terminal(op);
     const dep = a.deployment || { state: 'not_installed', images: [] };
 
@@ -460,6 +474,7 @@ export function mountMarket() {
 
   function closeDetail() {
     selected = null;
+    options.onDetail?.(null);
     $('overlay').classList.remove('open');
     $('overlay').style.display = 'none';
   }
@@ -535,6 +550,7 @@ export function mountMarket() {
       return;
     }
     if (b.dataset.openBlender) {e.preventDefault();closeDetail();blender.open();return;}
+    if (b.dataset.openDashboard) {e.preventDefault();closeDetail();options.openDashboard?.(b.dataset.openDashboard);return;}
     if (b.dataset.openComfyui) {e.preventDefault();closeDetail();comfyui.open();return;}
     if (b.dataset.placeholder) {
       e.preventDefault();
@@ -574,6 +590,7 @@ export function mountMarket() {
   if ($('overlay')) $('overlay').style.display = 'none';
 
   listen(window, 'hashchange', () => {
+    if (location.hash.startsWith('#/apps/')) closeDetail();
     if (location.hash.includes('video=')) {
       video.sync();
     } else if (location.hash.includes('image=')) {

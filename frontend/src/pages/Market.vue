@@ -1,17 +1,38 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from "vue"
+import { computed, onMounted, onBeforeUnmount, ref } from "vue"
+import { useRoute, useRouter } from 'vue-router'
+import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
+import { createDashboardWebClient } from '../app-dashboard/web-client'
+import { dashboardLocation } from '../app-dashboard/routes'
+import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
+import PreinstalledApps from '../components/PreinstalledApps.vue'
+import { useNavigationStore } from '../platform/navigationStore'
 import { mountMarket } from "./market"
 import "../theme/blender-management.css"
 import '../theme/comfyui-management.css'
 
 let dispose: (() => void) | undefined
-onMounted(() => { dispose = mountMarket() })
+const route = useRoute(), router = useRouter()
+const dashboardActive = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
+const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
+const titles = ref<Record<string, string>>({})
+const detailAppId = ref('')
+const navigation = useNavigationStore()
+const client = ['http:', 'https:'].includes(location.protocol)
+  ? createDashboardWebClient(location.origin) : undefined
+onMounted(() => { dispose = mountMarket({
+  loadDashboards: () => client?.installations(AbortSignal.timeout(10000)) ?? Promise.resolve([]),
+  openDashboard: (id: string) => router.push(dashboardLocation(id)),
+  onCatalog: (items: { app_id: string; display_name: string }[]) => { titles.value = Object.fromEntries(items.map(item => [item.app_id, item.display_name])) },
+  onDetail: (appId: string | null) => { detailAppId.value = appId ?? '' },
+  onInstallationsChanged: () => navigation.refresh(),
+}) })
 onBeforeUnmount(() => dispose?.())
 </script>
 
 <template>
   <!-- Main Content Area: Pure Workspace -->
-  <main class="main">
+  <main v-show="!dashboardActive" class="main">
     <div class="workspace">
       <!-- Clean, Focused Heading Zone for Sub-business Workspace -->
       <header class="heading">
@@ -126,6 +147,7 @@ onBeforeUnmount(() => dispose?.())
 
       <div id="marketView" class="market-columns">
         <div class="market-primary">
+          <PreinstalledApps :active="!dashboardActive" :titles="titles" />
           <section class="catalog-section">
             <div class="tabs-row">
               <div class="tabs">
@@ -180,6 +202,7 @@ onBeforeUnmount(() => dispose?.())
       </div>
       <div id="detailHead"></div>
       <div id="actions" class="action-row"></div>
+      <AppNavigationPreferences v-if="detailAppId" :app-id="detailAppId" />
       <div id="progress"></div>
       <div class="detail-tabs" role="tablist">
         <button role="tab" data-detail-tab="overview" class="active">概览</button>
@@ -200,4 +223,5 @@ onBeforeUnmount(() => dispose?.())
       <button class="btn primary" id="confirmOK">确定</button>
     </div>
   </dialog>
+  <AppDashboardWorkspace :active="dashboardActive" :installation-id="installationId" :titles="titles" />
 </template>

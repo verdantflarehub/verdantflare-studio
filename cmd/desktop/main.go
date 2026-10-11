@@ -5,6 +5,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/frontend"
 	core "github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
+	"github.com/verdantflarehub/verdantflare-studio/internal/studioremote"
 	"github.com/verdantflarehub/verdantflare-studio/internal/transport/desktop"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"log"
@@ -14,6 +15,37 @@ import (
 )
 
 func main() {
+	if origin := os.Getenv("STUDIO_SERVER_URL"); origin != "" {
+		remote, err := studioremote.New(origin)
+		if err != nil {
+			log.Fatal("invalid Studio server configuration")
+		}
+		defer remote.Close()
+		service := desktop.NewRemote(remote)
+		var app *application.App
+		bridge := desktop.NewDashboardWorkspaces(service, desktop.WorkspaceDialogFuncs{
+			ChooseDirectory: func(ctx context.Context) (string, error) {
+				if err := ctx.Err(); err != nil {
+					return "", err
+				}
+				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).PromptForSingleSelection()
+			},
+			ChooseFiles: func(ctx context.Context) ([]string, error) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				return app.Dialog.OpenFile().CanChooseDirectories(false).CanChooseFiles(true).PromptForMultipleSelection()
+			},
+		})
+		defer bridge.Close()
+		handler := bridge.Wrap(desktop.RemoteAssetHandler(service, application.AssetFileServerFS(frontend.Assets())))
+		app = application.New(application.Options{Name: "VerdantFlare Studio", Services: []application.Service{application.NewService(service)}, Assets: application.AssetOptions{Handler: handler}})
+		app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "VerdantFlare Studio", URL: "/?host=desktop", Width: 1440, Height: 960})
+		if err := app.Run(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	endpoint := os.Getenv("STATION_CORE_URL")
 	if endpoint == "" {
 		endpoint = "http://127.0.0.1:5050"
@@ -25,7 +57,7 @@ func main() {
 	gateway, stopGateway := configureGateway()
 	defer stopGateway()
 	service := desktop.NewWithGateway(station, gateway)
-	app := application.New(application.Options{Name: "VerdantFlare Studio", Services: []application.Service{application.NewService(service)}, Assets: application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets())}})
+	app := application.New(application.Options{Name: "VerdantFlare Studio", Services: []application.Service{application.NewService(service)}, Assets: application.AssetOptions{Handler: desktop.RemoteAssetHandler(service, application.AssetFileServerFS(frontend.Assets()))}})
 	app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "VerdantFlare Studio", URL: "/?host=desktop", Width: 1440, Height: 960})
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

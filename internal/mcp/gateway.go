@@ -330,7 +330,22 @@ func (g *Gateway) call(ctx context.Context, name string, args map[string]any, he
 }
 func (g *Gateway) resolveToken(domain string) string {
 	if domain == "project" || domain == "world" {
-		return os.Getenv("STUDIO_PROJECT_SERVICE_TOKEN")
+		projectToken := os.Getenv("STUDIO_PROJECT_SERVICE_TOKEN")
+		switch os.Getenv("STUDIO_CONTENT_SERVICE_MODE") {
+		case "", "legacy":
+			return projectToken
+		case "split":
+			worldToken := os.Getenv("STUDIO_WORLD_SERVICE_TOKEN")
+			if len(projectToken) < 32 || len(worldToken) < 32 || strings.ContainsAny(projectToken+worldToken, " \t\r\n") || projectToken == worldToken {
+				return ""
+			}
+			if domain == "world" {
+				return worldToken
+			}
+			return projectToken
+		default:
+			return ""
+		}
 	}
 	if domain == "artifact" {
 		return os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN")

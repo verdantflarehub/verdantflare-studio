@@ -9,7 +9,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 )
+
+type blenderTransport func(*http.Request) (*http.Response, error)
+
+func (f blenderTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestBlenderContentBoundary(t *testing.T) {
 	id := func() string { return uuid.Must(uuid.NewV7()).String() }
@@ -20,9 +25,12 @@ func TestBlenderContentBoundary(t *testing.T) {
 	var received *http.Request
 	var body []byte
 	redirect := false
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received = r.Clone(r.Context())
-		body, _ = io.ReadAll(r.Body)
+		body = nil
+		if r.Body != nil {
+			body, _ = io.ReadAll(r.Body)
+		}
 		w.Header().Set("Set-Cookie", "private=secret")
 		w.Header().Set("X-Internal-Secret", "private")
 		if redirect {
@@ -33,15 +41,21 @@ func TestBlenderContentBoundary(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		_, _ = w.Write(body)
-	}))
-	defer upstream.Close()
+	})
 	available := true
-	handler := blenderContentHandler(func(domain string) (string, bool) {
+	handler := blenderContentHandlerWithTransport(func(domain string) (string, bool) {
 		if domain != "project" && domain != "artifact" {
 			t.Errorf("unexpected domain %q", domain)
 		}
-		return upstream.URL + "/mcp", available
-	})
+		return "https://" + domain + ".example:8443", available
+	}, blenderTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Port() != "8443" {
+			t.Fatal("business request used MCP port")
+		}
+		w := httptest.NewRecorder()
+		upstream.ServeHTTP(w, r)
+		return w.Result(), nil
+	}))
 	call := func(method, path string, content []byte, change func(*http.Request)) *httptest.ResponseRecorder {
 		received = nil
 		r := httptest.NewRequest(method, path, bytes.NewReader(content))
@@ -133,17 +147,20 @@ func TestBlenderRuntimePrivateBridge(t *testing.T) {
 	t.Setenv("STUDIO_BLENDER_CONTROL_TOKEN", "control-private")
 	calls := 0
 	expectedPath := "/internal/v1/blender/create"
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if r.URL.Path != expectedPath || r.Header.Get("Authorization") != "Bearer control-private" || r.Header.Get("X-User-Id") != user || r.Header.Get("X-Organization-Id") != org || r.Header.Get("Cookie") != "" {
 			t.Error("invalid control forwarding")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"phase":"awaiting_content"}`)
+	})
+	t.Setenv("STATION_CORE_URL", "https://core.example:8443")
+	h := blenderContentHandlerWithTransport(func(string) (string, bool) { t.Error("control route used MCP discovery"); return "", false }, blenderTransport(func(r *http.Request) (*http.Response, error) {
+		w := httptest.NewRecorder()
+		upstream.ServeHTTP(w, r)
+		return w.Result(), nil
 	}))
-	defer upstream.Close()
-	t.Setenv("STATION_CORE_URL", upstream.URL)
-	h := blenderContentHandler(func(string) (string, bool) { t.Error("control route used MCP discovery"); return "", false })
 	call := func(token, path string) int {
 		r := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
 		r.Header.Set("Authorization", "Bearer "+token)
@@ -213,5 +230,58 @@ func TestBlenderRuntimePrivateBridge(t *testing.T) {
 	}
 	if status := call("content-private", "/runtime/instances/destroy?target=other"); status != 400 || calls != 6 {
 		t.Fatal("destroy target override admitted", status)
+	}
+}
+
+func TestBlenderSplitBusinessOriginsFailClosed(t *testing.T) {
+	t.Setenv("STUDIO_CONTENT_SERVICE_MODE", "split")
+	t.Setenv("STUDIO_BLENDER_CONTENT_TOKEN", "content-private")
+	t.Setenv("STUDIO_PROJECT_SERVICE_TOKEN", strings.Repeat("p", 32))
+	t.Setenv("STUDIO_ARTIFACT_SERVICE_TOKEN", strings.Repeat("a", 32))
+	gateway := mcp.NewGatewayWithClient(nil)
+	const id = "01900000-0000-7000-8000-000000000001"
+	calls := 0
+	h := blenderContentHandlerWithTransport(gateway.BusinessEndpoint, blenderTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.URL.Scheme != "https" || r.URL.Port() != "8443" || r.Header.Get("X-User-Id") != id || r.Header.Get("X-Organization-Id") != id || r.Header.Get("X-Request-Id") != id {
+			t.Fatal("business origin or authenticated identity changed")
+		}
+		want := strings.Repeat("p", 32)
+		if r.URL.Hostname() == "artifact.example" {
+			want = strings.Repeat("a", 32)
+		}
+		if r.Header.Get("Authorization") != "Bearer "+want {
+			t.Fatal("business credential mixed")
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+	}))
+	call := func(path string) int {
+		r := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
+		r.Header.Set("Authorization", "Bearer content-private")
+		for _, name := range []string{"X-User-Id", "X-Organization-Id", "X-Request-Id"} {
+			r.Header.Set(name, id)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	for _, tc := range []struct{ env, path, origin string }{
+		{"STUDIO_PROJECT_SERVICE_URL", "/project/open", "https://project.example:8443"},
+		{"STUDIO_ARTIFACT_URL", "/artifact/uploads", "https://artifact.example:8443"},
+	} {
+		for _, invalid := range []string{"", tc.origin + "/mcp", "http://private.example:8443", tc.origin + "?"} {
+			t.Setenv(tc.env, invalid)
+			before := calls
+			if status := call(tc.path); status != 503 || calls != before {
+				t.Fatal("invalid business origin reached network", status)
+			}
+		}
+		t.Setenv(tc.env, tc.origin)
+		if status := call(tc.path); status != 200 {
+			t.Fatal("explicit business origin unavailable", status)
+		}
+	}
+	if calls != 2 {
+		t.Fatal("unexpected business requests")
 	}
 }

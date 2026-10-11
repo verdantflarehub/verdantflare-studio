@@ -1,20 +1,22 @@
 {
   "name": "verdantflare-studio-frontend",
   "private": true,
-  "version": "0.5.77",
+  "version": "0.5.79",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:mock": "vite --host 127.0.0.1 --mode mock",
     "build": "vue-tsc --noEmit && vite build",
-    "test:project-content": "node --test tests/project-content.test.mjs tests/drama-publication.test.mjs"
+    "test:project-content": "node --test tests/project-content.test.mjs tests/drama-publication.test.mjs",
+    "test:dashboard": "node --experimental-transform-types --test tests/app-sdk.test.ts tests/dashboard-host.test.ts tests/dashboard-web-client.test.ts tests/dashboard-sessions.test.ts tests/dashboard-files.test.ts"
   },
   "dependencies": {
     "vue": "3.5.30",
     "vue-router": "4.6.4",
     "pinia": "3.0.4",
     "@wailsio/runtime": "3.0.0-beta.22",
-    "flag-icons": "7.5.0"
+    "flag-icons": "7.5.0",
+    "wujie": "2.1.0"
   },
   "devDependencies": {
     "vite": "7.3.1",

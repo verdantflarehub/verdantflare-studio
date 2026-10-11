@@ -1,10 +1,15 @@
 package application
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"slices"
 	"time"
 
+	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
 )
@@ -27,29 +32,75 @@ type identityContext struct {
 
 // Principal revalidates the actual Core session on every request.
 func (s *Station) Principal(ctx context.Context, token, requestID string) (project.Principal, int) {
+	identity, status := s.verifiedIdentity(ctx, token, requestID)
+	if status != 200 {
+		return project.Principal{}, status
+	}
+	return project.Principal{OrganizationID: identity.OrganizationID, SubjectID: identity.UserID, RequestID: requestID}, 200
+}
+
+// DashboardActor retains the Station and authorization lifetime that a Project
+// principal alone cannot express. Tokens and Core session IDs stay in Go.
+func (s *Station) DashboardActor(ctx context.Context, token, requestID string) (dashboard.Actor, int) {
+	identity, status := s.verifiedIdentity(ctx, token, requestID)
+	if status != 200 {
+		return dashboard.Actor{}, status
+	}
+	return dashboardActorFromIdentity(identity), 200
+}
+
+func dashboardActorFromIdentity(identity identityContext) dashboard.Actor {
+	roles, scopes := slices.Clone(identity.Roles), slices.Clone(identity.Scopes)
+	slices.Sort(roles)
+	slices.Sort(scopes)
+	encoded, _ := json.Marshal(struct {
+		Session            string
+		Revocation, Policy int64
+		Roles, Scopes      []string
+	}{identity.SessionID, identity.RevocationVersion, identity.PolicyVersion, slices.Compact(roles), slices.Compact(scopes)})
+	epoch := sha256.Sum256(encoded)
+	return dashboard.Actor{
+		UserID: identity.UserID, OrganizationID: identity.OrganizationID,
+		StationID: identity.StationID, AuthorizationEpoch: hex.EncodeToString(epoch[:]),
+	}
+}
+
+func (s *Station) verifiedIdentity(ctx context.Context, token, requestID string) (identityContext, int) {
 	if token == "" {
-		return project.Principal{}, 401
+		return identityContext{}, 401
 	}
-	result := s.Call(ctx, token, Request{Path: "me", Method: "GET"})
-	if result.Status == 401 || result.Status == 403 {
-		return project.Principal{}, 401
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, s.base+"/identity/me", nil)
+	if err != nil {
+		return identityContext{}, 503
 	}
-	if result.Status != 200 {
-		return project.Principal{}, 503
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("X-Request-ID", requestID)
+	result, err := s.client.Do(request)
+	if err != nil {
+		return identityContext{}, 503
+	}
+	defer result.Body.Close()
+	if result.StatusCode == 401 || result.StatusCode == 403 {
+		return identityContext{}, 401
+	}
+	if result.StatusCode != 200 {
+		return identityContext{}, 503
 	}
 	var identity identityContext
-	if strictjson.Decode(bytes.NewReader(result.Data), 64<<10, &identity) != nil {
-		return project.Principal{}, 503
+	// Decode original bytes. The general UI proxy rewrites JSON maps, which would
+	// erase duplicate identity fields before strict decoding could reject them.
+	if strictjson.Decode(result.Body, 64<<10, &identity) != nil {
+		return identityContext{}, 503
 	}
 	p := project.Principal{OrganizationID: identity.OrganizationID, SubjectID: identity.UserID, RequestID: requestID}
 	now := time.Now()
 	if !p.Valid() || !project.ValidID(identity.StationID) || !project.ValidID(identity.SessionID) || identity.Username == "" || identity.OrganizationName == "" || len(identity.Roles) == 0 || identity.RevocationVersion < 0 || identity.PolicyVersion < 1 || identity.IssuedAt.IsZero() || identity.IssuedAt.After(now.Add(30*time.Second)) || !identity.ExpiresAt.After(now) || !identity.ExpiresAt.After(identity.IssuedAt) {
-		return project.Principal{}, 401
+		return identityContext{}, 401
 	}
 	for _, scope := range identity.Scopes {
 		if scope == "identity:read" {
-			return p, 200
+			return identity, 200
 		}
 	}
-	return project.Principal{}, 403
+	return identityContext{}, 403
 }

@@ -5,9 +5,7 @@ import App from './App.vue'
 import Workbench from './pages/Workbench.vue'
 import Market from './pages/Market.vue'
 import Models from './pages/Models.vue'
-import Resources from './pages/Resources.vue'
-import StationProxy from './pages/StationProxy.vue'
-import ProjectWorld from './pages/ProjectWorld.vue'
+import LegacyAppEntry from './pages/LegacyAppEntry.vue'
 import './theme/market.css'
 
 const router = createRouter({
@@ -15,11 +13,13 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/market' },
     { path: '/workbench', component: Workbench },
-    { path: '/projects', component: ProjectWorld },
+    { path: '/projects', component: LegacyAppEntry, props: { kind: 'project' } },
     { path: '/market', component: Market },
+    { path: '/apps/:installationId/dashboard', name: 'app-dashboard', component: Market },
+    { path: '/apps/:installationId/instances/:workspaceSessionId', name: 'app-instance', component: Market },
     { path: '/models', component: Models },
-    { path: '/resources', component: Resources },
-    { path: '/station/proxies', component: StationProxy },
+    { path: '/resources', component: LegacyAppEntry, props: { kind: 'resources' } },
+    { path: '/station/proxies', component: LegacyAppEntry, props: { kind: 'network' } },
     { path: '/:pathMatch(.*)*', redirect: '/market' }
   ]
 })

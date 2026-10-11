@@ -8,6 +8,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
+	"github.com/verdantflarehub/verdantflare-studio/internal/studioremote"
 	"github.com/verdantflarehub/verdantflare-studio/internal/workspace"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ type Service struct {
 	token      string
 	mcpGateway *mcp.Gateway
 	workspaces map[string]*workspace.Workspace
+	remote     *studioremote.Client
 }
 
 func New(s *application.Station) *Service { return NewWithGateway(s, nil) }
@@ -32,6 +34,9 @@ func NewWithGateway(s *application.Station, gateway *mcp.Gateway) *Service {
 }
 
 func (s *Service) Call(in application.Request) application.Result {
+	if s.remote != nil {
+		return s.remoteCall(context.Background(), "/api/"+in.Path, in.Method, in.Body)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := s.station.Call(context.Background(), s.token, in)
@@ -65,6 +70,14 @@ func (s *Service) MCPCall(in MCPRequest) MCPResult {
 	id := in.RequestID
 	if !project.ValidID(id) {
 		id = uuid.Must(uuid.NewV7()).String()
+	}
+	if s.remote != nil {
+		body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": map[string]any{"name": in.Name, "arguments": in.Arguments}})
+		if err != nil {
+			return mcpFailure(400, id, "Invalid request")
+		}
+		result := s.remoteCall(context.Background(), "/mcp", "POST", body)
+		return MCPResult{Status: result.Status, Data: result.Data, RequestID: result.RequestID}
 	}
 	s.mu.Lock()
 	token, gateway := s.token, s.mcpGateway
@@ -148,7 +161,15 @@ func (s *Service) WorkspaceOpen(in WorkspaceOpenRequest) WorkspaceResult {
 	if strings.TrimSpace(in.Directory) == "" || !project.ValidID(in.ProjectID) {
 		return workspaceFailure(project.ErrInvalid)
 	}
-	copy, err := workspace.Open(context.Background(), in.Directory, in.Alias, in.ProjectID, &gatewayRemote{owner: s})
+	remote := &gatewayRemote{owner: s}
+	if s.remote != nil {
+		session, err := s.remote.Session()
+		if err != nil {
+			return workspaceFailure(project.ErrForbidden)
+		}
+		remote.session = session
+	}
+	copy, err := workspace.Open(context.Background(), in.Directory, in.Alias, in.ProjectID, remote)
 	if err != nil {
 		return workspaceFailure(err)
 	}

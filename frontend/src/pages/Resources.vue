@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { request } from '../platform/client'
-import { useHostStore } from '../platform/hostStore'
 import { formatResource, resourceState, resourceValue } from './resource-metrics.js'
 
-const hostStore = useHostStore()
 
 interface SummaryData {
   total_gpus?: number
@@ -205,9 +203,6 @@ async function fetchTelemetry() {
       const data = await sRes.json()
       if (data?.summary) {
         summary.value = data.summary
-        if (data.summary.total_gpus) {
-          hostStore.setGpuCount(data.summary.total_gpus)
-        }
       }
     }
 

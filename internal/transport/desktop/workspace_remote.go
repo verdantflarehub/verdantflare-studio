@@ -3,12 +3,15 @@ package desktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net/http"
 	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
+	"github.com/verdantflarehub/verdantflare-studio/internal/studioremote"
 	"github.com/verdantflarehub/verdantflare-studio/internal/workspace"
 )
 
@@ -16,7 +19,10 @@ import (
 // contract. It obtains a fresh Core principal for every operation, including
 // metadata and binary reads, so a revoked session cannot keep an old copy
 // reading remote content.
-type gatewayRemote struct{ owner *Service }
+type gatewayRemote struct {
+	owner   *Service
+	session *studioremote.Session
+}
 
 func (r *gatewayRemote) principal(ctx context.Context) (project.Principal, *mcp.Gateway, error) {
 	r.owner.mu.Lock()
@@ -39,6 +45,9 @@ func (r *gatewayRemote) principal(ctx context.Context) (project.Principal, *mcp.
 }
 
 func (r *gatewayRemote) call(ctx context.Context, name string, args map[string]any, scope string, out any) error {
+	if r.session != nil {
+		return r.remoteCall(ctx, name, args, out)
+	}
 	p, gateway, err := r.principal(ctx)
 	if err != nil {
 		return err
@@ -90,7 +99,8 @@ func gatewayError(status int) error {
 
 func contentError(data []byte) error {
 	var value struct {
-		Code string `json:"code"`
+		Code    string `json:"code"`
+		Current string `json:"current_revision_id"`
 	}
 	if json.Unmarshal(data, &value) != nil {
 		return project.ErrDependency
@@ -103,7 +113,7 @@ func contentError(data []byte) error {
 	case project.ErrNotFound.Error():
 		return project.ErrNotFound
 	case project.ErrConflict.Error():
-		return project.ErrConflict
+		return &project.ConflictError{CurrentRevisionID: value.Current}
 	case project.ErrNotReady.Error():
 		return project.ErrNotReady
 	case project.ErrIdempotency.Error():
@@ -136,10 +146,6 @@ func (r *gatewayRemote) Download(ctx context.Context, ref project.ContentRef, ac
 	if dst == nil || !ref.Valid() || limit < 0 {
 		return project.ErrInvalid
 	}
-	p, gateway, err := r.principal(ctx)
-	if err != nil {
-		return err
-	}
 	query := url.Values{"store_id": {ref.StoreID}, "artifact_id": {ref.ArtifactID}}
 	if access.ProjectID != "" {
 		query.Set("project_id", access.ProjectID)
@@ -150,7 +156,10 @@ func (r *gatewayRemote) Download(ctx context.Context, ref project.ContentRef, ac
 		query.Set("asset_version_id", access.AssetVersionID)
 	}
 	path := "/v2/artifacts/" + ref.VersionID + "/content"
-	response, status, err := gateway.Transfer(ctx, p, "GET", path, query.Encode(), nil, 0)
+	if limit == 0 {
+		limit = 1 << 50
+	}
+	response, status, err := r.transfer(ctx, "GET", path, query.Encode(), nil, 0, limit)
 	if err != nil {
 		return gatewayError(status)
 	}
@@ -158,12 +167,12 @@ func (r *gatewayRemote) Download(ctx context.Context, ref project.ContentRef, ac
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return gatewayError(response.StatusCode)
 	}
-	if limit == 0 {
-		limit = 1 << 50
-	}
-	_, err = io.Copy(dst, io.LimitReader(response.Body, limit+1))
+	n, err := io.Copy(dst, io.LimitReader(response.Body, limit+1))
 	if err != nil {
 		return err
+	}
+	if n > limit || (response.ContentLength >= 0 && n != response.ContentLength) {
+		return project.ErrDependency
 	}
 	return nil
 }
@@ -221,11 +230,7 @@ func (r *gatewayRemote) Upload(ctx context.Context, req workspace.UploadRequest,
 		return project.ContentVersion{}, project.ErrDependency
 	}
 	if upload.State == "prepared" {
-		p, gateway, err := r.principal(ctx)
-		if err != nil {
-			return project.ContentVersion{}, err
-		}
-		response, status, err := gateway.Transfer(ctx, p, "PUT", upload.ContentPath, "", src, req.Size)
+		response, status, err := r.transfer(ctx, "PUT", upload.ContentPath, "", src, req.Size, 1<<50)
 		if err != nil {
 			return project.ContentVersion{}, gatewayError(status)
 		}
@@ -249,4 +254,69 @@ func (r *gatewayRemote) Upload(ctx context.Context, req workspace.UploadRequest,
 		return project.ContentVersion{}, project.ErrDependency
 	}
 	return v, nil
+}
+
+func remoteWorkspaceError(err error) error {
+	if errors.Is(err, studioremote.ErrChanged) || errors.Is(err, studioremote.ErrDenied) {
+		return project.ErrForbidden
+	}
+	if errors.Is(err, studioremote.ErrInvalid) {
+		return project.ErrInvalid
+	}
+	return project.ErrDependency
+}
+
+func (r *gatewayRemote) transfer(ctx context.Context, method, path, query string, body io.Reader, length, limit int64) (*http.Response, int, error) {
+	if r.session != nil {
+		resp, err := r.session.Transfer(ctx, method, path, query, body, length, limit)
+		if err != nil {
+			if errors.Is(remoteWorkspaceError(err), project.ErrForbidden) {
+				return nil, 403, err
+			}
+			return nil, 503, err
+		}
+		return resp, resp.StatusCode, nil
+	}
+	p, gateway, err := r.principal(ctx)
+	if err != nil {
+		if errors.Is(err, project.ErrForbidden) {
+			return nil, 403, err
+		}
+		return nil, 503, err
+	}
+	return gateway.Transfer(ctx, p, method, path, query, body, length)
+}
+
+func (r *gatewayRemote) remoteCall(ctx context.Context, name string, args map[string]any, out any) error {
+	id := uuid.Must(uuid.NewV7()).String()
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": map[string]any{"name": name, "arguments": args}})
+	if err != nil {
+		return project.ErrInvalid
+	}
+	response, err := r.session.Send(ctx, "POST", "/mcp", body)
+	if err != nil {
+		return remoteWorkspaceError(err)
+	}
+	if response.Status < 200 || response.Status >= 300 {
+		return gatewayError(response.Status)
+	}
+	var envelope struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      string          `json:"id"`
+		Error   json.RawMessage `json:"error"`
+		Result  struct {
+			IsError    bool            `json:"isError"`
+			Structured json.RawMessage `json:"structuredContent"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(response.Data, &envelope) != nil || envelope.JSONRPC != "2.0" || envelope.ID != id || len(envelope.Error) != 0 || len(envelope.Result.Structured) == 0 || string(envelope.Result.Structured) == "null" {
+		return project.ErrDependency
+	}
+	if envelope.Result.IsError {
+		return contentError(envelope.Result.Structured)
+	}
+	if out != nil && json.Unmarshal(envelope.Result.Structured, out) != nil {
+		return project.ErrDependency
+	}
+	return nil
 }

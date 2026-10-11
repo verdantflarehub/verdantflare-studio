@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -24,7 +25,7 @@ func Decode(r io.Reader, limit int64, dst any) error {
 	}
 	scan := json.NewDecoder(bytes.NewReader(b))
 	scan.UseNumber()
-	if err := scanValue(scan, 0); err != nil {
+	if err := scanValue(scan, 0, false); err != nil {
 		return ErrInvalid
 	}
 	if _, err := scan.Token(); err != io.EOF {
@@ -46,12 +47,33 @@ func Decode(r io.Reader, limit int64, dst any) error {
 	return nil
 }
 
-func scanValue(d *json.Decoder, depth int) error {
+// ReadValue validates an opaque App JSON value without imposing platform field
+// names. Unlike Decode's closed protocol objects, App values may contain null.
+func ReadValue(r io.Reader, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return nil, ErrInvalid
+	}
+	b, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil || int64(len(b)) > limit || !utf8.Valid(b) {
+		return nil, ErrInvalid
+	}
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.UseNumber()
+	if scanValue(d, 0, true) != nil {
+		return nil, ErrInvalid
+	}
+	if _, err = d.Token(); err != io.EOF {
+		return nil, ErrInvalid
+	}
+	return b, nil
+}
+
+func scanValue(d *json.Decoder, depth int, allowNull bool) error {
 	if depth > 32 {
 		return ErrInvalid
 	}
 	t, err := d.Token()
-	if err != nil || t == nil {
+	if err != nil || (t == nil && !allowNull) {
 		return ErrInvalid
 	}
 	switch t {
@@ -67,7 +89,7 @@ func scanValue(d *json.Decoder, depth int) error {
 				return ErrInvalid
 			}
 			seen[name] = true
-			if err := scanValue(d, depth+1); err != nil {
+			if err := scanValue(d, depth+1, allowNull); err != nil {
 				return err
 			}
 		}
@@ -77,7 +99,7 @@ func scanValue(d *json.Decoder, depth int) error {
 		}
 	case json.Delim('['):
 		for d.More() {
-			if err := scanValue(d, depth+1); err != nil {
+			if err := scanValue(d, depth+1, allowNull); err != nil {
 				return err
 			}
 		}
@@ -86,6 +108,11 @@ func scanValue(d *json.Decoder, depth int) error {
 			return ErrInvalid
 		}
 	default:
+		if number, ok := t.(json.Number); ok && allowNull {
+			if _, err := strconv.ParseFloat(number.String(), 64); err != nil {
+				return ErrInvalid
+			}
+		}
 		if _, ok := t.(json.Delim); ok {
 			return ErrInvalid
 		}

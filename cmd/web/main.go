@@ -27,6 +27,14 @@ func main() {
 	}
 
 	handler, webServer := web.NewServer(s, env("STUDIO_PUBLIC_ORIGIN", "http://127.0.0.1:8000"), frontend.Assets(), web.VideoConfig{URL: os.Getenv("STUDIO_VIDEO_URL"), Token: os.Getenv("STUDIO_VIDEO_TOKEN")})
+	dashboards := application.NewDashboards(s, os.Getenv("STUDIO_DASHBOARD_REGISTRY"))
+	defer dashboards.Shutdown()
+	webServer.EnableDashboards(handler, dashboards)
+	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences())
+	defer navigation.Shutdown()
+	webServer.EnableNavigation(handler, navigation)
+	preinstalled := application.NewPreinstalled(s, os.Getenv("STUDIO_PREINSTALLED_CONFIG"), webServer.PreinstalledStore())
+	webServer.EnablePreinstalled(handler, preinstalled)
 
 	webServer.EnableImage(handler, web.ImageConfig{
 		URL:   env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-image.svc.cluster.local:8000"),

@@ -1,19 +1,61 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import vfLogo from '../assets/verdantflare-logo.png'
 import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
+import { useNavigationStore } from '../platform/navigationStore'
+import AppNavigationPreferences from './AppNavigationPreferences.vue'
+import { dashboardLocation } from '../app-dashboard/routes'
+import type { NavigationEntry } from '../navigation/controller'
 
 const hostStore = useHostStore()
+const navigation = useNavigationStore()
 const router = useRouter()
 const route = useRoute()
 
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+function refreshNavigation() { if (!document.hidden && hostStore.connected) void navigation.refresh() }
+function clearNavigation() { navigation.clear() }
+watch(() => JSON.stringify([hostStore.identity.user_id, hostStore.identity.organization_id, hostStore.identity.station_id, hostStore.identity.roles, hostStore.identity.scopes]), () => {
+  const identity = hostStore.identity
+  navigation.clear(identity.user_id && identity.organization_id && identity.station_id
+    ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
+  refreshNavigation()
+}, { immediate: true })
 onMounted(() => {
-  hostStore.init()
+  void hostStore.init()
+  refreshTimer = setInterval(refreshNavigation, 30000)
+  window.addEventListener('focus', refreshNavigation)
+  window.addEventListener('studio:logout', clearNavigation)
+  document.addEventListener('visibilitychange', refreshNavigation)
+})
+onBeforeUnmount(() => {
+  clearInterval(refreshTimer)
+  window.removeEventListener('focus', refreshNavigation)
+  window.removeEventListener('studio:logout', clearNavigation)
+  document.removeEventListener('visibilitychange', refreshNavigation)
+  clearNavigation()
 })
 
-const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'workbench' | 'projects' | 'world'>(() => {
+const icons: Record<string, string> = {
+  folder: 'M3 7h7l2 2h9v10H3zM3 7V4h8l2 2h8v3',
+  globe: 'M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  network: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  resources: 'M3 3h18v7H3zM3 14h18v7H3zM6 6h1M6 17h1',
+  server: 'M3 3h18v7H3zM3 14h18v7H3zM6 6h1M6 17h1',
+  app: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+}
+function entryLocation(entry: NavigationEntry) { return dashboardLocation(entry.installationId, entry.route) }
+function entrySelected(entry: NavigationEntry) { return route.name === 'app-dashboard' && route.params.installationId === entry.installationId }
+const resourcesEntry = computed(() => navigation.entries.find(entry => entry.appId === 'resources'))
+function openResources() {
+  if (navigation.legacy) void router.push('/resources')
+  else if (resourcesEntry.value) void router.push(entryLocation(resourcesEntry.value))
+  else void router.push('/market')
+}
+
+const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'workbench' | 'projects' | 'world' | ''>(() => {
   if (route.path.startsWith('/station/proxies')) {
     return 'proxies'
   }
@@ -35,7 +77,7 @@ const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'work
   if (route.path.startsWith('/market')) {
     return 'market'
   }
-  return 'market'
+  return ''
 })
 
 function navTo(target: string) {
@@ -132,7 +174,7 @@ function handleHelpClick() {
       <span>工作台</span>
     </a>
 
-    <a class="nav-link"
+    <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'projects' }"
        href="#/projects"
        data-nav="projects"
@@ -145,7 +187,7 @@ function handleHelpClick() {
       <span>项目</span>
     </a>
 
-    <a class="nav-link"
+    <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'world' }"
        href="#/projects?mode=world"
        data-nav="world"
@@ -198,7 +240,7 @@ function handleHelpClick() {
       <span>模型市场</span>
     </a>
 
-    <a class="nav-link"
+    <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'resources' }"
        href="#/resources"
        data-nav="resources"
@@ -214,7 +256,7 @@ function handleHelpClick() {
       <span>资源管理</span>
     </a>
 
-    <a class="nav-link"
+    <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'proxies' }"
        href="#/station/proxies"
        data-nav="proxies"
@@ -227,20 +269,35 @@ function handleHelpClick() {
       <span>网络出口</span>
     </a>
 
+    <template v-if="navigation.state.value?.mode === 'preinstalled'">
+      <div v-for="entry in navigation.pinned" :key="`${entry.installationId}/${entry.entryId}`" class="app-navigation-row">
+        <a class="nav-link" :class="{ selected: entrySelected(entry) }" :href="router.resolve(entryLocation(entry)).href"
+           :aria-current="entrySelected(entry) ? 'page' : undefined" @click.prevent="router.push(entryLocation(entry))">
+          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
+          <span>{{ entry.title }}</span><small v-if="entry.availability === 'offline'">离线</small>
+        </a>
+        <button type="button" class="unpin-entry" :disabled="navigation.state.saving" :aria-label="`取消固定${entry.title}`" :title="`取消固定${entry.title}`" @click="navigation.setPreference(entry, false)">×</button>
+      </div>
+      <details class="menu-preferences"><summary>管理菜单</summary><AppNavigationPreferences /></details>
+    </template>
+    <p v-if="navigation.state.status === 'loading'" role="status" class="navigation-status">正在加载应用菜单…</p>
+    <div v-if="navigation.state.error" role="status" class="navigation-status">
+      <span>{{ navigation.state.error }}</span><button type="button" @click="navigation.refresh()">重试</button>
+    </div>
+
     <div class="side-bottom">
-      <!-- 1. Station Cluster Online Card (Clickable to switch to Resource Center) -->
+      <!-- Host health does not require the Resources application to be mounted. -->
       <button type="button"
               class="side-cluster-card"
-              data-nav="resources"
               id="sideClusterCard"
-              @click="navTo('resources')"
-              :title="`当前连接：${hostStore.clusterName} (${hostStore.clusterHost}) · 点击查看资源看板`">
+              @click="openResources"
+              :title="`${hostStore.clusterName} · ${navigation.legacy || resourcesEntry ? '查看资源管理' : '打开应用市场'}`">
         <div class="side-cluster-row">
           <div class="side-cluster-lead">
             <i class="dot" :class="{ on: hostStore.connected }"></i>
             <span class="side-cluster-name">{{ hostStore.clusterName }}</span>
           </div>
-          <span class="side-cluster-pill">{{ hostStore.connected ? '在线' : '未连接' }}</span>
+          <span class="side-cluster-pill">{{ hostStore.connected ? '已登录' : '未连接' }}</span>
         </div>
         <div class="side-cluster-meta">{{ hostStore.clusterMeta }}</div>
       </button>
@@ -274,3 +331,16 @@ function handleHelpClick() {
     </div>
   </aside>
 </template>
+
+<style scoped>
+.app-navigation-row { display: flex; align-items: center; }
+.app-navigation-row .nav-link { flex: 1; min-width: 0; }
+.app-navigation-row .nav-link > span:not(.nav-icon) { overflow-wrap: anywhere; }
+.app-navigation-row small { color: var(--muted); margin-left: auto; }
+.unpin-entry { color: var(--muted); padding: 8px; border-radius: 6px; }
+.unpin-entry:hover { color: var(--accent); background: var(--shell-button); }
+.menu-preferences { margin: 4px 12px 12px; font-size: 12px; color: var(--muted); }
+.menu-preferences summary { cursor: pointer; padding: 6px 0; }
+.navigation-status { padding: 8px 12px; font-size: 12px; color: var(--muted); }
+.navigation-status button { display: block; padding: 4px 0; color: var(--accent); }
+</style>
