@@ -17,17 +17,6 @@ import (
 //go:embed mcp_schemas.json
 var generatedTools []byte
 
-//go:embed generation_mcp_schemas.generated.json
-var generationTools []byte
-
-func GenerationTools() []MCPTool {
-	var tools []MCPTool
-	if json.Unmarshal(generationTools, &tools) != nil {
-		panic("invalid generation tool projection")
-	}
-	return tools
-}
-
 type MCPTool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
@@ -38,12 +27,6 @@ func MCPTools() []MCPTool {
 	var tools []MCPTool
 	if json.Unmarshal(generatedTools, &tools) != nil {
 		panic("invalid embedded MCP tool schema")
-	}
-	// Submission belongs to the verified Studio dispatcher, never this service.
-	for _, tool := range GenerationTools() {
-		if tool.Name != "project.generation_submit" {
-			tools = append(tools, tool)
-		}
 	}
 	return tools
 }

@@ -75,24 +75,6 @@ func (s *Service) HTTPHandler(serviceToken, authorityToken string) (http.Handler
 		}
 		var result any
 		switch r.URL.Path {
-		case "/internal/v1/project/generation_propose":
-			var req GenerationPlan
-			if !decode(&req) {
-				return
-			}
-			result, err = s.GenerationPropose(r.Context(), p, req)
-		case "/internal/v1/project/generation_status":
-			var req GenerationPlanKey
-			if !decode(&req) {
-				return
-			}
-			result, err = s.GenerationStatus(r.Context(), p, req)
-		case "/internal/v1/project/generation_revoke":
-			var req GenerationPlanKey
-			if !decode(&req) {
-				return
-			}
-			result, err = s.GenerationRevoke(r.Context(), p, req)
 		case "/internal/v1/project/create":
 			var req CreateRequest
 			if !decode(&req) {
@@ -229,7 +211,7 @@ func httpError(w http.ResponseWriter, p Principal, err error) {
 	for _, v := range []struct {
 		error
 		status int
-	}{{ErrInvalid, 400}, {ErrForbidden, 403}, {ErrNotFound, 404}, {ErrConflict, 409}, {ErrIdempotency, 409}, {ErrNotReady, 409}, {ErrDependency, 503}, {ErrApproval, 403}, {ErrBudget, 409}, {ErrGenerationState, 409}} {
+	}{{ErrInvalid, 400}, {ErrForbidden, 403}, {ErrNotFound, 404}, {ErrConflict, 409}, {ErrIdempotency, 409}, {ErrNotReady, 409}, {ErrDependency, 503}} {
 		if errors.Is(err, v.error) {
 			status, code = v.status, v.Error()
 			break

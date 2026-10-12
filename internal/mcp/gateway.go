@@ -171,21 +171,6 @@ func (g *Gateway) ListTools() []ToolDefinition {
 			out = append(out, tool)
 		}
 	}
-	if generationControlEnabled() {
-		ready := false
-		for _, tool := range g.services["project"].Tools {
-			if tool.Name == "project.generation_status" {
-				ready = true
-			}
-		}
-		if ready {
-			for _, tool := range project.GenerationTools() {
-				if tool.Name == "project.generation_submit" {
-					out = append(out, ToolDefinition{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema})
-				}
-			}
-		}
-	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
@@ -199,7 +184,7 @@ func (g *Gateway) ServiceEndpoint(domain string) (string, bool) {
 	return r.Endpoint, ok
 }
 func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any, headers map[string]string) (any, int, error) {
-	if Managed(name) || generationControlEnabled() && (generationMayConsume(name) || generationPreparation(name)) {
+	if Managed(name) {
 		return nil, 403, errors.New("verified identity required")
 	}
 	return g.call(ctx, name, args, headers)
@@ -207,17 +192,6 @@ func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any
 func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string]any, p project.Principal, projectHeader string) (any, int, error) {
 	if !p.Valid() {
 		return nil, 403, errors.New("verified identity required")
-	}
-	if name == "project.generation_submit" {
-		return g.generationSubmit(ctx, p, args, projectHeader)
-	}
-	if generationControlEnabled() && (generationMayConsume(name) || generationPreparation(name)) {
-		if status, e := g.checkGenerationAccess(ctx, p, args, projectHeader, generationMayConsume(name)); e != nil {
-			return nil, status, e
-		}
-		if body, ok := args["project_id"].(string); ok {
-			projectHeader = body
-		}
 	}
 	projectID := projectHeader
 	if Managed(name) {
