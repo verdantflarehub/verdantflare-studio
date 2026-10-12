@@ -51,13 +51,13 @@ function contextCopy(context: AppContext): Readonly<AppContext> {
 
 /** Create one revocable SDK per authorized Dashboard load, never per instance. */
 export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapters: SDKAdapters,
-  now: () => number = Date.now) {
+  now: () => number = adapters.now ?? Date.now) {
   let context = contextCopy(initial)
   const sessionId = id(launch.dashboardSessionId)
   const version = launch.sdkVersion
   const expiry = Date.parse(launch.expiresAt)
   if (!/^1\.\d+\.\d+$/.test(version)) fail('SDK_VERSION_UNSUPPORTED')
-  if (!Number.isFinite(expiry) || expiry <= now()) fail('SESSION_EXPIRED')
+  if (!Number.isFinite(expiry) || !Number.isFinite(now()) || expiry <= now()) fail('SESSION_EXPIRED')
   if (context.appId !== launch.appId || context.installationId !== launch.installationId
     || context.contextRevision !== launch.contextRevision) fail('CONTEXT_MISMATCH')
   const grants = new Set(launch.grantedCapabilities)
@@ -100,7 +100,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
   }
   function live() {
     if (state === 'dispose') fail('SESSION_REVOKED')
-    if (now() >= expiry) { dispose(); fail('SESSION_EXPIRED') }
+    if (!Number.isFinite(now()) || now() >= expiry) { dispose(); fail('SESSION_EXPIRED') }
   }
   function grant(name: string) {
     live()

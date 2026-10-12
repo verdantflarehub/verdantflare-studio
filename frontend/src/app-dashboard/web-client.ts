@@ -1,6 +1,7 @@
 import { validateLaunch } from './launch.ts'
 import type { LaunchPolicy } from './launch'
 import type { AppContext, AppRequest, AppResponse, DashboardLaunch, Json } from './types'
+import { responseClock } from '../pages/response-clock.js'
 
 export class DashboardTransportError extends Error {
   constructor(readonly code: string) { super(code); this.name = 'DashboardTransportError' }
@@ -13,6 +14,7 @@ export interface DashboardInstallation { installationId: string; appId: string; 
 export interface InstanceWorkspaceLaunch {
   workspaceSessionId: string; installationId: string; appId: string; instanceId: string; entryId: string
   entryUrl: string; assetBaseUrl: string; expiresAt: string
+  now?: () => number
 }
 
 const identifier = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
@@ -45,9 +47,11 @@ async function readJSON(response: Response, maximum: number): Promise<Json> {
 }
 
 /** Host-owned Web transport. Never inject this client or its fetcher into App code. */
-export function createDashboardWebClient(origin: string, fetcher: typeof fetch = fetch) {
+export function createDashboardWebClient(origin: string, fetcher: typeof fetch = fetch, monotonic = () => performance.now()) {
   const base = new URL(origin)
   if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin) failure('INVALID_DASHBOARD_ORIGIN')
+  let clock: (() => number) | undefined
+  const now = () => clock?.() ?? NaN
 
   function sessionPath(id: string) {
     if (!uuid.test(id) || id[14] !== '4') failure('INVALID_DASHBOARD_SESSION')
@@ -66,22 +70,30 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       || ['appId', 'instanceId', 'entryId'].some(key => typeof value[key] !== 'string' || !identifier.test(value[key] as string))
       || typeof value.workspaceSessionId !== 'string' || typeof value.entryUrl !== 'string'
       || typeof value.assetBaseUrl !== 'string' || !/^\/studio\/instance-assets\/[a-f0-9]{64}\/$/.test(value.assetBaseUrl)
-      || typeof value.expiresAt !== 'string' || !Number.isFinite(Date.parse(value.expiresAt)) || Date.parse(value.expiresAt) <= Date.now()) return failure('INVALID_WORKSPACE_RESPONSE')
+      || typeof value.expiresAt !== 'string' || !Number.isFinite(Date.parse(value.expiresAt)) || !Number.isFinite(now()) || Date.parse(value.expiresAt) <= now()) return failure('INVALID_WORKSPACE_RESPONSE')
     const root = workspacePath(value.workspaceSessionId) + '/assets/'
     if (!value.entryUrl.startsWith(root) || !/^[a-zA-Z0-9._/-]+$/.test(value.entryUrl)
       || value.entryUrl.split('/').slice(1).some(part => !part || part === '.' || part === '..')
       || !value.entryUrl.endsWith('.html')) return failure('INVALID_WORKSPACE_RESPONSE')
-    return Object.freeze({ ...value }) as unknown as InstanceWorkspaceLaunch
+    return Object.freeze({ ...value, now }) as unknown as InstanceWorkspaceLaunch
   }
   async function call(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<AppResponse> {
     if (signal?.aborted) return failure('REQUEST_CANCELLED')
     try {
+      const started = monotonic()
       const response = await fetcher(new URL(path, base).href, { method, credentials: 'same-origin', cache: 'no-store',
         redirect: 'error', signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       const data = await readJSON(response, 4 << 20)
       if (signal?.aborted) return failure('REQUEST_CANCELLED')
+      if (response.ok && response.status !== 204) {
+        let observed: () => number
+        try { observed = responseClock(response.headers.get('Date'), started, monotonic) }
+        catch { return failure('INVALID_DASHBOARD_RESPONSE') }
+        // Late replies cannot move the clock backward or extend any deadline.
+        if (!clock || observed() > clock()) clock = observed
+      }
       return { status: response.status, data, requestId: response.headers.get('X-Request-ID') ?? '' }
     } catch (error) {
       if (signal?.aborted) return failure('REQUEST_CANCELLED')
@@ -111,12 +123,13 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       const policy: LaunchPolicy = { assetBaseUrl, context, installationId, appId: context.appId,
         appVersion: rawLaunch.appVersion as string, artifactDigest: rawLaunch.artifactDigest as string,
         requiredCapabilities: [], allowedCapabilities: Array.isArray(rawLaunch.grantedCapabilities)
-          ? rawLaunch.grantedCapabilities as string[] : [], trusted: true }
+          ? rawLaunch.grantedCapabilities as string[] : [], trusted: true, now }
       const launch = validateLaunch(rawLaunch, policy)
       return { launch, context, policy: Object.freeze(policy) }
   }
 
   return Object.freeze({
+    now,
     async openAppCenter(input: AppCenterOpenInput, installationId: string, signal?: AbortSignal): Promise<OpenedDashboard> {
       const response = await call('/studio/appcenter/v1/open', 'POST', input, signal)
       if (response.status !== 200) return failure(codeFrom(response.data))

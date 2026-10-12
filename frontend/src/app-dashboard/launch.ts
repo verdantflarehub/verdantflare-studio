@@ -15,6 +15,7 @@ export interface LaunchPolicy {
   requiredCapabilities: readonly string[]
   allowedCapabilities: readonly string[]
   trusted: boolean
+  now?: () => number
 }
 
 const fields = ['dashboardSessionId', 'installationId', 'appId', 'appVersion', 'artifactDigest', 'adapter',
@@ -24,7 +25,7 @@ const version = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 const fail = (code: string): never => { throw new DashboardLaunchError(code) }
 
 /** Validate the server projection before allowing any page code to execute. */
-export function validateLaunch(input: unknown, policy: LaunchPolicy, now = Date.now()): DashboardLaunch {
+export function validateLaunch(input: unknown, policy: LaunchPolicy, now = policy.now?.() ?? Date.now()): DashboardLaunch {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('INVALID_LAUNCH')
   const value = input as Record<string, unknown>
   if (Object.keys(value).length !== fields.length || fields.some(key => !Object.hasOwn(value, key))) fail('INVALID_LAUNCH')
@@ -45,7 +46,7 @@ export function validateLaunch(input: unknown, policy: LaunchPolicy, now = Date.
   if (value.artifactDigest !== policy.artifactDigest || value.appVersion !== policy.appVersion) fail('ARTIFACT_MISMATCH')
   const expiry = Date.parse(value.expiresAt as string)
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value.expiresAt as string)
-    || !Number.isFinite(expiry) || expiry <= now) fail('SESSION_EXPIRED')
+    || !Number.isFinite(expiry) || !Number.isFinite(now) || expiry <= now) fail('SESSION_EXPIRED')
   const grants = value.grantedCapabilities
   if (!Array.isArray(grants) || grants.length > 128 || grants.some(item => typeof item !== 'string' || !identifier.test(item))
     || new Set(grants).size !== grants.length) fail('INVALID_CAPABILITIES')

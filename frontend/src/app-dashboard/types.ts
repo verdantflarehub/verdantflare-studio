@@ -67,6 +67,7 @@ export interface AppSDK {
 
 // Host-only transport. This object must never be injected into the Dashboard.
 export interface SDKAdapters {
+  now?: () => number
   navigate(input: Navigation, signal: AbortSignal): Promise<void>
   selectFiles(input: FileSelection, signal: AbortSignal): Promise<readonly SelectedFile[]>
   releaseFiles?(): void

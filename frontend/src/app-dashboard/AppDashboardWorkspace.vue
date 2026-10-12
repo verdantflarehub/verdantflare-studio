@@ -60,13 +60,15 @@ function showError(value: unknown) {
 
 function adapters(opened: OpenedDashboard): SDKAdapters {
   const id = opened.launch.dashboardSessionId
-  const files = createFileAccess({ expiresAt: opened.launch.expiresAt, async authorize(capability, signal) {
+  const now = () => Math.max(opened.policy.now?.() ?? -Infinity, Number.isFinite(client!.now()) ? client!.now() : -Infinity)
+  const files = createFileAccess({ now, expiresAt: opened.launch.expiresAt, async authorize(capability, signal) {
     const current = await client!.inspect(id, opened.launch.installationId, signal)
     if (['userId', 'organizationId', 'stationId', 'appId', 'installationId', 'contextRevision'].some(key =>
       current.context[key as keyof typeof current.context] !== opened.context[key as keyof typeof opened.context])) throw new Error('CONTEXT_CHANGED')
     if (!current.launch.grantedCapabilities.includes(capability)) throw new Error('CAPABILITY_DENIED')
   } })
   return {
+    now,
     async navigate(input, signal) {
       await client!.inspect(id, opened.launch.installationId, signal)
       if (input.target === 'appcenter') {

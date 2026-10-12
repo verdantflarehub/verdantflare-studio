@@ -56,6 +56,7 @@ watch([() => props.selection, surface, () => props.visible], async ([selection, 
       }
       try {
         return await mountWujieDashboard({ container, launch, session, signal, confirmDiscard: props.confirmDiscard,
+          now: selection.adapters.now ?? selection.policy.now ?? Date.now,
           releaseSession,
           onInvalidated() {
             void cache.invalidate(key).catch(() => emit('error', 'DASHBOARD_DISPOSE_FAILED'))

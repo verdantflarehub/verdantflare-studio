@@ -48,7 +48,7 @@ onMounted(async () => {
     if (lifetime.signal.aborted) return
     entry.value = launch.entryUrl
     loading = setTimeout(() => { message.value = '实例工作区加载超时，请关闭后重试。' }, 30000)
-    expiry = setTimeout(() => { lifetime.abort(); entry.value = ''; port?.close(); port = undefined; finishClose?.(false); message.value = '实例工作区会话已过期，请重新打开。' }, Math.max(0, Date.parse(launch.expiresAt)-Date.now()))
+    expiry = setTimeout(() => { lifetime.abort(); entry.value = ''; port?.close(); port = undefined; finishClose?.(false); message.value = '实例工作区会话已过期，请重新打开。' }, Math.max(0, Date.parse(launch.expiresAt)-client.now()))
   } catch { if (!lifetime.signal.aborted) message.value = '实例工作区暂不可用，请返回控制台重新打开。' }
 })
 onBeforeUnmount(() => {

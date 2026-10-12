@@ -1,6 +1,7 @@
 import type { AppSDKSession } from './sdk'
 import type { AppContext, AppRoute, DashboardLaunch } from './types'
 import type { CachedDashboard } from './cache'
+import { installDashboardRuntime } from './runtime'
 
 export interface DashboardMountOptions {
   container: HTMLElement
@@ -10,6 +11,7 @@ export interface DashboardMountOptions {
   confirmDiscard(): Promise<boolean>
   onInvalidated(): void
   releaseSession?(): Promise<void>
+  now: () => number
 }
 
 export interface WujieDashboard extends CachedDashboard {
@@ -33,6 +35,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
   let disposed = false, dirty = true, ready = false
   let visible = false
   let cleanup: Promise<void> | undefined
+  let clearRuntime = () => {}
   let settleReady!: () => void
   let rejectReady!: (reason: Error) => void
   const readiness = new Promise<void>((resolve, reject) => { settleReady = resolve; rejectReady = reject })
@@ -55,6 +58,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     unsubscribe()
     themeObserver.disconnect()
     session.dispose()
+    clearRuntime()
     controller.abort()
     rejectReady(new Error('LOAD_CANCELLED'))
     element.remove()
@@ -100,6 +104,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
   try {
     const loading = startApp({ name, url: launch.entryUrl, el: element, alive: true, sync: false,
       props: { appSDK: session.sdk, dashboardHost }, fetch: fetchAssets,
+      beforeLoad: appWindow => { clearRuntime = installDashboardRuntime(appWindow as Window & typeof globalThis, options.now) },
       loadError: () => rejectReady(new Error('DASHBOARD_ASSET_FAILED')),
     })
     // A late Wujie completion must never revive a cancelled page.

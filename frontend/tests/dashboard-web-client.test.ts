@@ -12,7 +12,37 @@ function opened() {
     grantedCapabilities: ['app.request'], contextRevision: 'epoch-one', expiresAt: '2099-01-01T00:00:00Z' } }
 }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status,
-  headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'request-one' } })
+  headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'request-one', 'Date': new Date().toUTCString() } })
+
+test('Dashboard and workspace expiry follow server time, charge latency and reject missing time',async t=>{
+  const server=Date.parse('2026-10-12T04:00:00Z')
+  let elapsed=0,delay=0,date:string|null=new Date(server).toUTCString()
+  const fetcher=async(url: any)=>{
+    elapsed+=delay
+    const value=String(url).includes('instance-workspaces')?workspace():opened()
+    if('launch' in value)value.launch.expiresAt=new Date(server+30000).toISOString()
+    else value.expiresAt=new Date(server+30000).toISOString()
+    const response=json(value);if(date===null)response.headers.delete('Date');else response.headers.set('Date',date)
+    return response
+  }
+  const client=createDashboardWebClient('https://studio.invalid',fetcher,()=>elapsed)
+  for(const skew of [-3600000,3600000]){
+    t.mock.method(Date,'now',()=>server+skew)
+    const result=await client.open(installationId)
+    assert.equal(result.policy.now!(),server+1000)
+    assert.equal((await client.inspectWorkspace(sessionId,installationId)).now!(),server+1000)
+  }
+  // An older response cannot rewind the clock to revive a deadline.
+  date=new Date(server-10000).toUTCString()
+  await client.open(installationId)
+  assert.equal(client.now(),server+1000)
+  date=null
+  await assert.rejects(client.open(installationId),{code:'INVALID_DASHBOARD_RESPONSE'})
+  date='invalid'
+  await assert.rejects(client.open(installationId),{code:'INVALID_DASHBOARD_RESPONSE'})
+  date=new Date(server).toUTCString();delay=31000
+  await assert.rejects(client.open(installationId),{code:'SESSION_EXPIRED'})
+})
 
 test('AppCenter opening uses its fixed binding endpoint and the original launch validator without fallback', async () => {
   const input = { schemaVersion: 1 as const, cardKey: `installation:${installationId}`, entryId: 'dashboard',
