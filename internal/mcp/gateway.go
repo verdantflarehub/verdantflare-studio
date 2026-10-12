@@ -171,6 +171,21 @@ func (g *Gateway) ListTools() []ToolDefinition {
 			out = append(out, tool)
 		}
 	}
+	if generationControlEnabled() {
+		ready := false
+		for _, tool := range g.services["project"].Tools {
+			if tool.Name == "project.generation_status" {
+				ready = true
+			}
+		}
+		if ready {
+			for _, tool := range project.GenerationTools() {
+				if tool.Name == "project.generation_submit" {
+					out = append(out, ToolDefinition{Name: tool.Name, Description: tool.Description, InputSchema: tool.InputSchema})
+				}
+			}
+		}
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
@@ -184,7 +199,7 @@ func (g *Gateway) ServiceEndpoint(domain string) (string, bool) {
 	return r.Endpoint, ok
 }
 func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any, headers map[string]string) (any, int, error) {
-	if Managed(name) {
+	if Managed(name) || generationControlEnabled() && generationMayConsume(name) {
 		return nil, 403, errors.New("verified identity required")
 	}
 	return g.call(ctx, name, args, headers)
@@ -192,6 +207,17 @@ func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any
 func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string]any, p project.Principal, projectHeader string) (any, int, error) {
 	if !p.Valid() {
 		return nil, 403, errors.New("verified identity required")
+	}
+	if name == "project.generation_submit" {
+		return g.generationSubmit(ctx, p, args, projectHeader)
+	}
+	if generationControlEnabled() && generationMayConsume(name) {
+		if status, e := g.CheckGenerationDirect(ctx, p, args, projectHeader); e != nil {
+			return nil, status, e
+		}
+		if body, ok := args["project_id"].(string); ok {
+			projectHeader = body
+		}
 	}
 	projectID := projectHeader
 	if Managed(name) {
@@ -233,6 +259,9 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 	return g.call(ctx, name, args, map[string]string{"X-User-Id": p.SubjectID, "X-Organization-Id": p.OrganizationID, "X-Request-Id": p.RequestID, "X-Project-Id": projectID})
 }
 func (g *Gateway) call(ctx context.Context, name string, args map[string]any, headers map[string]string) (any, int, error) {
+	return g.callVersion(ctx, name, args, headers, "")
+}
+func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]any, headers map[string]string, expectedVersion string) (any, int, error) {
 	if !toolPattern.MatchString(name) {
 		return nil, 400, errors.New("invalid tool name")
 	}
@@ -242,6 +271,9 @@ func (g *Gateway) call(ctx context.Context, name string, args map[string]any, he
 	g.mu.RUnlock()
 	if !ok {
 		return nil, 404, errors.New("tool service unavailable")
+	}
+	if expectedVersion != "" && svc.Version != expectedVersion {
+		return nil, 409, errors.New("approved service version changed")
 	}
 	found := false
 	for _, tool := range svc.Tools {
@@ -299,7 +331,7 @@ func (g *Gateway) call(ctx context.Context, name string, args map[string]any, he
 	}
 	var envelope map[string]json.RawMessage
 	if json.Unmarshal(b, &envelope) != nil {
-		if Managed(name) {
+		if Managed(name) || expectedVersion != "" {
 			return nil, 502, errors.New("invalid downstream response")
 		}
 		return map[string]any{"content": []map[string]string{{"type": "text", "text": string(b)}}}, resp.StatusCode, nil
@@ -308,7 +340,7 @@ func (g *Gateway) call(ctx context.Context, name string, args map[string]any, he
 		return nil, 502, errors.New("downstream protocol error")
 	}
 	if result, ok := envelope["result"]; ok {
-		if Managed(name) {
+		if Managed(name) || expectedVersion != "" {
 			var version, id string
 			if json.Unmarshal(envelope["jsonrpc"], &version) != nil || version != "2.0" || json.Unmarshal(envelope["id"], &id) != nil || id != headers["X-Request-Id"] {
 				return nil, 502, errors.New("downstream response identity mismatch")
@@ -321,7 +353,7 @@ func (g *Gateway) call(ctx context.Context, name string, args map[string]any, he
 		_ = json.Unmarshal(result, &out)
 		return out, resp.StatusCode, nil
 	}
-	if Managed(name) {
+	if Managed(name) || expectedVersion != "" {
 		return nil, 502, errors.New("invalid downstream response")
 	}
 	var out any
