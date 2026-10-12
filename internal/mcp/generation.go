@@ -58,7 +58,13 @@ func (g *Gateway) CheckGenerationDirect(ctx context.Context, p project.Principal
 	return 200, nil
 }
 
-func generationResult(v any) any { return map[string]any{"isError": false, "structuredContent": v} }
+func generationResult(v any) any {
+	data, e := json.Marshal(v)
+	if e != nil {
+		return map[string]any{"isError": true, "content": []map[string]string{{"type": "text", "text": "Generation status unavailable"}}}
+	}
+	return map[string]any{"isError": false, "structuredContent": v, "content": []map[string]string{{"type": "text", "text": string(data)}}}
+}
 
 func boundedImageArguments(a project.GenerationAttempt) (map[string]any, error) {
 	var values map[string]string

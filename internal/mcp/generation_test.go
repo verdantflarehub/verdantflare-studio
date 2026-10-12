@@ -106,9 +106,24 @@ func TestGenerationGatewayPinsRequestAndNeverResubmitsUnknown(t *testing.T) {
 			if supplierCalls.Load() != 0 {
 				t.Fatal("rejected request reached supplier")
 			}
-			_, status, e := g.CallVerified(context.Background(), "project.generation_submit", args, p, "")
+			result, status, e := g.CallVerified(context.Background(), "project.generation_submit", args, p, "")
 			if e != nil || (status != 200 && status != 202) {
 				t.Fatal(status, e)
+			}
+			encoded, _ := json.Marshal(result)
+			var envelope struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+				Structured json.RawMessage `json:"structuredContent"`
+			}
+			if json.Unmarshal(encoded, &envelope) != nil || len(envelope.Content) != 1 || envelope.Content[0].Type != "text" {
+				t.Fatal("missing MCP content fallback")
+			}
+			var left, right project.GenerationOperation
+			if json.Unmarshal(envelope.Structured, &left) != nil || json.Unmarshal([]byte(envelope.Content[0].Text), &right) != nil || left.OperationID != right.OperationID || left.State != right.State {
+				t.Fatal("MCP structured/text result mismatch")
 			}
 			// Simulate gateway restart using only persisted business state.
 			g2 := NewGatewayWithClient(nil)
