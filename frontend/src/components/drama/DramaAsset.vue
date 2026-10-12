@@ -39,5 +39,5 @@ onBeforeUnmount(() => { serial++; assetReader.value?.dispose(); dialog.value?.cl
   </dialog>
 </template>
 <style scoped>
-dialog { margin:auto; width:min(820px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; border:1px solid var(--line); border-radius:8px; padding:24px; background:var(--shell-panel); color:var(--ink); }dialog::backdrop { background:var(--aside); opacity:.65; }header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }h2 { font-size:18px; }p { margin:16px 0; line-height:1.8; }.muted { color:var(--muted); }.asset-file { margin:18px 0; }@media(max-width:600px){dialog{padding:16px}}
+dialog { margin:auto; width:min(820px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; border:1px solid var(--line); border-radius:8px; padding:24px; background:var(--panel); color:var(--ink); }header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }h2 { font-size:18px; }p { margin:16px 0; line-height:1.8; }.muted { color:var(--muted); }.asset-file { margin:18px 0; }@media(max-width:600px){dialog{padding:16px}}
 </style>
