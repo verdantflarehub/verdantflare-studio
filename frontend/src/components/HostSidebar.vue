@@ -122,8 +122,7 @@ function navTo(target: string) {
 
 async function handleUserClick() {
   if (!hostStore.connected) {
-    const dialog = document.getElementById('loginDialog') as HTMLDialogElement | null
-    if (dialog && !dialog.open) dialog.showModal()
+    hostStore.loginOpen = true
     return
   }
   if (confirm(`当前操作员：${hostStore.displayName}\n是否退出当前登录状态？`)) {
@@ -133,8 +132,7 @@ async function handleUserClick() {
     hostStore.setIdentity({})
     sessionStorage.removeItem('studio.operations')
     window.dispatchEvent(new CustomEvent('studio:logout'))
-    const dialog = document.getElementById('loginDialog') as HTMLDialogElement | null
-    if (dialog && !dialog.open) dialog.showModal()
+    hostStore.loginOpen = true
   }
 }
 
@@ -328,13 +326,15 @@ function handleHelpClick() {
       <!-- 2. User Login Card -->
       <div class="side-user-card"
            id="sideUserCard"
+           role="button" tabindex="0"
            @click="handleUserClick"
+           @keydown.enter="handleUserClick" @keydown.space.prevent="handleUserClick"
            style="cursor: pointer;"
-           :title="`当前操作员：${hostStore.displayName} · ${hostStore.teamName} (点击退出)`">
+           :title="hostStore.connected ? `当前操作员：${hostStore.displayName} · ${hostStore.teamName} (点击退出)` : '登录 Station'">
         <div class="avatar">{{ hostStore.avatar }}</div>
         <div class="side-user-info">
-          <span class="side-user-name">{{ hostStore.displayName }}</span>
-          <span class="side-user-team">{{ hostStore.teamName }}</span>
+          <span class="side-user-name">{{ hostStore.connected ? hostStore.displayName : '登录 Station' }}</span>
+          <span class="side-user-team">{{ hostStore.connected ? hostStore.teamName : '点击连接你的工作区' }}</span>
         </div>
       </div>
 

@@ -1,19 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { request } from './client'
-
-export interface HostIdentity {
-  user_id?: string
-  username?: string
-  organization_id?: string
-  organization_name?: string
-  station_id?: string
-  session_id?: string
-  policy_version?: number
-  revocation_version?: number
-  roles?: string[]
-  scopes?: string[]
-}
+import { readHostSession } from './session'
+import type { HostIdentity } from './session'
+export type { HostIdentity } from './session'
 
 export const useHostStore = defineStore('host', () => {
   const connected = ref(false)
@@ -22,6 +12,7 @@ export const useHostStore = defineStore('host', () => {
   const clusterHost = computed(() => identity.value.station_id || '未连接')
   const coreStatus = ref<string | null>(null)
   const loginOpen = ref(false)
+  const sessionStatus = ref<'loading' | 'authenticated' | 'anonymous' | 'error'>('loading')
   let identityEpoch = 0
 
   const displayName = computed(() => {
@@ -47,30 +38,19 @@ export const useHostStore = defineStore('host', () => {
     identityEpoch++
     identity.value = nextIdentity || {}
     connected.value = Boolean(nextIdentity && (nextIdentity.username || nextIdentity.user_id))
+    sessionStatus.value = connected.value ? 'authenticated' : 'anonymous'
+    if (connected.value) loginOpen.value = false
     coreStatus.value = null
   }
 
   async function fetchSession() {
     const epoch = identityEpoch
-    // A transient gateway failure must not permanently strand direct project
-    // links without the identity needed for user-scoped local Tips.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await request({ path: 'me', method: 'GET' }, { realOnly: true })
-        if (epoch !== identityEpoch) return null
-        if (res.status === 200) {
-          const data = await res.json()
-          if (epoch !== identityEpoch) return null
-          setIdentity(data)
-          return data
-        }
-        if (res.status < 500) break
-      } catch {
-        if (epoch !== identityEpoch) return null
-        // Retry only this idempotent session read; never replay a mutation.
-      }
-    }
-    if (epoch === identityEpoch) setIdentity({})
+    sessionStatus.value = 'loading'
+    const result = await readHostSession(() => request({ path: 'me', method: 'GET' }, { realOnly: true }), () => epoch === identityEpoch)
+    if (epoch !== identityEpoch || result.status === 'superseded') return null
+    if (result.status === 'authenticated') { setIdentity(result.identity); return result.identity }
+    setIdentity({}); sessionStatus.value = result.status
+    if (result.status === 'anonymous') loginOpen.value = true
     return null
   }
 
@@ -100,6 +80,7 @@ export const useHostStore = defineStore('host', () => {
     clusterHost,
     coreStatus,
     loginOpen,
+    sessionStatus,
     displayName,
     teamName,
     avatar,

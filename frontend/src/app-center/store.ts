@@ -53,7 +53,10 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   function pinOpen(id: string, binding: string) { openBindings.set(id, binding) }
   function takeOpenBinding(id: string) { const binding = openBindings.get(id); openBindings.delete(id); return binding }
   let timer: ReturnType<typeof setTimeout> | undefined
-  controller.subscribe(next => { state.value = next; progress.select(next.value?.items.find(card => card.cardKey === detailKey)) })
+  controller.subscribe(next => {
+    state.value = next; progress.select(next.value?.items.find(card => card.cardKey === detailKey))
+    if (next.error === 'UNAUTHENTICATED' && host.connected && host.sessionStatus !== 'loading') void host.init()
+  })
   const visible = () => consumers.size > 0 && !document.hidden
   const sharedRefresh = createSharedRefresh(async () => {
     const current = new AbortController(); readCycle = current

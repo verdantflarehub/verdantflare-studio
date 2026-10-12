@@ -18,6 +18,7 @@ import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
 const query = ref(''), group = ref('all'), filter = ref('all'), message = ref('')
+async function refreshPage() { if (!host.connected) await host.init(); else await store.refresh(true) }
 const theme = ref(document.body.dataset.theme === 'dark' ? 'dark' : 'light')
 try { theme.value = localStorage.getItem('vf_studio_theme') === 'dark' ? 'dark' : 'light' } catch { /* use current theme */ }
 watch(theme, value => {
@@ -128,8 +129,12 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 
 <template>
   <main v-show="!businessRoute && !legacy.target && !legacy.error" class="main appcenter-page"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing" @click="store.refresh(true)">{{ store.state.refreshing ? '刷新中…' : '刷新' }}</button></div></header>
-    <p v-if="!host.connected" class="panel appcenter-message">请登录以查看应用。</p>
+    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
+    <div v-if="!host.connected" class="panel appcenter-message" role="status">
+      <p v-if="host.sessionStatus === 'loading'">正在恢复登录状态…</p>
+      <template v-else-if="host.sessionStatus === 'error'"><p>暂时无法连接 Station，请重试。</p><button class="btn" @click="host.init()">重试连接</button></template>
+      <template v-else><p>请登录以查看应用。</p><button class="btn primary" @click="host.loginOpen = true">登录 Station</button></template>
+    </div>
     <template v-else>
       <p v-if="store.state.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.state.error) }}<span v-if="store.state.value"> 当前保留上次读取的信息，操作已暂停。</span></p>
       <p v-if="message" class="appcenter-message" role="status">{{ message }}</p>
