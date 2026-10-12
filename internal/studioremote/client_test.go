@@ -46,6 +46,47 @@ func login(t *testing.T, c *Client) {
 	}
 }
 
+func TestRemoteCancelledRequestsDoNotMutateSession(t *testing.T) {
+	c := fixture(t, func(r *http.Request) (*http.Response, error) { return jsonResponse(200, `{}`), nil })
+	login(t, c)
+	epoch := c.epoch
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := c.Send(ctx, "POST", "/api/login", nil); !errors.Is(err, ErrUnavailable) || !c.authenticated || c.epoch != epoch {
+		t.Fatal("already cancelled login changed session")
+	}
+	for _, item := range []struct {
+		path          string
+		status        int
+		authenticated bool
+	}{
+		{"/api/me", 401, true}, {"/api/login", 201, false}, {"/api/logout", 204, false},
+	} {
+		t.Run(item.path, func(t *testing.T) {
+			c.authenticated = true
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			c.transport = memoryTransport(func(*http.Request) (*http.Response, error) {
+				cancel()
+				body := `{}`
+				if item.status == 204 {
+					body = ""
+				}
+				response := jsonResponse(item.status, body)
+				response.Header.Set("Set-Cookie", "vf_studio_session=late-test-session; Path=/; Secure; HttpOnly")
+				return response, nil
+			})
+			method := "POST"
+			if item.path == "/api/me" {
+				method = "GET"
+			}
+			if _, err := c.Send(ctx, method, item.path, nil); !errors.Is(err, ErrUnavailable) || c.authenticated != item.authenticated {
+				t.Fatal("late cancelled response changed session")
+			}
+		})
+	}
+}
+
 func TestRemoteWorkspaceRoutesAndBinaryAssetsAreBounded(t *testing.T) {
 	id := "01980000-0000-4000-8000-000000000002"
 	assetPath := "/studio/instance-assets/" + strings.Repeat("a", 64) + "/font.woff2"

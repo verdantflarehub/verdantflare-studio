@@ -16,7 +16,7 @@ import (
 // The upstream and credential are server configuration, never caller-controlled.
 type VideoConfig struct{ URL, Token string }
 
-var videoRead = regexp.MustCompile(`^/(api/(dashboard|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/thumbnail)?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
+var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/thumbnail)?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/result|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 
@@ -116,7 +116,7 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		c.Status(502)
 		return
 	}
-	for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition"} {
+	for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition", "ETag"} {
 		if v := resp.Header.Get(key); v != "" {
 			c.Header(key, v)
 		}

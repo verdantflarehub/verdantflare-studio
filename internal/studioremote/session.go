@@ -38,6 +38,22 @@ func (s *Session) valid() bool {
 	return c.authenticated && c.epoch == s.epoch
 }
 
+// Active lets Go-owned workspace registries retire handles after login changes.
+// It is a lifetime check, never a substitute for remote authorization.
+func (s *Session) Active() bool { return s.valid() }
+
+// Origin returns only the configured gateway origin of this still-active login.
+// It is display metadata, never an authority to forward arbitrary URLs.
+func (s *Session) Origin() string {
+	c := s.client
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.authenticated || c.epoch != s.epoch {
+		return ""
+	}
+	return c.base
+}
+
 type sessionBody struct {
 	reader  io.Reader
 	closer  io.Closer

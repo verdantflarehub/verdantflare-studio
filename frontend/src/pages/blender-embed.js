@@ -1,9 +1,11 @@
 import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summary, instanceCard, detail } from './blender-management';
 import { mountBlenderCreation } from './blender-create';
 import { createBlenderStarter } from './blender-start';
+import { blenderMCPAddress } from '../app-center/legacy-blender';
 
-export function mountBlender({ listen, notice }) {
-  const $ = id => document.getElementById(id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
+export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize, fetcher = fetch, mcpOrigin = location.origin }) {
+  const $ = id => root.querySelector('#' + id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
+  const lifetime = new AbortController();
   let active = false, items = [], route = null, epoch = 0, session = null, pending = null;
   let timeout, renewal, saving = false, listScroll = 0, marketScroll = 0;
   let polling, filter = 'all', refreshing = false, hasSnapshot = false, createAvailable = false, operation = null, operationError = '';
@@ -32,9 +34,10 @@ export function mountBlender({ listen, notice }) {
     OPERATION_OUTCOME_UNKNOWN:'操作结果尚未确认，正在继续核对。', NOT_FOUND:'项目、修订或操作不存在，或当前账号无权访问。'
   };
   async function request(path, body, keepalive = false) {
+    if (!keepalive && authorize) await authorize();
     const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 30000);
     try {
-      const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: controller.signal,
+      const response = await fetcher(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: keepalive ? controller.signal : AbortSignal.any([controller.signal, lifetime.signal]),
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw Object.assign(Error(messages[data.code] || '暂时无法连接，请重试。'), {code:data.code,status:response.status});
@@ -193,7 +196,7 @@ export function mountBlender({ listen, notice }) {
   }
   function breadcrumb(target) {
     const nav = $('blenderBreadcrumb'); nav.replaceChildren();
-    const market = document.createElement('a'); market.href = '#/market'; market.textContent = '应用市场'; nav.append(market, ' / ');
+    const market = document.createElement('a'); market.href = '#/market'; market.textContent = '应用中心'; nav.append(market, ' / ');
     const app = document.createElement(target === 'instances' ? 'span' : 'a'); app.textContent = 'Blender';
     if (target !== 'instances') app.href = '#/market?blender=instances'; else app.setAttribute('aria-current', 'page');
     nav.append(app);
@@ -211,7 +214,7 @@ export function mountBlender({ listen, notice }) {
     const current = ++epoch, opening = pending;
     if (!active) marketScroll = window.scrollY;
     active = true; route = key; items = []; hasSnapshot = false; operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
-    host.hidden = false; host.style.display = 'flex'; $('marketView').hidden = true; $('marketView').style.display = 'none';
+    host.hidden = false; host.style.display = 'flex'; if ($('marketView')) { $('marketView').hidden = true; $('marketView').style.display = 'none'; }
     main.classList.add('embed-active', 'blender-active');
     const management = target !== 'instances' && target !== 'create' && !!panel();
     $('blenderCreateView').hidden = target !== 'create';
@@ -259,8 +262,8 @@ export function mountBlender({ listen, notice }) {
     clearTimeout(polling);creation.hide();
     void release().catch(() => {}); host.hidden = true; host.style.display = 'none'; main.classList.remove('blender-active');
     if (!location.hash.includes('video=') && !location.hash.includes('image=')) {
-      main.classList.remove('embed-active'); $('marketView').hidden = false; $('marketView').style.display = '';
-      $('pageTitle').textContent = '应用市场'; $('pageSubtitle').textContent = '为 Station 安装创作应用，管理模型与运行状态。';
+      main.classList.remove('embed-active'); if ($('marketView')) { $('marketView').hidden = false; $('marketView').style.display = ''; }
+      if ($('pageTitle')) $('pageTitle').textContent = '应用中心'; if ($('pageSubtitle')) $('pageSubtitle').textContent = '为 Station 安装创作应用，管理模型与运行状态。';
       requestAnimationFrame(() => window.scrollTo(0, marketScroll));
     }
   }
@@ -302,7 +305,10 @@ export function mountBlender({ listen, notice }) {
   listen($('blenderSave'), 'click', () => void save());
   listen($('blenderCopy'), 'click', () => {
     const item = items.find(i => i.alias === alias());
-    if (item) navigator.clipboard.writeText(location.origin + item.mcp_path).then(() => notice('已复制实例 MCP 地址')).catch(() => notice('复制失败，请检查浏览器权限。'));
+    if (item) {
+      try { navigator.clipboard.writeText(blenderMCPAddress(mcpOrigin, item.alias, item.mcp_path)).then(() => notice('已复制实例 MCP 地址')).catch(() => notice('复制失败，请检查浏览器权限。')); }
+      catch { notice('实例 MCP 地址无效，请刷新后重试。'); }
+    }
   });
   listen($('blenderSearch'), 'input', renderList); listen($('blenderListRetry'), 'click', () => void sync(true));
   const startInstance = createBlenderStarter({request,storage:sessionStorage});
@@ -372,5 +378,5 @@ export function mountBlender({ listen, notice }) {
     if (data.type === 'error') void stop('画面连接已中断，请重试。', 'error');
     if (data.type === 'wheel' && Number.isFinite(data.deltaY)) window.scrollBy(0, Math.max(-1000, Math.min(data.deltaY, 1000)));
   });
-  return { sync, close, open: () => { location.hash = '/market?blender=instances'; }, dispose: close };
+  return { sync, close, open: () => { location.hash = '/market?blender=instances'; }, dispose: () => { close(); lifetime.abort(); stopDialog.remove(); } };
 }

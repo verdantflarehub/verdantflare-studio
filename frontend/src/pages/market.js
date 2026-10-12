@@ -4,7 +4,7 @@ import { mountBlender } from './blender-embed'
 import { mountComfyUI } from './comfyui-management'
 import { request } from '../platform/client'
 import { brandMarks } from './brands'
-import { mergeCatalogWithLive } from './catalog'
+import { CATALOG_GROUPS, mergeCatalogWithLive, selectCatalogGroups } from './catalog'
 import { useHostStore } from '../platform/hostStore'
 
 // Studio Market interaction adapter aligned with verdantflare_studio_market_v1.1.html
@@ -13,7 +13,7 @@ export function mountMarket(options = {}) {
   const controller = new AbortController();
   const listen = (target, event, handler) => target.addEventListener(event, handler, { signal: controller.signal });
 
-  const $ = id => document.getElementById(id), labels = { image: 'Image', music: 'Music', video: 'Video', desktop: '创作工具' };
+  const $ = id => document.getElementById(id);
   const statusText = {
     ready: '已就绪',
     running: '运行中',
@@ -84,7 +84,7 @@ export function mountMarket(options = {}) {
 
   function primaryBtn(a) {
     const dashboard = dashboards.find(item => item.appId === a.app_id);
-    if (dashboard) return `<button class="btn primary" data-open-dashboard="${esc(dashboard.installationId)}">打开控制台</button>`;
+    if (dashboard) return `<button class="btn primary" data-open-dashboard="${esc(dashboard.installationId)}">打开</button>`;
     if(a.app_id==='blender')return '<button class="btn primary" data-open-blender="true">打开</button>';
     if(a.app_id==='comfyui')return '<button class="btn primary" data-open-comfyui="true">打开</button>';
     const op = operations.get(a.app_id);
@@ -160,18 +160,18 @@ export function mountMarket(options = {}) {
 
   function render() {
     const searchInput = $('search');
-    const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
-    const shown = apps.filter(a =>
-      (group === 'all' || a.group_id === group) &&
-      (tab === 'all' || (tab === 'installed' && installed(a)) || (tab === 'active' && active(a))) &&
-      [a.display_name, a.description, ...a.models, ...(a.capabilities || [])].join(' ').toLowerCase().includes(q)
-    );
+    const sections = selectCatalogGroups(apps, {
+      group,
+      query: searchInput?.value || '',
+      matches: a => tab === 'all' || (tab === 'installed' && installed(a)) || (tab === 'active' && active(a)),
+    });
+    const shownCount = sections.reduce((count, section) => count + section.apps.length, 0);
     const count = apps.filter(installed).length;
 
     if ($('allCount')) $('allCount').textContent = connected ? apps.length : '—';
     if ($('installedCount')) $('installedCount').textContent = connected ? count : '—';
     if ($('activeCount')) $('activeCount').textContent = connected ? apps.filter(active).length : '—';
-    if ($('resultCount')) $('resultCount').textContent = connected ? `${shown.length} 个应用` : '等待连接';
+    if ($('resultCount')) $('resultCount').textContent = connected ? `${shownCount} 个应用` : '等待连接';
 
     // Left Sidebar Nav highlights handled reactively by HostSidebar.vue
 
@@ -180,22 +180,20 @@ export function mountMarket(options = {}) {
     document.querySelectorAll('.tabs [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
 
     if ($('groupNav')) {
-      $('groupNav').innerHTML = Object.keys(labels).map(g => `<button class="group-nav ${group === g ? 'active' : ''}" data-group="${g}">${labels[g]}<span class="count">${apps.filter(a => a.group_id === g).length}</span></button>`).join('');
+      $('groupNav').innerHTML = CATALOG_GROUPS.map(({ id, label }) => `<button class="group-nav ${group === id ? 'active' : ''}" data-group="${id}">${label}<span class="count">${apps.filter(a => a.group_id === id).length}</span></button>`).join('');
     }
 
     // Catalog Rendering strictly matching verdantflare_studio_market_v1.1.html
     if ($('catalog')) {
       if (!connected) {
         $('catalog').innerHTML = '<div class="empty">登录后查看 Station 中的真实应用。</div>';
-      } else if (!shown.length) {
+      } else if (!shownCount) {
         $('catalog').innerHTML = '<div class="empty"><h3>没有符合条件的应用</h3><p>试试切换分类标签，或清空搜索关键词。</p></div>';
       } else {
-        $('catalog').innerHTML = Object.keys(labels).map(g => {
-          const list = shown.filter(a => a.group_id === g);
-          if (!list.length) return '';
+        $('catalog').innerHTML = sections.map(({ id: g, label, apps: list }) => {
           return `<section>
             <div class="section-title">
-              <h2>${labels[g]}</h2>
+              <h2>${label}</h2>
               <small>${list.length} 个应用</small>
               <span class="line"></span>
             </div>

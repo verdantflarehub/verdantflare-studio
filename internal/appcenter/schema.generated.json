@@ -1,0 +1,2224 @@
+{
+  "station://contracts/appcenter-v1/command-core": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/command-core",
+    "title": "command-core",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "command": {
+        "$ref": "station://contracts/v1/app-command",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000- ]+$"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[^\u0000- ]+$"
+          },
+          "organization_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "station_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "app_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "app_version": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "action": {
+            "enum": [
+              "install",
+              "start",
+              "stop",
+              "restart",
+              "delete"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "type": "object",
+        "properties": {
+          "installationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installationRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appVersion": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "releaseDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workloadUID": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policyRevision": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "installationId",
+          "installationRevision",
+          "appVersion",
+          "releaseDigest",
+          "workloadUID",
+          "policyRevision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "command",
+      "expected"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/command-operation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/command-operation",
+    "title": "command-operation",
+    "$ref": "station://contracts/v1/app-operation"
+  },
+  "station://contracts/appcenter-v1/command-prepare": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/command-prepare",
+    "title": "command-prepare",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[^\u0000- ]+$"
+      },
+      "idempotencyKey": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 128,
+        "pattern": "^[^\u0000- ]+$"
+      },
+      "cardKey": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+      },
+      "actionId": {
+        "enum": [
+          "install",
+          "start",
+          "stop",
+          "restart",
+          "delete"
+        ]
+      },
+      "expectedBindingRevision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "requestId",
+      "idempotencyKey",
+      "cardKey",
+      "actionId",
+      "expectedBindingRevision"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/command-registry": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/command-registry",
+    "title": "command-registry",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schemaVersion",
+      "enabled",
+      "releases"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "releases": {
+        "type": "array",
+        "maxItems": 128,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "appId",
+            "appVersion",
+            "releaseKind",
+            "releaseRef",
+            "actions"
+          ],
+          "properties": {
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            },
+            "appVersion": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+            },
+            "releaseKind": {
+              "enum": [
+                "signed-package",
+                "management-release"
+              ]
+            },
+            "releaseRef": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+            },
+            "actions": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "install",
+                  "start"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "station://contracts/appcenter-v1/command-submit": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/command-submit",
+    "title": "command-submit",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "prepared": {
+        "$ref": "station://contracts/appcenter-v1/command-core"
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "prepared"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/common": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/common",
+    "title": "AppCenterCommon",
+    "$defs": {
+      "scope": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "organizationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "stationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "authorizationEpoch": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "userId",
+          "organizationId",
+          "stationId",
+          "authorizationEpoch"
+        ],
+        "additionalProperties": false
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "catalog",
+              "installations",
+              "observations",
+              "operations",
+              "presentation",
+              "entries"
+            ]
+          },
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "quality",
+          "revision",
+          "observedAt",
+          "reasonCode"
+        ],
+        "additionalProperties": false
+      },
+      "installation": {
+        "type": "object",
+        "properties": {
+          "installationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "appVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "installed",
+              "failed",
+              "removed"
+            ]
+          },
+          "lastOperationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "installationId",
+          "revision",
+          "appVersion",
+          "state",
+          "lastOperationId"
+        ],
+        "additionalProperties": false
+      },
+      "service": {
+        "type": "object",
+        "properties": {
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "state": {
+            "enum": [
+              "absent",
+              "ready",
+              "stopped",
+              "starting",
+              "stopping",
+              "degraded",
+              "unknown"
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observationKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^obs:[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quality",
+          "state",
+          "observedAt",
+          "reasonCode",
+          "observationKey"
+        ],
+        "additionalProperties": false
+      },
+      "operation": {
+        "type": "object",
+        "properties": {
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "protocol": {
+            "enum": [
+              "lifecycle",
+              "transition",
+              null
+            ]
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "running",
+              "succeeded",
+              "failed",
+              "recovery_required",
+              null
+            ]
+          },
+          "phase": {
+            "enum": [
+              "accepted",
+              "checking",
+              "downloading",
+              "verifying",
+              "installing",
+              "starting",
+              "warming",
+              "stopping",
+              "deleting",
+              "completed",
+              "sealing",
+              "applying",
+              "publishing",
+              "releasing",
+              "restoring",
+              "recovery_required",
+              null
+            ]
+          },
+          "canRead": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quality",
+          "blocking",
+          "operationId",
+          "protocol",
+          "status",
+          "phase",
+          "canRead",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "canRead": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "operationId": {
+                  "type": "null"
+                },
+                "protocol": {
+                  "type": "null"
+                },
+                "status": {
+                  "type": "null"
+                },
+                "phase": {
+                  "type": "null"
+                },
+                "updatedAt": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "canRead": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "operationId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "protocol": {
+                  "enum": [
+                    "lifecycle",
+                    "transition"
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "phase": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "Z$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "lifecycle"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "phase": {
+                  "enum": [
+                    "checking",
+                    "downloading",
+                    "verifying",
+                    "installing",
+                    "starting",
+                    "warming",
+                    "stopping",
+                    "deleting",
+                    "completed"
+                  ]
+                },
+                "status": {
+                  "enum": [
+                    "accepted",
+                    "running",
+                    "succeeded",
+                    "failed"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "transition"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "phase": {
+                  "enum": [
+                    "accepted",
+                    "checking",
+                    "sealing",
+                    "applying",
+                    "verifying",
+                    "publishing",
+                    "releasing",
+                    "restoring",
+                    "recovery_required",
+                    "completed"
+                  ]
+                },
+                "status": {
+                  "enum": [
+                    "accepted",
+                    "running",
+                    "succeeded",
+                    "failed",
+                    "recovery_required"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "action": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "kind": {
+            "enum": [
+              "open",
+              "detail",
+              "install",
+              "start",
+              "stop",
+              "restart",
+              "delete",
+              "progress",
+              "refresh"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmation": {
+            "enum": [
+              "none",
+              "service-stop",
+              "service-restart",
+              "installation-delete"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "enabled",
+          "reasonCode",
+          "entryId",
+          "confirmation"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reasonCode": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "entry": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "transport": {
+            "enum": [
+              "dashboard",
+              "legacy"
+            ]
+          },
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "unavailable",
+              "denied",
+              "incompatible"
+            ]
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requiresServiceReady": {
+            "type": "boolean"
+          },
+          "minimumHostVersion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entryId",
+          "transport",
+          "quality",
+          "availability",
+          "reasonCode",
+          "requiresServiceReady",
+          "minimumHostVersion"
+        ],
+        "additionalProperties": false
+      },
+      "display": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "groupId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "publisherId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iconRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resourceTags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "cpu",
+                    "gpu",
+                    "models"
+                  ]
+                },
+                "value": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "unit": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "sourceRef": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "kind",
+                "value",
+                "unit",
+                "sourceRef"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 16
+          },
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "models": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\s\u0000-\u001f](?:[^\u0000-\u001f]*[^\\s\u0000-\u001f])?$"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\s\u0000-\u001f](?:[^\u0000-\u001f]*[^\\s\u0000-\u001f])?$"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "groupId",
+          "publisherId",
+          "iconRef",
+          "resourceTags",
+          "quality"
+        ],
+        "additionalProperties": false
+      },
+      "candidate": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "install",
+              "start",
+              "stop",
+              "restart",
+              "delete",
+              "adopt"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "appVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+          },
+          "releaseDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedWorkloadUID": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "enabled",
+          "reasonCode",
+          "appVersion",
+          "releaseDigest",
+          "expectedWorkloadUID"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reasonCode": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "releaseDigest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "group": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "order"
+        ],
+        "additionalProperties": false
+      },
+      "coreService": {
+        "type": "object",
+        "properties": {
+          "quality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "state": {
+            "enum": [
+              "absent",
+              "ready",
+              "stopped",
+              "starting",
+              "stopping",
+              "degraded",
+              "unknown"
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observationKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^obs:[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workloadUID": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quality",
+          "state",
+          "observedAt",
+          "reasonCode",
+          "observationKey",
+          "workloadUID"
+        ],
+        "additionalProperties": false
+      },
+      "fact": {
+        "type": "object",
+        "properties": {
+          "cardKey": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "appId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "origin": {
+            "enum": [
+              "installation",
+              "observation",
+              "catalog"
+            ]
+          },
+          "catalog": {
+            "anyOf": [
+              {
+                "$ref": "station://contracts/v1/app-catalog-item"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installation": {
+            "anyOf": [
+              {
+                "$ref": "station://contracts/appcenter-v1/common#/$defs/installation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installationQuality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "service": {
+            "$ref": "station://contracts/appcenter-v1/common#/$defs/coreService"
+          },
+          "operation": {
+            "$ref": "station://contracts/appcenter-v1/common#/$defs/operation"
+          },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "policyRevision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "$ref": "station://contracts/appcenter-v1/common#/$defs/candidate"
+                },
+                "maxItems": 6
+              }
+            },
+            "required": [
+              "policyRevision",
+              "candidates"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "cardKey",
+          "appId",
+          "origin",
+          "catalog",
+          "installation",
+          "installationQuality",
+          "service",
+          "operation",
+          "lifecycle"
+        ],
+        "additionalProperties": false
+      },
+      "card": {
+        "type": "object",
+        "properties": {
+          "cardKey": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "appId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "origin": {
+            "enum": [
+              "installation",
+              "observation",
+              "catalog"
+            ]
+          },
+          "display": {
+            "$ref": "station://contracts/appcenter-v1/common#/$defs/display"
+          },
+          "installedVersion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidateVersion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installation": {
+            "anyOf": [
+              {
+                "$ref": "station://contracts/appcenter-v1/common#/$defs/installation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installationQuality": {
+            "enum": [
+              "known",
+              "unknown",
+              "unavailable",
+              "conflict"
+            ]
+          },
+          "service": {
+            "$ref": "station://contracts/appcenter-v1/common#/$defs/service"
+          },
+          "operation": {
+            "$ref": "station://contracts/appcenter-v1/common#/$defs/operation"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "station://contracts/appcenter-v1/common#/$defs/entry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bindingRevision": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "statusCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+          },
+          "primaryActionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "station://contracts/appcenter-v1/common#/$defs/action"
+            },
+            "maxItems": 16
+          },
+          "preinstalled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cardKey",
+          "appId",
+          "origin",
+          "display",
+          "installedVersion",
+          "candidateVersion",
+          "installation",
+          "installationQuality",
+          "service",
+          "operation",
+          "entry",
+          "bindingRevision",
+          "statusCode",
+          "primaryActionId",
+          "actions",
+          "preinstalled"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "station://contracts/appcenter-v1/facts": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/facts",
+    "title": "AppCenterFacts",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "requestId": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+      },
+      "scope": {
+        "$ref": "station://contracts/appcenter-v1/common#/$defs/scope"
+      },
+      "revision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "generatedAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "Z$"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/source"
+        },
+        "maxItems": 6
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/fact"
+        },
+        "maxItems": 1000
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "requestId",
+      "scope",
+      "revision",
+      "generatedAt",
+      "sources",
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/legacy": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/legacy",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "schemaVersion",
+      "revision",
+      "records"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "revision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "records": {
+        "type": "array",
+        "maxItems": 128,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bindingId",
+            "appId",
+            "organizationId",
+            "stationId",
+            "observationKey",
+            "workloadUID",
+            "adapterId",
+            "backendRevision",
+            "route"
+          ],
+          "properties": {
+            "bindingId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+            },
+            "organizationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "observationKey": {
+              "type": "string",
+              "pattern": "^obs:[a-f0-9]{64}$"
+            },
+            "workloadUID": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "adapterId": {
+              "enum": [
+                "image-iframe-v1",
+                "video-iframe-v1",
+                "blender-host-v1"
+              ]
+            },
+            "backendRevision": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "route": {
+              "type": "string",
+              "maxLength": 2048,
+              "pattern": "^/market\\?"
+            }
+          }
+        }
+      }
+    }
+  },
+  "station://contracts/appcenter-v1/open": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/open",
+    "title": "AppCenterOpen",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "cardKey": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+      },
+      "entryId": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+      },
+      "expectedViewRevision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "expectedBindingRevision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "cardKey",
+      "entryId",
+      "expectedViewRevision",
+      "expectedBindingRevision"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/presentation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/presentation",
+    "title": "AppCenterPresentationRegistry",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "revision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "groups": {
+        "type": "array",
+        "maxItems": 64,
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/group"
+        }
+      },
+      "records": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": {
+          "type": "object",
+          "properties": {
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+            },
+            "appVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "display": {
+              "$ref": "station://contracts/appcenter-v1/common#/$defs/display"
+            },
+            "sourceRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "sourceDigest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "appId",
+            "appVersion",
+            "display",
+            "sourceRef",
+            "sourceDigest"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "appVersion": {
+                    "type": "null"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "display": {
+                    "properties": {
+                      "resourceTags": {
+                        "maxItems": 0
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "revision",
+      "groups",
+      "records"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/appcenter-v1/view": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/appcenter-v1/view",
+    "title": "AppCenterView",
+    "type": "object",
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "requestId": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+      },
+      "scope": {
+        "$ref": "station://contracts/appcenter-v1/common#/$defs/scope"
+      },
+      "revision": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "generatedAt": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "Z$"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/source"
+        },
+        "maxItems": 6
+      },
+      "validUntil": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "Z$"
+      },
+      "partial": {
+        "type": "boolean"
+      },
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/group"
+        },
+        "maxItems": 64
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "station://contracts/appcenter-v1/common#/$defs/card"
+        },
+        "maxItems": 1000
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "requestId",
+      "scope",
+      "revision",
+      "generatedAt",
+      "sources",
+      "validUntil",
+      "partial",
+      "groups",
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "station://contracts/v1/app-catalog-item": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/v1/app-catalog-item",
+    "title": "AppCatalogItem",
+    "type": "object",
+    "required": [
+      "app_id",
+      "display_name",
+      "group_id",
+      "brand",
+      "models",
+      "source",
+      "namespace",
+      "workload_name",
+      "version",
+      "images",
+      "model_status",
+      "deployment"
+    ],
+    "properties": {
+      "app_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "display_name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "group_id": {
+        "enum": [
+          "image",
+          "music",
+          "video",
+          "system",
+          "desktop",
+          "blender"
+        ]
+      },
+      "brand": {
+        "enum": [
+          "vf",
+          "minimax",
+          "github"
+        ]
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "source": {
+        "type": "string",
+        "minLength": 1
+      },
+      "namespace": {
+        "type": "string",
+        "minLength": 1
+      },
+      "workload_name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "version": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+      },
+      "images": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "component",
+            "image"
+          ],
+          "properties": {
+            "component": {
+              "type": "string",
+              "minLength": 1
+            },
+            "image": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "minItems": 1
+      },
+      "model_status": {
+        "enum": [
+          "unknown",
+          "not_required"
+        ]
+      },
+      "deployment": {
+        "type": "object",
+        "required": [
+          "state",
+          "reason",
+          "observed_at",
+          "desired_replicas",
+          "ready_replicas",
+          "images"
+        ],
+        "properties": {
+          "state": {
+            "enum": [
+              "unknown",
+              "not_installed",
+              "stopped",
+              "stopping",
+              "starting",
+              "ready",
+              "degraded"
+            ]
+          },
+          "reason": {
+            "enum": [
+              "unavailable",
+              "forbidden",
+              "invalid_response",
+              "not_found",
+              "reconciling",
+              "scaling_down",
+              "scaled_to_zero",
+              "deployment_failed",
+              "replicas_ready"
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "desired_replicas": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "ready_replicas": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "component",
+                "image"
+              ],
+              "properties": {
+                "component": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "image": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "management_status": {
+            "enum": [
+              "unknown",
+              "unmanaged",
+              "managed",
+              "foreign"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  },
+  "station://contracts/v1/app-command": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/v1/app-command",
+    "title": "AppCommand",
+    "type": "object",
+    "required": [
+      "request_id",
+      "idempotency_key",
+      "organization_id",
+      "station_id",
+      "app_id",
+      "app_version",
+      "action"
+    ],
+    "properties": {
+      "request_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "idempotency_key": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 128
+      },
+      "organization_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "station_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "app_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "app_version": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+      },
+      "action": {
+        "enum": [
+          "install",
+          "start",
+          "stop",
+          "restart",
+          "delete",
+          "adopt"
+        ]
+      },
+      "expected_workload_uid": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "action": {
+              "const": "adopt"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "expected_workload_uid"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "expected_workload_uid"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "station://contracts/v1/app-operation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/v1/app-operation",
+    "title": "AppOperation",
+    "type": "object",
+    "required": [
+      "request_id",
+      "operation_id",
+      "organization_id",
+      "station_id",
+      "app_id",
+      "app_version",
+      "action",
+      "status",
+      "phase",
+      "download",
+      "error",
+      "updated_at"
+    ],
+    "properties": {
+      "request_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "operation_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "organization_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "station_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "app_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "app_version": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+      },
+      "action": {
+        "enum": [
+          "install",
+          "start",
+          "stop",
+          "restart",
+          "delete",
+          "adopt"
+        ]
+      },
+      "status": {
+        "enum": [
+          "accepted",
+          "running",
+          "succeeded",
+          "failed"
+        ]
+      },
+      "phase": {
+        "enum": [
+          "checking",
+          "downloading",
+          "verifying",
+          "installing",
+          "starting",
+          "warming",
+          "stopping",
+          "deleting",
+          "completed"
+        ]
+      },
+      "download": {
+        "type": "object",
+        "required": [
+          "downloaded_bytes",
+          "total_bytes",
+          "percent"
+        ],
+        "properties": {
+          "downloaded_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "total_bytes": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "percent": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "percent": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "station://contracts/v1/error"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "const": "failed"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "error": {
+              "$ref": "station://contracts/v1/error"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "error": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "phase": {
+              "const": "completed"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "phase": {
+              "const": "completed"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "status": {
+              "const": "succeeded"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "station://contracts/v1/error": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "station://contracts/v1/error",
+    "title": "ErrorResponse",
+    "type": "object",
+    "required": [
+      "code",
+      "message",
+      "request_id"
+    ],
+    "properties": {
+      "code": {
+        "type": "string",
+        "enum": [
+          "INVALID_ARGUMENT",
+          "UNAUTHENTICATED",
+          "SESSION_REVOKED",
+          "PERMISSION_DENIED",
+          "ACCOUNT_LOCKED",
+          "NOT_FOUND",
+          "CONFLICT",
+          "IDEMPOTENCY_REPLAY",
+          "SERVICE_UNAVAILABLE",
+          "INTERNAL"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1
+      },
+      "request_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "details": {
+        "type": "object"
+      }
+    },
+    "additionalProperties": false
+  }
+}

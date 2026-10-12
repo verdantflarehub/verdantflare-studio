@@ -44,6 +44,7 @@ func TestVideoIsolation(t *testing.T) {
 			t.Error("host cookie leaked")
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", `"video-fixture"`)
 		w.Write([]byte(`{"ok":true}`))
 	}))
 	defer upstream.Close()
@@ -72,7 +73,20 @@ func TestVideoIsolation(t *testing.T) {
 	if call("GET", "/studio/apps/video/api/dashboard", "", cookie).Code != 200 {
 		t.Fatal("authorized legacy read failed")
 	}
-	for _, path := range []string{"/runtime-artifacts/x/content", "/mcp", "/api/../identity/me", "/dashboard/static/no.js", "/dashboard/frontend/no.js"} {
+	if w := call("GET", "/studio/apps/video/api/dashboard", "", cookie); w.Header().Get("ETag") != `"video-fixture"` {
+		t.Fatal("gateway dropped the upstream entity validator")
+	}
+	if call("GET", "/apps/video/api/capabilities", "", nil).Code != 401 {
+		t.Fatal("anonymous capabilities access")
+	}
+	if call("GET", "/apps/video/api/capabilities", "", cookie).Code != 200 {
+		t.Fatal("authorized capabilities read failed")
+	}
+	before := calls
+	if call("POST", "/apps/video/api/capabilities", "https://studio.example", cookie).Code != 404 || calls != before {
+		t.Fatal("capabilities must remain read only")
+	}
+	for _, path := range []string{"/api/capabilities/secrets", "/runtime-artifacts/x/content", "/mcp", "/api/../identity/me", "/dashboard/static/no.js", "/dashboard/frontend/no.js"} {
 		before := calls
 		if call("GET", "/apps/video"+path, "", cookie).Code != 404 || calls != before {
 			t.Fatal("allowlist bypass", path)

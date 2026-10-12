@@ -242,6 +242,8 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 		binding := Binding{InstallationID: id, AppID: installed.AppID, AppVersion: installed.AppVersion, StationID: actor.StationID,
 			OrganizationID: actor.OrganizationID, ArtifactDigest: release.ArtifactDigest, Revision: revision,
 			Declaration: declaration, Trusted: true, Grants: slices.Clone(release.Grants), Rules: rules, Backend: &release.Backend}
+		binding.InstallationRevision = installed.Revision
+		binding.ReleaseRevision = releaseRevision(release)
 		// Editing workspaces require the current manage permission. Removing it
 		// changes the binding and retires any previously opened workspace.
 		if installed.CanManage {

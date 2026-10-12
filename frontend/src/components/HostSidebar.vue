@@ -8,16 +8,20 @@ import { useNavigationStore } from '../platform/navigationStore'
 import AppNavigationPreferences from './AppNavigationPreferences.vue'
 import { dashboardLocation } from '../app-dashboard/routes'
 import type { NavigationEntry } from '../navigation/controller'
+import { useAppCenterStore } from '../app-center/store'
+import { appCenterNavigationEntries } from '../app-center/navigation'
+import { reasonLabel } from '../app-center/labels'
 
 const hostStore = useHostStore()
 const navigation = useNavigationStore()
+const appcenter = import.meta.env.VITE_APPCENTER_MODE === 'unified' ? useAppCenterStore() : null
 const router = useRouter()
 const route = useRoute()
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 function refreshNavigation() { if (!document.hidden && hostStore.connected) void navigation.refresh() }
 function clearNavigation() { navigation.clear() }
-watch(() => JSON.stringify([hostStore.identity.user_id, hostStore.identity.organization_id, hostStore.identity.station_id, hostStore.identity.roles, hostStore.identity.scopes]), () => {
+watch(() => JSON.stringify([hostStore.identity.user_id, hostStore.identity.organization_id, hostStore.identity.station_id, hostStore.identity.session_id, hostStore.identity.policy_version, hostStore.identity.revocation_version, hostStore.identity.roles, hostStore.identity.scopes]), () => {
   const identity = hostStore.identity
   navigation.clear(identity.user_id && identity.organization_id && identity.station_id
     ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
@@ -47,11 +51,29 @@ const icons: Record<string, string> = {
   app: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
 }
 function entryLocation(entry: NavigationEntry) { return dashboardLocation(entry.installationId, entry.route) }
+function entryReason(entry: NavigationEntry) {
+  if (!appcenter) return entry.availability === 'offline' ? '离线' : ''
+  return reasonLabel('openReason' in entry ? entry.openReason as string : null)
+}
+async function openEntry(entry: NavigationEntry) {
+  if (appcenter) {
+    const value = navigation.state.value
+    if (!value) return
+    const current = appCenterNavigationEntries(value, appcenter.state).find(item => item.installationId === entry.installationId
+      && item.entryId === entry.entryId && item.appVersion === entry.appVersion)
+    if (!current?.cardKey || !current.bindingRevision) return
+    appcenter.pinOpen(entry.installationId, current.bindingRevision)
+    const failed = await router.push(entryLocation(current))
+    if (failed) appcenter.takeOpenBinding(entry.installationId)
+    return
+  }
+  await router.push(entryLocation(entry))
+}
 function entrySelected(entry: NavigationEntry) { return route.name === 'app-dashboard' && route.params.installationId === entry.installationId }
 const resourcesEntry = computed(() => navigation.entries.find(entry => entry.appId === 'resources'))
 function openResources() {
   if (navigation.legacy) void router.push('/resources')
-  else if (resourcesEntry.value) void router.push(entryLocation(resourcesEntry.value))
+  else if (resourcesEntry.value) void openEntry(resourcesEntry.value)
   else void router.push('/market')
 }
 
@@ -272,9 +294,10 @@ function handleHelpClick() {
     <template v-if="navigation.state.value?.mode === 'preinstalled'">
       <div v-for="entry in navigation.pinned" :key="`${entry.installationId}/${entry.entryId}`" class="app-navigation-row">
         <a class="nav-link" :class="{ selected: entrySelected(entry) }" :href="router.resolve(entryLocation(entry)).href"
-           :aria-current="entrySelected(entry) ? 'page' : undefined" @click.prevent="router.push(entryLocation(entry))">
+           :aria-current="entrySelected(entry) ? 'page' : undefined" :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
+           :title="entry.availability !== 'ready' ? entryReason(entry) : undefined" @click.prevent="openEntry(entry)">
           <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
-          <span>{{ entry.title }}</span><small v-if="entry.availability === 'offline'">离线</small>
+          <span>{{ entry.title }}</span><small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
         </a>
         <button type="button" class="unpin-entry" :disabled="navigation.state.saving" :aria-label="`取消固定${entry.title}`" :title="`取消固定${entry.title}`" @click="navigation.setPreference(entry, false)">×</button>
       </div>

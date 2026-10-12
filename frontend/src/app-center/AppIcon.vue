@@ -1,0 +1,20 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { vfLogo, brandPaths } from '../pages/brands'
+const props = defineProps<{ iconRef: string | null }>()
+const paths: Record<string, string> = { 'brand:minimax': brandPaths.minimax, 'brand:github': brandPaths.github }
+const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef) ? paths[props.iconRef] : null)
+</script>
+
+<template>
+  <span class="app-icon appcenter-icon" aria-hidden="true">
+    <img v-if="iconRef === 'brand:vf'" :src="vfLogo" alt="" />
+    <svg v-else-if="path" viewBox="0 0 24 24" fill="currentColor"><path :d="path" /></svg>
+    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+  </span>
+</template>
+
+<style scoped>
+.appcenter-icon { color: var(--accent); background: var(--panel); flex-shrink: 0; }
+.appcenter-icon svg, .appcenter-icon img { width: 26px; height: 26px; object-fit: contain; }
+</style>

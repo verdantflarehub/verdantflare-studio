@@ -14,6 +14,29 @@ function opened() {
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status,
   headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'request-one' } })
 
+test('AppCenter opening uses its fixed binding endpoint and the original launch validator without fallback', async () => {
+  const input = { schemaVersion: 1 as const, cardKey: `installation:${installationId}`, entryId: 'dashboard',
+    expectedViewRevision: 'sha256:' + 'a'.repeat(64), expectedBindingRevision: 'sha256:' + 'b'.repeat(64) }
+  for (const scenario of ['valid', 'changed', 'wrong-transport', 'private-field', 'foreign-launch']) {
+    let calls = 0
+    const client = createDashboardWebClient('https://studio.invalid', async (url, options) => {
+      calls++
+      assert.equal(url, 'https://studio.invalid/studio/appcenter/v1/open')
+      assert.equal(options?.method, 'POST')
+      assert.deepEqual(JSON.parse(String(options?.body)), input)
+      if (scenario === 'changed') return json({code: 'APPCENTER_BINDING_CHANGED'}, 409)
+      const payload: any = {schemaVersion: 1, transport: 'dashboard', opened: opened()}
+      if (scenario === 'wrong-transport') payload.transport = 'legacy'
+      if (scenario === 'private-field') payload.backend = 'private'
+      if (scenario === 'foreign-launch') payload.opened.launch.entryUrl = 'https://foreign.invalid/entry'
+      return json(payload)
+    })
+    if (scenario === 'valid') assert.equal((await client.openAppCenter(input, installationId)).launch.installationId, installationId)
+    else await assert.rejects(client.openAppCenter(input, installationId))
+    assert.equal(calls, 1)
+  }
+})
+
 function workspace() { return {workspaceSessionId:sessionId,installationId,appId:'sample',instanceId:'instance-one',entryId:'editor',
   entryUrl:`/studio/instance-workspaces/${sessionId}/assets/vf/workspace.html`,
   assetBaseUrl:`/studio/instance-assets/${'a'.repeat(64)}/`,expiresAt:'2099-01-01T00:00:00Z'} }

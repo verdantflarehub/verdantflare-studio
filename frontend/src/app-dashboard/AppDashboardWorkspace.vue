@@ -15,10 +15,13 @@ import { decodeNavigation } from '../navigation/controller'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { createFileAccess } from './files'
 
-const props = defineProps<{ active: boolean; installationId: string; titles: Record<string, string> }>()
+const props = defineProps<{ active: boolean; installationId: string; titles: Record<string, string>;
+  openDashboard?: (installationId: string, signal?: AbortSignal) => Promise<OpenedDashboard>;
+  authorizeDashboard?: (installationId: string, signal: AbortSignal) => Promise<void>;
+}>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
-const sessions = client ? new DashboardSessions(client) : undefined
+const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()
 const instanceHost = ref<InstanceType<typeof AppInstanceHost>>()
 const workspaceId = computed(() => route.name === 'app-instance' && typeof route.params.workspaceSessionId === 'string' ? route.params.workspaceSessionId : '')
@@ -30,6 +33,7 @@ const error = ref(''), retry = ref(0)
 let revision = 0, scope = '', pending: AbortController | undefined
 const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([identity.identity.user_id,
   identity.identity.organization_id, identity.identity.station_id,
+  identity.identity.session_id, identity.identity.policy_version, identity.identity.revocation_version,
   [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
 const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
 const title = computed(() => selection.value?.launch.installationId === props.installationId
@@ -45,6 +49,8 @@ const messages: Record<string, string> = {
   SESSION_REVOKED: '控制台会话已失效，请重新打开。',
   DESKTOP_DASHBOARD_UNAVAILABLE: '桌面客户端的应用控制台接入尚未完成。',
   INVALID_PATH: '控制台地址无效，请从应用中心重新打开。',
+  APPCENTER_BINDING_CHANGED: '应用状态或入口已变化，请返回应用中心刷新后重新打开。',
+  APPCENTER_OPEN_UNAVAILABLE: '此应用当前不可打开，请返回应用中心查看状态。',
 }
 function showError(value: unknown) {
   const code = value instanceof Error ? value.message : String(value)
@@ -119,6 +125,8 @@ watch([() => props.active, () => props.installationId, () => route.query.path, w
     if (!sessions) throw new Error('DESKTOP_DASHBOARD_UNAVAILABLE')
     if (!installationPattern.test(props.installationId)) throw new Error('INVALID_PATH')
     const appRoute = dashboardRoutePath(route.query.path)
+    await props.authorizeDashboard?.(props.installationId, controller.signal)
+    if (current !== revision || controller.signal.aborted) return
     const opened = await sessions.select(props.installationId, controller.signal)
     if (current !== revision || controller.signal.aborted) return
     selection.value = { ...opened, authorizationEpoch: opened.context.contextRevision, route: appRoute,

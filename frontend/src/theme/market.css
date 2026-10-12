@@ -1601,7 +1601,7 @@
 
 #blenderHost { gap: 12px; }
 #blenderHost[hidden], #blenderHost [hidden] { display: none !important; }
-.main.blender-active .heading, .main.blender-active #viewportLoader { display: none !important; }
+.main.blender-active:not(.legacy-workspace) .heading, .main.blender-active #viewportLoader { display: none !important; }
 .blender-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px 24px; }
 .blender-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:9px; color:var(--muted); font-size:13px; }
 .blender-breadcrumb a { color:inherit; text-decoration:none; }
