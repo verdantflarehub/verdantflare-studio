@@ -2,7 +2,7 @@ import { callTool, MCPRequestError } from './mcp'
 import { ProjectReads } from './project-reads'
 
 export * from './project-content'
-import { parseProjectContent, type ContentRef, type ProjectFile, type ProjectOpen, type ProjectContent } from './project-content'
+import { parseProjectContent, type ContentRef, type ProjectFile, type ProjectOpen, type ProjectContent, type WorldResult } from './project-content'
 interface Download { version: ContentRef & { mime: string; size: number; sha256: string }; content_path: string }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 export function isProjectID(value: string): boolean { return uuid.test(value) }
@@ -13,12 +13,12 @@ export function readerError(error: unknown): string {
 }
 
 /** Download addresses must match this exact file and revision, with no redirects or extra scope. */
-export function controlledContentPath(path: string, file: ProjectFile, project: ProjectOpen): string {
+export function controlledContentPath(path: string, file: ProjectFile, project: ProjectOpen, assetAccess?: { asset_id: string; asset_version_id: string }): string {
   const fail = (): never => { throw new Error('媒体读取地址与当前项目不匹配。') }
   if (!path.startsWith('/v2/artifacts/') || path.includes('#') || path.includes('\\')) fail()
   const url = new URL(path, location.origin)
   if (url.origin !== location.origin || url.pathname !== `/v2/artifacts/${file.content_ref.version_id}/content`) fail()
-  const expected: Record<string, string> = { store_id: file.content_ref.store_id, artifact_id: file.content_ref.artifact_id, project_id: project.project_id, project_revision_id: project.revision_id }
+  const expected: Record<string, string> = { store_id: file.content_ref.store_id, artifact_id: file.content_ref.artifact_id, ...(assetAccess || { project_id: project.project_id, project_revision_id: project.revision_id }) }
   url.searchParams.forEach((_value, key) => { if (!(key in expected) || url.searchParams.getAll(key).length !== 1) fail() })
   for (const [key, value] of Object.entries(expected)) if (url.searchParams.get(key) !== value) fail()
   return url.pathname + url.search
@@ -28,6 +28,7 @@ export class ProjectReader {
   project: ProjectOpen | null = null
   content: ProjectContent | null = null
   rawContent: string | null = null
+  private assetAccess?: { asset_id: string; asset_version_id: string }
   private disposed = false
   private controller = new AbortController()
   private downloads = new Map<string, Promise<Download>>()
@@ -54,13 +55,22 @@ export class ProjectReader {
     this.content = parseProjectContent(read.text, project)
     this.rawContent = read.text
   }
+  async loadAsset(assetID: string, versionID: string): Promise<WorldResult> {
+    if (![assetID, versionID].every(isProjectID)) throw new Error('数字资产版本地址无效。')
+    const result = await callTool<WorldResult>('world.get', { asset_id: assetID, asset_version_id: versionID })
+    this.active()
+    if (result.asset_id !== assetID || result.asset_version_id !== versionID || result.manifest.asset_id !== assetID || result.manifest.source.project_id !== this.projectID || !Array.isArray(result.manifest.files)) throw new Error('数字资产返回版本或来源项目不匹配。')
+    this.assetAccess = { asset_id: assetID, asset_version_id: versionID }
+    this.project = { project_id: this.projectID, revision_id: result.manifest.source.project_revision_id, manifest: { name: result.manifest.name, category: 'asset', files: result.manifest.files, domain_documents: [] } }
+    return result
+  }
   file(id: string): ProjectFile {
     this.active()
     const file = this.project?.manifest.files.find(f => f.file_id === id)
     if (!file || !isProjectID(file.file_id) || !file.content_ref || ![file.content_ref.store_id, file.content_ref.artifact_id, file.content_ref.version_id].every(isProjectID)) throw new Error('文件不在当前项目修订中。')
     return file
   }
-  private access() { return { project_id: this.projectID, project_revision_id: this.project!.revision_id } }
+  private access() { return this.assetAccess || { project_id: this.projectID, project_revision_id: this.project!.revision_id } }
   async document(id: string): Promise<{ text: string; mime: string }> {
     this.active()
     this.file(id)
@@ -73,7 +83,7 @@ export class ProjectReader {
   private async readDocument(id: string): Promise<{ text: string; mime: string }> {
     this.active()
     const file = this.file(id)
-    const read = await callTool<{ mode: string; text: string; version: Download['version'] }>('artifact.read', { mode: 'text', content_ref: file.content_ref, access: this.access() }, this.projectID)
+    const read = await callTool<{ mode: string; text: string; version: Download['version'] }>('artifact.read', { mode: 'text', content_ref: file.content_ref, access: this.access() }, this.assetAccess ? undefined : this.projectID)
     this.active()
     const v = read.version
     if (read.mode !== 'text' || typeof read.text !== 'string' || !v || v.store_id !== file.content_ref.store_id || v.artifact_id !== file.content_ref.artifact_id || v.version_id !== file.content_ref.version_id || typeof v.mime !== 'string' || !Number.isSafeInteger(v.size) || !/^[a-f0-9]{64}$/.test(v.sha256)) throw new Error('资料内容与当前固定版本不匹配。')
@@ -88,11 +98,11 @@ export class ProjectReader {
     this.active()
     if (!this.downloads.has(id)) {
       const file = this.file(id)
-      const promise = this.reads.run(() => callTool<Download>('artifact.read', { mode: 'download', content_ref: file.content_ref, access: this.access() }, this.projectID)).then(read => {
+      const promise = this.reads.run(() => callTool<Download>('artifact.read', { mode: 'download', content_ref: file.content_ref, access: this.access() }, this.assetAccess ? undefined : this.projectID)).then(read => {
         this.active()
         if (!read.version || typeof read.version.mime !== 'string' || !Number.isSafeInteger(read.version.size) || read.version.size < 0 || !/^[a-f0-9]{64}$/.test(read.version.sha256) || typeof read.content_path !== 'string') throw new Error('媒体信息不完整。')
         if (read.version.store_id !== file.content_ref.store_id || read.version.artifact_id !== file.content_ref.artifact_id || read.version.version_id !== file.content_ref.version_id) throw new Error('媒体版本与当前项目不匹配。')
-        return { ...read, content_path: controlledContentPath(read.content_path, file, this.project!) }
+        return { ...read, content_path: controlledContentPath(read.content_path, file, this.project!, this.assetAccess) }
       }).catch(error => { this.downloads.delete(id); throw error })
       this.downloads.set(id, promise)
     }

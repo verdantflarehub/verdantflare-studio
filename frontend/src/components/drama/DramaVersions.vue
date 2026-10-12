@@ -14,7 +14,7 @@ const comparable = computed(() => props.versions.filter(v => v.key !== version.v
 const comparison = computed(() => comparable.value.find(v => v.key === route.query.compare))
 const displayed = computed(() => [version.value, comparison.value].filter((v): v is DramaVersion => !!v))
 const reviewName = (state: string) => ({ unreviewed: '未审核', in_review: '审核中', approved: '此版已有审核记录', rejected: '需修改' }[state] || '未审核')
-function select(field: string, value: string) { void router.replace({ path: route.path, query: { ...route.query, [field]: value || undefined, ...(field === 'version' ? { compare: undefined } : {}) } }) }
+function select(field: string, value: string) { void router.push({ path: route.path, query: { ...route.query, publish: undefined, publication: undefined, [field]: value || undefined, ...(field === 'version' ? { compare: undefined } : {}) } }) }
 </script>
 <template>
   <section class="panel" :class="{ 'material-mode': materialMode }">

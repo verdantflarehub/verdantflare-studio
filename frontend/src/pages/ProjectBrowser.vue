@@ -42,12 +42,20 @@ const entries = computed<Detail[]>(() => {
   }
 })
 const detail = computed(() => entries.value.find(d => d.key === query('item')))
+const previousPage = computed(() => {
+  void route.fullPath
+  const back = router.options.history.state.back
+  if (typeof back !== 'string' || !back.startsWith('/projects?')) return null
+  const previous = router.resolve(back)
+  return previous.query.project === projectID.value ? previous : null
+})
+
 const filtered = computed(() => items.value.filter(p => p.name.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())))
 const resultKind = computed(() => activeTab.value?.key === 'extensions' ? 'image' : activeTab.value?.key === 'songs' ? 'audio' : 'video')
 const fromProject = computed(() => isProjectID(query('from')) && isProjectID(query('fromRevision')) ? { id: query('from'), revision: query('fromRevision'), name: query('fromName') || '短视频' } : null)
 const value = (text?: string | null) => text?.trim() ? text : '未填写'
 const duration = (seconds?: number | null) => seconds == null ? '时长未填写' : `${seconds} 秒`
-function link(change: Record<string, string | undefined>) { return { path: '/projects', query: { ...route.query, ...change } } }
+function link(change: Record<string, string | undefined>) { return { path: '/projects', query: { ...route.query, publish: undefined, publication: undefined, ...change } } }
 const listLink = computed(() => link({ project: undefined, revision: undefined, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, from: undefined, fromRevision: undefined, fromName: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined, continuity: undefined, returnMaterial: undefined }))
 function openProject(item: ProjectItem) { return link({ project: item.project_id, revision: item.head_revision_id, tab: undefined, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined, continuity: undefined, returnMaterial: undefined }) }
 function castLink(cast: Cast) { return link({ project: cast.project_id!, revision: cast.revision_id!, tab: 'setting', item: undefined, from: project.value!.project_id, fromRevision: project.value!.revision_id, fromName: project.value!.manifest.name }) }
@@ -154,6 +162,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
       <div v-else-if="error" class="state error" role="alert">{{ error }}<button class="btn" @click="retry">重试</button></div>
       <template v-else-if="project && reader">
         <section v-if="historical" class="revision-notice" role="status"><div><strong>正在查看历史版本</strong><p>图片、制作版本及选用状态均为当时记录，后续同步的素材不会出现在此版本中。</p></div><RouterLink class="btn" :to="link({ revision: undefined, state: undefined, version: undefined, compare: undefined })">查看最新版本</RouterLink></section>
+        <div v-if="drama" class="project-return"><button v-if="previousPage" class="btn" @click="router.back()">← 返回上一页</button><RouterLink v-if="activeTab?.key !== 'overview'" class="related-link" :to="{ path: route.path, query: { project: projectID, revision: revisionID, category: 'ai_short_drama', tab: 'overview' } }">返回项目概览</RouterLink></div>
         <nav v-if="drama || (!query('item') && !query('shot'))" class="business-tabs" aria-label="项目业务"><RouterLink v-for="tab in tabs" :key="tab.key" :class="{ active: activeTab?.key === tab.key }" :aria-current="activeTab?.key === tab.key ? 'page' : undefined" :to="link({ tab: tab.key, item: undefined, episode: undefined, scene: undefined, shot: undefined, material: undefined, state: undefined, version: undefined, compare: undefined, deliverable: undefined, kind: undefined, find: undefined, status: undefined, view: undefined, purpose: undefined, segment: undefined, continuity: undefined, returnMaterial: undefined })">{{ tab.label }}</RouterLink></nav>
         <div v-if="!content" class="state">暂无业务内容。</div>
         <ShortDramaProject v-else-if="drama" :reader="reader" :tab="activeTab?.key || 'script'" />
@@ -192,6 +201,8 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
 </template>
 
 <style scoped>
+.project-return { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:14px 0; }
+
 .drama-browser { line-height:1.55; padding: 27px clamp(20px, 3vw, 52px) 70px; }
 .drama-browser > .workspace { max-width: 1480px; margin: auto; }
 .drama-browser .heading { align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }

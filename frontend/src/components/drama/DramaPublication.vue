@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import DramaPublishCurrent from './DramaPublishCurrent.vue'
+import DramaAsset from './DramaAsset.vue'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHostStore } from '../../platform/hostStore'
 import { callTool, uuidv7 } from '../../platform/mcp'
-import { ProjectReader, readerError, type DramaWorldCandidate, type DramaGlobal, type DramaDeliverable, type WorldRegistration } from '../../platform/project-reader'
+import { ProjectReader, readerError, type DramaWorldCandidate, type DramaGlobal, type DramaDeliverable, type WorldRegistration, type DramaVersion } from '../../platform/project-reader'
 import { canonical, publicationPackage, publishPrepared, type PublicationIntent, type PublicationPackage } from '../../platform/drama-publication'
-const props = defineProps<{ reader: ProjectReader; candidates: DramaWorldCandidate[] }>()
+const props = defineProps<{ reader: ProjectReader; candidates: DramaWorldCandidate[]; currentOwner?: DramaGlobal | DramaDeliverable; currentVersion?: DramaVersion }>()
 const route = useRoute(), router = useRouter(), host = useHostStore()
 const candidate = shallowRef<DramaWorldCandidate | null>(null), pack = shallowRef<PublicationPackage | null>(null), owner = shallowRef<DramaGlobal | DramaDeliverable | null>(null)
 const busy = ref(false), error = ref(''), message = ref(''), acknowledged = ref(false), pending = shallowRef<PublicationIntent | null>(null)
@@ -70,9 +72,9 @@ onBeforeUnmount(() => { serial++ })
 </script>
 <template>
   <section class="panel">
-    <h2>入库到数字世界</h2><p class="muted">按已准备的固定版本和文件范围入库，保留来源项目对应。项目当前选用可以与入库版本不同。</p>
-    <p v-if="!candidates.length" class="muted">尚无入库候选。请经 MCP 准备所选版本的入库说明与审核。</p>
-    <div v-for="c in candidates" :key="c.key" class="row"><strong>{{ c.name }}</strong><p class="muted">{{ c.registration_status?.state === 'committed' ? '已有入库结果；恢复时会核对原操作' : c.review.state === 'approved' && c.publication_record_file_id ? '入库范围已准备' : '说明或审核尚未准备' }}</p><button class="btn" :disabled="busy || c.review.state !== 'approved' || !c.publication_record_file_id" @click="prepare(c)">{{ c.registration_request ? '核对／恢复入库' : '入库到数字世界' }}</button></div>
+    <h2>入库到数字世界</h2><p class="muted">选择固定版本和文件范围，由你确认入库。保留来源项目，入库版本可以与项目选用不同。</p>
+    <DramaPublishCurrent v-if="currentOwner" :reader="reader" :owner="currentOwner" :version="currentVersion" :candidates="candidates" /><p v-if="!candidates.length" class="muted">尚无入库记录。</p><DramaAsset :reader="reader" :candidates="candidates" />
+    <div v-for="c in candidates" :key="c.key" class="row"><strong>{{ c.name }}</strong><p class="muted">{{ c.registration_status?.state === 'committed' ? '已入库 · 固定版本已关联项目' : c.review.state === 'approved' && c.publication_record_file_id ? '入库范围已准备' : '说明或审核尚未准备' }}</p><RouterLink v-if="c.registration_status?.state === 'committed'" class="btn" :to="{ path: route.path, query: { ...route.query, publication: c.key } }">查看已入库版本</RouterLink><button v-else class="btn" :disabled="busy || c.review.state !== 'approved' || !c.publication_record_file_id" @click="prepare(c)">{{ c.registration_request ? '核对／恢复入库' : '入库到数字世界' }}</button></div>
     <div v-if="candidate" class="confirmation"><h3>{{ candidate.name }}</h3><template v-if="pack && owner"><p>本次入库：</p><ul><li v-for="selection in pack.selections" :key="selection.version_key">{{ versionLabel(selection.version_key) }} · {{ selection.file_ids.length }} 个成果文件</li></ul><p class="muted">共 {{ pack.files.length }} 个文件，包含入库说明及明确附带资料。来源为当前准备时固定的项目修订。</p><p v-if="pending" class="muted">检测到原操作记录，将按原请求恢复，不重复发布。</p><label><input v-model="acknowledged" type="checkbox" :disabled="busy">确认上述版本和范围入库</label><button class="btn primary" :disabled="!acknowledged || busy || !!error" @click="publish">{{ busy ? '正在处理…' : pending || candidate.registration_request ? '按原操作恢复' : '确认入库' }}</button><button v-if="error && pending" class="btn" :disabled="busy || !acknowledged" @click="error = ''; publish()">{{ pending.published_asset_id ? '恢复项目关联' : '重试原入库操作' }}</button></template><RouterLink v-if="pending && !pack" class="btn" :to="{ path: route.path, query: { ...route.query, revision: pending.origin_revision_id } }">打开原准备修订</RouterLink><p v-if="message" role="status" class="muted">{{ message }}</p><p v-if="error" role="alert" class="error">{{ error }}</p></div>
   </section>
 </template>

@@ -54,7 +54,7 @@ export interface PublicationSnapshot { project: ProjectOpen; raw: string }
 export interface PublicationIntent {
   project_id: string; origin_revision_id: string; candidate_key: string
   request: WorldRegistration; prepare_commit_id: string; association_commit_id: string
-  association_base_revision_id?: string; published_asset_id?: string; published_version_id?: string
+  prepare_base_revision_id?: string; association_base_revision_id?: string; published_asset_id?: string; published_version_id?: string
 }
 export interface PublicationIO {
   call<T>(name: string, args: Record<string, unknown>): Promise<T>
@@ -83,19 +83,35 @@ export async function publishPrepared(intent: PublicationIntent, io: Publication
   if (![intent.project_id, intent.origin_revision_id, intent.prepare_commit_id, intent.association_commit_id, intent.request.commit_id].every(id => uuid.test(id)) || intent.request.source_project_id !== intent.project_id) fail('入库恢复信息无效。')
   const original = await io.read(intent.origin_revision_id)
   if (original.project.project_id !== intent.project_id || original.project.revision_id !== intent.origin_revision_id) fail()
-  const { root, candidate } = sourceCandidate(original, intent.candidate_key)
+  const preparedSource = intent.prepare_base_revision_id ? await io.read(intent.prepare_base_revision_id) : original
+  const { root, candidate } = sourceCandidate(preparedSource, intent.candidate_key)
   if (candidate.registration_request) {
     if (canonical(candidate.registration_request) !== canonical(intent.request)) fail('已有入库请求与恢复操作不一致。')
   } else {
     io.phase('正在保存入库对应关系…')
     candidate.registration_request = intent.request
     delete candidate.registration_status
-    const prepared = await io.call<ProjectOpen>('project.commit', commitArgs(original, JSON.stringify(root), intent.prepare_commit_id))
-    checkResult(prepared, intent.project_id)
+    try {
+      const prepared = await io.call<ProjectOpen>('project.commit', commitArgs(preparedSource, JSON.stringify(root), intent.prepare_commit_id))
+      checkResult(prepared, intent.project_id)
+    } catch (error) {
+      const status = await io.call<{ state: string }>('project.commit_status', { project_id: intent.project_id, commit_id: intent.prepare_commit_id }).catch(() => null)
+      if (status?.state === 'conflict') {
+        const head = await io.read(), next = sourceCandidate(head, intent.candidate_key).candidate
+        const expected = { ...candidate }; delete expected.registration_request; delete expected.registration_status
+        const actual = { ...next }; delete actual.registration_request; delete actual.registration_status
+        if (canonical(expected) !== canonical(actual) || next.registration_request && canonical(next.registration_request) !== canonical(intent.request)) fail('候选范围已变化，请核对原操作。')
+        intent.prepare_base_revision_id = head.project.revision_id; intent.prepare_commit_id = io.newID(); io.save(intent)
+        throw new Error('项目有其他更新，已保留本次范围；请按原操作继续。')
+      }
+      throw error
+    }
   }
   io.phase('正在按固定版本入库…')
   const result = await io.call<WorldResult>('world.register', { ...intent.request })
   if (!uuid.test(result.asset_id) || !uuid.test(result.asset_version_id) || result.manifest.source.project_id !== intent.project_id || result.manifest.source.project_revision_id !== intent.request.source_revision_id || result.manifest.files.length !== intent.request.file_ids.length || result.manifest.files.some(f => !intent.request.file_ids.includes(f.file_id))) fail('入库返回来源不匹配，请按原操作核对。')
+  const fixedSource = intent.request.source_revision_id === original.project.revision_id ? original : await io.read(intent.request.source_revision_id)
+  if (result.manifest.files.some(f => canonical(f.content_ref) !== canonical(fixedSource.project.manifest.files.find(source => source.file_id === f.file_id)?.content_ref)) || intent.request.asset_id && intent.request.asset_id !== result.asset_id) fail('已入库文件或目标资产与本次固定范围不一致。')
   const status = await io.call<WorldRegistrationStatus>('world.commit_status', { asset_id: result.asset_id, commit_id: intent.request.commit_id })
   if (status.state !== 'committed' || canonical(status.result) !== canonical(result)) fail('入库结果尚未核实，请按原操作恢复。')
   intent.published_asset_id = result.asset_id; intent.published_version_id = result.asset_version_id
