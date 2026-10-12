@@ -46,7 +46,12 @@ func (s *Service) remoteCall(ctx context.Context, path, method string, body []by
 // service credential is needed; remote cookies remain exclusively in Go memory.
 func RemoteAssetHandler(s *Service, fallback http.Handler) http.Handler {
 	legacyMedia := newDesktopLegacyMedia(s)
+	legacyBlender := newDesktopLegacyBlender(s)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == blenderWorkspacePrefix || strings.HasPrefix(r.URL.Path, blenderWorkspacePrefix+"/") || strings.HasPrefix(r.URL.Path, "/apps/blender/") {
+			legacyBlender.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == legacyWorkspacePrefix || strings.HasPrefix(r.URL.Path, legacyWorkspacePrefix+"/") {
 			legacyMedia.ServeHTTP(w, r)
 			return
