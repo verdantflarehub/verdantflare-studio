@@ -3,7 +3,7 @@ name: Studio
 env:
   REGISTRY_ENDPOINT: ${{ secrets.REGISTRY_ENDPOINT_ALIYUN }}
   IMAGE_NAME: wod/verdantflare-station
-  IMAGE_VERSION: studio-v0.5.99
+  IMAGE_VERSION: studio-v0.5.101
 
 on:
   push:
@@ -41,6 +41,21 @@ jobs:
         with:
           name: ${{ env.IMAGE_VERSION }}-workspace-${{ matrix.goos }}-amd64
           path: build/studio-workspace*
+          if-no-files-found: error
+      - name: Compile remote generation integration runner
+        if: matrix.goos == 'linux'
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: |
+          go test -c -o build/generation-ledger-tests ./internal/project
+          go test -c -o build/generation-gateway-tests ./internal/mcp
+      - uses: actions/upload-artifact@v4
+        if: matrix.goos == 'linux'
+        with:
+          name: ${{ env.IMAGE_VERSION }}-generation-tests-linux-amd64
+          path: build/generation-*-tests
           if-no-files-found: error
   image:
     name: Build image and publish release

@@ -89,6 +89,15 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("Project MCP initialization failed")
 	}
 	mux := http.NewServeMux()
+	approvalToken := os.Getenv("STUDIO_GENERATION_APPROVAL_TOKEN")
+	if approvalToken != "" && (approvalToken == authorityToken || approvalToken == os.Getenv("STUDIO_ARTIFACT_SERVICE_TOKEN")) {
+		return errors.New("generation approval credential must be distinct")
+	}
+	control, e := service.GenerationControlHandler(token, approvalToken)
+	if e != nil {
+		return errors.New("invalid generation control credentials")
+	}
+	mux.Handle("/internal/v1/generation/", control)
 	mux.Handle("/mcp", mcpHandler)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

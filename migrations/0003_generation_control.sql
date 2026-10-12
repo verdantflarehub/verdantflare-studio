@@ -1,0 +1,35 @@
+CREATE TABLE studio.generation_plans (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    plan_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    request_sha256 text NOT NULL CHECK (request_sha256 ~ '^[0-9a-f]{64}$'),
+    specification jsonb NOT NULL,
+    state text NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved','revoked')),
+    call_limit integer NOT NULL CHECK (call_limit BETWEEN 1 AND 100),
+    occupied_calls integer NOT NULL DEFAULT 0 CHECK (occupied_calls >= 0 AND occupied_calls <= call_limit),
+    expires_at timestamptz NOT NULL,
+    created_by uuid NOT NULL,
+    approved_by uuid,
+    approved_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (organization_id,project_id,plan_id),
+    FOREIGN KEY (organization_id,project_id,revision_id) REFERENCES studio.project_revisions(organization_id,project_id,revision_id),
+    CHECK ((approved_by IS NULL) = (approved_at IS NULL)),
+    CHECK (state <> 'approved' OR approved_by IS NOT NULL)
+);
+CREATE TABLE studio.generation_operations (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    plan_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    request_sha256 text NOT NULL CHECK (request_sha256 ~ '^[0-9a-f]{64}$'),
+    state text NOT NULL CHECK (state IN ('reserved','unknown','submitted','released')),
+    response jsonb,
+    created_by uuid NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (organization_id,project_id,operation_id),
+    FOREIGN KEY (organization_id,project_id,plan_id) REFERENCES studio.generation_plans(organization_id,project_id,plan_id),
+    CHECK ((state='submitted') = (response IS NOT NULL))
+);
