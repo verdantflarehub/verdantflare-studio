@@ -94,3 +94,45 @@ func TestLegacyRegistryNeverCreatesInstallationsOrCrossScopeEntries(t *testing.T
 		})
 	}
 }
+
+func TestLegacyRegistryRequiresExactInstalledResource(t *testing.T) {
+	for _, scenario := range []string{"same-resource", "missing-uid", "other-uid", "missing-key", "other-key", "unknown", "conflict", "pending", "failed", "removed", "other-app", "other-scope"} {
+		t.Run(scenario, func(t *testing.T) {
+			scope := Scope{OrganizationID: "00000000-0000-7000-8000-000000000002", StationID: "00000000-0000-7000-8000-000000000003"}
+			binding := LegacyBinding{BindingID: "original", AppID: "sample", OrganizationID: scope.OrganizationID, StationID: scope.StationID, ObservationKey: "obs:" + strings.Repeat("b", 64), WorkloadUID: "00000000-0000-4000-8000-000000000005", AdapterID: "image-iframe-v1", BackendRevision: LegacyBackendRevision("image-iframe-v1", "http://sample.invalid:8000"), Route: "/market?image=%2Fdashboard%23tasks"}
+			fact := Fact{AppID: "sample", Origin: "installation", CardKey: "installation:original", InstallationQuality: "known", Installation: &Installation{State: "installed"}, Service: CoreService{Service: Service{ObservationKey: Text(binding.ObservationKey)}, WorkloadUID: Text(binding.WorkloadUID)}}
+			switch scenario {
+			case "missing-uid":
+				fact.Service.WorkloadUID = nil
+			case "other-uid":
+				fact.Service.WorkloadUID = Text("00000000-0000-4000-8000-000000000099")
+			case "missing-key":
+				fact.Service.ObservationKey = nil
+			case "other-key":
+				fact.Service.ObservationKey = Text("obs:" + strings.Repeat("c", 64))
+			case "unknown", "conflict":
+				fact.InstallationQuality = scenario
+			case "pending", "failed", "removed":
+				fact.Installation.State = scenario
+			case "other-app":
+				fact.AppID = "other"
+			case "other-scope":
+				scope.OrganizationID = "00000000-0000-7000-8000-000000000099"
+			}
+			registry := LegacyRegistry{SchemaVersion: 1, Revision: "sha256:" + strings.Repeat("a", 64), Records: []LegacyBinding{binding}}
+			raw, _ := json.Marshal(registry)
+			path := filepath.Join(t.TempDir(), "legacy.json")
+			if err := os.WriteFile(path, raw, 0600); err != nil {
+				t.Fatal(err)
+			}
+			bindings, _, err := LoadLegacy(context.Background(), path, Facts{Scope: scope, Items: []Fact{fact}}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, matched := bindings[fact.CardKey]
+			if matched != (scenario == "same-resource") {
+				t.Fatal("installed resource binding mismatch")
+			}
+		})
+	}
+}

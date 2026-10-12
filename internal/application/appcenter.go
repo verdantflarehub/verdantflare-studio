@@ -194,6 +194,11 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 			}
 			meta := metadata[fact.CardKey]
 			if meta.Entry != nil {
+				// A registered Dashboard owns installed entry behavior, including
+				// its denial/unavailability. Never fall back around that result.
+				if fact.Origin == "installation" && fact.Installation != nil && meta.Entry.Transport == "dashboard" {
+					continue
+				}
 				return fail(502, "APPCENTER_INVALID_ENTRIES")
 			}
 			meta.Legacy = &binding

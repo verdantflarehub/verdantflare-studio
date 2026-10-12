@@ -15,8 +15,10 @@ import (
 )
 
 func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
-	for _, scenario := range []string{"valid", "renamed", "unrelated", "workload-race", "backend-race", "identity-race", "service-race", "blocked", "wrong-uid", "missing-backend", "stale-click", "tampered-entry"} {
-		t.Run(scenario, func(t *testing.T) {
+	for _, name := range []string{"valid", "renamed", "unrelated", "workload-race", "backend-race", "identity-race", "service-race", "blocked", "wrong-uid", "missing-backend", "stale-click", "tampered-entry", "adopted-after-click", "installed-valid", "installed-workload-race", "installed-backend-race", "installed-identity-race", "installed-service-race", "installed-revision-race", "installed-version-race", "installed-blocked"} {
+		t.Run(name, func(t *testing.T) {
+			installed := strings.HasPrefix(name, "installed-")
+			scenario := strings.TrimPrefix(name, "installed-")
 			raw, err := os.ReadFile("../appcenter/testdata/rules.generated.json")
 			if err != nil {
 				t.Fatal(err)
@@ -31,6 +33,7 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 			now := time.Now().UTC()
 			facts.GeneratedAt = now
 			fact := &facts.Items[0]
+			originalInstallation, originalKey := *fact.Installation, fact.CardKey
 			fact.Installation = nil
 			fact.Origin = "observation"
 			fact.CardKey = *fact.Service.ObservationKey
@@ -47,6 +50,13 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "legacy.json")
 			if os.WriteFile(path, data, 0600) != nil {
 				t.Fatal("write")
+			}
+			adopt := func() {
+				fact.Installation = &originalInstallation
+				fact.Origin, fact.CardKey = "installation", originalKey
+			}
+			if installed {
+				adopt()
 			}
 			factCalls, identityCalls := 0, 0
 			station := &Station{base: "https://core.invalid", client: &http.Client{Transport: appCenterTransport(func(r *http.Request) (*http.Response, error) {
@@ -73,6 +83,10 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 							backend = appcenter.LegacyBackendRevision("image-iframe-v1", "http://replacement.invalid:8000")
 						case "service-race":
 							facts.Items[0].Service.State = "stopped"
+						case "revision-race":
+							facts.Items[0].Installation.Revision++
+						case "version-race":
+							facts.Items[0].Installation.AppVersion = "1.0.1"
 						}
 					}
 					facts.RequestID = r.Header.Get("X-Request-ID")
@@ -84,11 +98,13 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 			})}}
 			a := NewAppCenter(station, "").WithLegacy(path, func() map[string]string { return map[string]string{"image-iframe-v1": backend} })
 			view, _, out := a.read(context.Background(), "test-session")
-			if out.Status != 200 || len(view.Items) != 1 || view.Items[0].PrimaryActionID != "open" || view.Items[0].Installation != nil {
+			if out.Status != 200 || len(view.Items) != 1 || view.Items[0].PrimaryActionID != "open" || (view.Items[0].Installation != nil) != installed {
 				t.Fatal("invalid preview", out.Status, string(out.Data))
 			}
 			request := appcenter.OpenRequest{SchemaVersion: 1, CardKey: view.Items[0].CardKey, EntryID: "image-iframe-v1", ExpectedViewRevision: view.Revision, ExpectedBindingRevision: view.Items[0].BindingRevision}
 			switch scenario {
+			case "adopted-after-click":
+				adopt()
 			case "blocked":
 				facts.Items[0].Operation.Blocking = true
 			case "wrong-uid":

@@ -24,7 +24,7 @@ func (f appCenterDashboardLookup) Lookup(ctx context.Context, actor dashboard.Ac
 }
 
 func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
-	for _, scenario := range []string{"valid", "unrelated", "stale-binding", "entry-substitution", "installation-race", "release-race", "scope-race", "blocking", "stopped", "unverified", "invalid-request", "loader-denied"} {
+	for _, scenario := range []string{"valid", "unrelated", "stale-binding", "entry-substitution", "installation-race", "release-race", "scope-race", "blocking", "stopped", "unverified", "invalid-request", "loader-denied", "legacy-present", "legacy-unverified"} {
 		t.Run(scenario, func(t *testing.T) {
 			raw, err := os.ReadFile("../appcenter/testdata/rules.generated.json")
 			if err != nil {
@@ -98,6 +98,17 @@ func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
 				return binding, nil
 			}))
 			a := NewAppCenter(station, "").WithDashboards(d, dir)
+			if strings.HasPrefix(scenario, "legacy-") {
+				fact := facts.Items[0]
+				backend := appcenter.LegacyBackendRevision("image-iframe-v1", "http://sample.invalid:8000")
+				binding := appcenter.LegacyBinding{BindingID: "original", AppID: fact.AppID, OrganizationID: facts.Scope.OrganizationID, StationID: facts.Scope.StationID, ObservationKey: *fact.Service.ObservationKey, WorkloadUID: *fact.Service.WorkloadUID, AdapterID: "image-iframe-v1", BackendRevision: backend, Route: "/market?image=%2Fdashboard%23tasks"}
+				data, _ := json.Marshal(appcenter.LegacyRegistry{SchemaVersion: 1, Revision: digest, Records: []appcenter.LegacyBinding{binding}})
+				legacyPath := filepath.Join(dir, "legacy.json")
+				if err := os.WriteFile(legacyPath, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				a.WithLegacy(legacyPath, func() map[string]string { return map[string]string{"image-iframe-v1": backend} })
+			}
 			view, _, out := a.read(context.Background(), "test-session")
 			if out.Status != 200 {
 				t.Fatal("initial view", out.Status, string(out.Data))
@@ -122,7 +133,7 @@ func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
 				facts.Items[0].Operation.Blocking = true
 			case "stopped":
 				facts.Items[0].Service.State = "stopped"
-			case "unverified":
+			case "unverified", "legacy-unverified":
 				a.declarationsDir = ""
 			case "invalid-request":
 				request.SchemaVersion = 2
@@ -130,7 +141,7 @@ func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
 			out = a.Open(context.Background(), "test-session", request)
 			want, lookups := 409, 0
 			switch scenario {
-			case "valid", "unrelated":
+			case "valid", "unrelated", "legacy-present":
 				want, lookups = 200, 1
 			case "installation-race", "release-race":
 				lookups = 1

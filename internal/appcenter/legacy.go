@@ -147,7 +147,15 @@ func LoadLegacy(ctx context.Context, path string, facts Facts, backends map[stri
 			continue
 		}
 		for _, fact := range facts.Items {
-			if fact.Origin == "observation" && fact.Installation == nil && fact.AppID == binding.AppID && fact.CardKey == binding.ObservationKey {
+			if fact.AppID != binding.AppID {
+				continue
+			}
+			observed := fact.Origin == "observation" && fact.Installation == nil && fact.CardKey == binding.ObservationKey
+			installed := fact.Origin == "installation" && fact.InstallationQuality == "known" &&
+				fact.Installation != nil && fact.Installation.State == "installed" &&
+				fact.Service.ObservationKey != nil && *fact.Service.ObservationKey == binding.ObservationKey &&
+				fact.Service.WorkloadUID != nil && *fact.Service.WorkloadUID == binding.WorkloadUID
+			if observed || installed {
 				result[fact.CardKey] = binding
 			}
 		}
