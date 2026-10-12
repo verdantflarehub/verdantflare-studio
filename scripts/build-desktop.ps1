@@ -62,6 +62,7 @@ try {
         $env:GITHUB_RUN_ID -notmatch '^[0-9]+$') { throw 'Missing Actions source evidence.' }
 
     & pnpm --dir frontend install --frozen-lockfile
+    $env:VITE_APPCENTER_MODE = 'unified'
     & pnpm --dir frontend exec vite build
     $icon = Join-Path $output 'studio.ico'
     & wails3 generate icons -input frontend/public/logo/verdantflare-logo.png -windowsfilename $icon -macfilename (Join-Path $output 'unused.icns')
@@ -86,7 +87,7 @@ try {
         repository = $env:GITHUB_REPOSITORY; revision = $revision
         workflowRun = "https://github.com/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)"
         tools = @{ go = $goVersion; node = $nodeVersion; pnpm = $pnpmVersion; wails = 'v3.0.0-beta.22'; nsis = $nsisVersion }
-        build = @{ tags = @('production'); cgoEnabled = 0; subsystem = 'windowsgui' }
+        build = @{ tags = @('production'); cgoEnabled = 0; subsystem = 'windowsgui'; appCenterMode = 'unified' }
         inputs = @('go.sum', 'frontend/pnpm-lock.yaml', 'frontend/public/logo/verdantflare-logo.png') | ForEach-Object {
             @{ path = $_; sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() }
         }
