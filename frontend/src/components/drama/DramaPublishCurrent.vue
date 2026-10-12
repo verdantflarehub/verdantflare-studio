@@ -40,7 +40,7 @@ async function submit() {
     saveDraft(draft)
     const result = await publishFromPage(draft, {
       newID: uuidv7, saveDraft, save: intent => { draft.publication = intent; saveDraft(draft) }, phase: value => { phase.value = value },
-      call: <T,>(tool: string, args: Record<string, unknown>) => { if (actor.value !== identity) throw Error('登录身份已变化。'); return callTool<T>(tool, args, projectID) },
+      call: <T,>(tool: string, args: Record<string, unknown>) => { if (actor.value !== identity) throw Error('登录身份已变化。'); return callTool<T>(tool, args, tool === 'world.commit_status' ? undefined : projectID) },
       read: async revision => { if (actor.value !== identity) throw Error('登录身份已变化。'); const r = new ProjectReader(projectID, revision); try { await r.load(); if (!r.rawContent) throw Error('项目内容不可读。'); return { project: r.project!, raw: r.rawContent } } finally { r.dispose() } }
     })
     localStorage.removeItem(key); pending.value = null
