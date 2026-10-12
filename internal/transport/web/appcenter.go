@@ -60,7 +60,7 @@ func (s *Server) EnableAppCenter(r *gin.Engine, service AppCenterService) {
 				fail(400, "INVALID_APPCENTER_REQUEST")
 				return
 			}
-		} else {
+		} else if req.Body != nil {
 			body, err := io.ReadAll(io.LimitReader(req.Body, 1))
 			if err != nil || len(body) != 0 {
 				fail(400, "INVALID_APPCENTER_REQUEST")
@@ -79,6 +79,15 @@ func (s *Server) EnableAppCenter(r *gin.Engine, service AppCenterService) {
 		}
 		if service == nil {
 			fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+			return
+		}
+		if req.URL.Path == "/studio/appcenter/v1/events" {
+			authorizer, ok := service.(appCenterEventAuthorizer)
+			if !ok {
+				fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+				return
+			}
+			s.appCenterEvents(c, cookies[0].Value, token, authorizer)
 			return
 		}
 		var out application.Result
@@ -100,6 +109,7 @@ func (s *Server) EnableAppCenter(r *gin.Engine, service AppCenterService) {
 		c.Data(out.Status, "application/json", out.Data)
 	}
 	r.GET("/studio/appcenter/v1/view", handler)
+	r.GET("/studio/appcenter/v1/events", handler)
 	r.POST("/studio/appcenter/v1/open", handler)
 	r.POST("/studio/appcenter/v1/commands/prepare", handler)
 	r.POST("/studio/appcenter/v1/commands", handler)

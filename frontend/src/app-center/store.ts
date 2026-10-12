@@ -4,6 +4,8 @@ import { useHostStore } from '../platform/hostStore'
 import { createAppCenterController } from './controller'
 import { createAppCenterTransport } from './transport'
 import { createSharedRefresh } from './refresh'
+import { createStateCalibration, subscribeStateHints } from './state-hints'
+import { isDesktopHost } from '../platform/desktop'
 import { createCommands } from './commands'
 import { commandScope, createCommandStorage } from './command-storage'
 import { createCommandTransport } from './command-transport'
@@ -69,6 +71,15 @@ export const useAppCenterStore = defineStore('appcenter', () => {
       })
     } finally { if (readCycle === current) readCycle = null }
   }, schedule)
+  const calibration = createStateCalibration(
+    () => visible() && host.connected ? sharedRefresh.refreshLatest() : Promise.resolve(),
+    !isDesktopHost() && typeof EventSource !== 'undefined' ? subscribeStateHints : undefined)
+  function syncCalibration() {
+    const who = host.identity
+    const scope = visible() && host.connected && who.user_id && who.organization_id && who.station_id
+      ? JSON.stringify([who.user_id, who.organization_id, who.station_id, who.session_id, who.policy_version, who.revocation_version, who.roles, who.scopes]) : null
+    calibration.activate(scope)
+  }
   function schedule() {
     clearTimeout(timer)
     if (!visible() || !host.connected) return
@@ -82,6 +93,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   }
   function changedVisibility() {
     clearTimeout(timer)
+    syncCalibration()
     if (visible()) void refresh()
     else { sharedRefresh.invalidate(); controller.suspend(); stopReads() }
   }
@@ -90,7 +102,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     if (active) consumers.add(owner); else consumers.delete(owner)
     if (wasVisible !== visible()) changedVisibility()
   }
-  function clear() { clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); progress.clear(null); openBindings.clear(); controller.clear() }
+  function clear() { calibration.activate(null); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); progress.clear(null); openBindings.clear(); controller.clear() }
   watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
     const who = host.identity
     sharedRefresh.invalidate()
@@ -102,11 +114,17 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     progress.select(state.value.value?.items.find(card => card.cardKey === detailKey))
     if (identity) lastScope = commandScope(identity)
     void commands.setScope(identity).then(() => { if (visible()) void refresh() })
+    syncCalibration()
     if (visible()) void refresh()
   }, { immediate: true, flush: 'sync' })
+  watch(() => host.connected, connected => {
+    syncCalibration()
+    if (!connected) { clearTimeout(timer); sharedRefresh.invalidate(); controller.suspend(); stopReads() }
+    else if (visible()) void refresh()
+  }, { flush: 'sync' })
   document.addEventListener('visibilitychange', changedVisibility)
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
-  onScopeDispose(() => { clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
+  onScopeDispose(() => { calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
   return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

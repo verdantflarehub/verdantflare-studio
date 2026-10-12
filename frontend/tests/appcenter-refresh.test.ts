@@ -31,3 +31,22 @@ test('invalidated queued reads never start; a failed read permits a later retry'
   await assert.rejects(shared.refresh(), /offline/)
   await shared.refresh(); assert.equal(calls, 2); assert.equal(ticks, 2)
 })
+
+test('hints during a read coalesce into one following read without canceling current work', async () => {
+  const first = deferred(), next = deferred(); let calls = 0, ticks = 0
+  const shared = createSharedRefresh(() => ++calls === 1 ? first.promise : next.promise, () => ticks++)
+  const initial = shared.refresh(); await Promise.resolve()
+  for (let i = 0; i < 50; i++) assert.equal(shared.refreshLatest(), initial)
+  first.resolve(); await Promise.resolve(); await Promise.resolve()
+  assert.equal(calls, 2); assert.equal(ticks, 0)
+  next.resolve(); await initial
+  assert.equal(ticks, 1)
+})
+
+test('scope invalidation discards a queued notification read', async () => {
+  const first = deferred(); let calls = 0
+  const shared = createSharedRefresh(async () => { calls++; await first.promise }, () => {})
+  const initial = shared.refresh(); await Promise.resolve()
+  shared.refreshLatest(); shared.invalidate(); first.resolve(); await initial
+  assert.equal(calls, 1)
+})
