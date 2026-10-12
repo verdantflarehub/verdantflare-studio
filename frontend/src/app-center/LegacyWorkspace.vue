@@ -93,8 +93,17 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 
 <template>
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>{{ selection?.card.display.name || '应用入口' }}</h1><p>{{ selection?.card.display.description }}</p></div><button class="btn" @click="router.push(props.returnLocation ?? '/market')">返回应用中心</button></header>
-    <nav aria-label="面包屑"><a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a><span v-if="selection"> / {{ selection.card.display.name }}</span></nav>
+    <nav class="dashboard-breadcrumb" aria-label="面包屑">
+      <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
+      <span v-if="selection" class="breadcrumb-sep"> / </span>
+      <span v-if="selection" class="breadcrumb-current">{{ selection.card.display.name }}</span>
+    </nav>
+    <header class="heading">
+      <div class="heading-left">
+        <h1>{{ selection?.card.display.name || '应用入口' }}</h1>
+        <p>{{ selection?.card.display.description }}</p>
+      </div>
+    </header>
     <p v-if="loading" role="status">正在确认应用入口…</p>
     <div v-if="error" class="panel legacy-error" role="alert"><p>{{ reasonLabel(error) }}</p><button class="btn" @click="retry++">重试</button></div>
     <template v-if="selection">
@@ -106,5 +115,44 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 
 <style scoped>
 .legacy-error { margin: 20px 0; padding: 20px; color: var(--muted); }
-nav { margin-bottom: 20px; color: var(--muted); }
+.dashboard-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.dashboard-breadcrumb a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.dashboard-breadcrumb a:hover {
+  color: var(--ink);
+}
+.dashboard-breadcrumb .breadcrumb-sep {
+  color: var(--muted-2);
+  font-size: 12px;
+}
+.dashboard-breadcrumb .breadcrumb-current {
+  color: var(--ink);
+  font-weight: 500;
+}
+.heading {
+  margin-bottom: 12px;
+}
+.heading-left h1 {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+.heading-left p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
 </style>

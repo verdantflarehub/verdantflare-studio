@@ -174,13 +174,25 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 <template>
   <main v-show="active" class="main embed-active">
     <div class="workspace">
+      <nav class="dashboard-breadcrumb" aria-label="面包屑">
+        <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
+        <span aria-hidden="true" class="breadcrumb-sep"> / </span>
+        <span class="breadcrumb-current">{{ title }}</span>
+        <template v-if="workspaceId">
+          <span aria-hidden="true" class="breadcrumb-sep"> / </span>
+          <span class="breadcrumb-current">实例工作区</span>
+        </template>
+      </nav>
       <header class="heading">
-        <div class="heading-left"><h1>{{ title }}</h1><p>{{ workspaceId ? '实例工作区' : '配置应用，管理运行实例。' }}</p></div>
-        <div class="heading-actions"><button class="btn" @click="router.push(props.returnLocation ?? '/market')">返回应用中心</button>
+        <div class="heading-left">
+          <h1>{{ title }}</h1>
+          <p>{{ workspaceId ? '实例工作区' : '配置应用，管理运行实例。' }}</p>
+        </div>
+        <div v-if="workspaceId || state === 'ready'" class="heading-actions">
           <button v-if="workspaceId" class="btn ghost" @click="router.push(dashboardLocation(installationId))">关闭工作区并返回控制台</button>
-          <button v-else class="btn ghost" :disabled="state !== 'ready'" @click="close">关闭控制台</button></div>
+          <button v-else-if="state === 'ready'" class="btn ghost" @click="close">关闭控制台</button>
+        </div>
       </header>
-      <nav class="dashboard-breadcrumb" aria-label="面包屑"><a :href="router.resolve(props.returnLocation ?? '/market').href">应用中心</a><span aria-hidden="true"> / </span><span>{{ title }}</span></nav>
       <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
       <div v-if="state === 'error'" class="dashboard-error" role="alert"><p>{{ error }}</p><button class="btn" @click="retry++">重试</button></div>
       <AppDashboardHost ref="host" v-show="visible" :selection="selection" :visible="visible"
@@ -193,7 +205,45 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 </template>
 
 <style scoped>
-.dashboard-breadcrumb { margin-bottom: 20px; color: var(--muted); }
-.dashboard-breadcrumb a { color: var(--ink); }
+.dashboard-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.dashboard-breadcrumb a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.dashboard-breadcrumb a:hover {
+  color: var(--ink);
+}
+.dashboard-breadcrumb .breadcrumb-sep {
+  color: var(--muted-2);
+  font-size: 12px;
+}
+.dashboard-breadcrumb .breadcrumb-current {
+  color: var(--ink);
+  font-weight: 500;
+}
+.heading {
+  margin-bottom: 12px;
+}
+.heading-left h1 {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+.heading-left p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
 .dashboard-error { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 </style>
