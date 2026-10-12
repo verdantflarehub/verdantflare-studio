@@ -75,6 +75,9 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 			c.Status(403)
 			return
 		}
+		if c.Request.Method == "POST" && path == "/api/tasks" && !s.checkGenerationProxy(c, token) {
+			return
+		}
 	}
 	upstream, err := url.Parse(cfg.URL)
 	if err != nil || upstream.Host == "" || (upstream.Scheme != "http" && upstream.Scheme != "https") || upstream.User != nil || cfg.Token == "" {

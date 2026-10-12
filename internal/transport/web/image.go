@@ -1,21 +1,17 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
-	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
 )
 
 // The upstream and credential are server configuration, never caller-controlled.
@@ -86,31 +82,8 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 			c.Status(403)
 			return
 		}
-		if c.Request.Method == "POST" && path == "/api/tasks" && os.Getenv("STUDIO_GENERATION_CONTROL_ENABLED") == "true" {
-			if s.mcpGateway == nil {
-				c.Status(503)
-				return
-			}
-			data, e := strictjson.ReadValue(http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20), 1<<20)
-			if e != nil {
-				c.JSON(400, gin.H{"code": "INVALID_ARGUMENT"})
-				return
-			}
-			c.Request.Body = io.NopCloser(bytes.NewReader(data))
-			var args map[string]any
-			if json.Unmarshal(data, &args) != nil || args == nil {
-				c.JSON(400, gin.H{"code": "INVALID_ARGUMENT"})
-				return
-			}
-			p, status := s.station.Principal(c.Request.Context(), token, uuid.Must(uuid.NewV7()).String())
-			if status != 200 {
-				c.Status(status)
-				return
-			}
-			if status, e := s.mcpGateway.CheckGenerationDirect(c.Request.Context(), p, args, c.GetHeader("X-Project-Id")); e != nil {
-				c.JSON(status, gin.H{"code": "GENERATION_APPROVAL_REQUIRED"})
-				return
-			}
+		if c.Request.Method == "POST" && path == "/api/tasks" && !s.checkGenerationProxy(c, token) {
+			return
 		}
 	}
 	upstream, err := url.Parse(cfg.URL)

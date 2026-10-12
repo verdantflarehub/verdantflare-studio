@@ -1,13 +1,49 @@
 package web
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"mime"
+	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
 )
+
+func (s *Server) checkGenerationProxy(c *gin.Context, token string) bool {
+	if os.Getenv("STUDIO_GENERATION_CONTROL_ENABLED") != "true" {
+		return true
+	}
+	if s.mcpGateway == nil {
+		c.Status(503)
+		return false
+	}
+	data, e := strictjson.ReadValue(http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20), 1<<20)
+	if e != nil {
+		c.JSON(400, gin.H{"code": "INVALID_ARGUMENT"})
+		return false
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(data))
+	var args map[string]any
+	if json.Unmarshal(data, &args) != nil || args == nil {
+		c.JSON(400, gin.H{"code": "INVALID_ARGUMENT"})
+		return false
+	}
+	p, status := s.station.Principal(c.Request.Context(), token, uuid.Must(uuid.NewV7()).String())
+	if status != 200 {
+		c.Status(status)
+		return false
+	}
+	if status, e := s.mcpGateway.CheckGenerationDirect(c.Request.Context(), p, args, c.GetHeader("X-Project-Id")); e != nil {
+		c.JSON(status, gin.H{"code": "GENERATION_APPROVAL_REQUIRED"})
+		return false
+	}
+	return true
+}
 
 // MCP tokens cannot invoke this decision route. A fresh password is exchanged
 // only with Station; the downstream Project receives the pinned digest alone.
