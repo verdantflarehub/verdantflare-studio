@@ -32,7 +32,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
         <template v-if="card.installation"><dt>安装标识</dt><dd>{{ card.installation.installationId }}</dd></template>
         <dt>服务状态</dt><dd>{{ factLabel(card.service.state) }}<small v-if="card.service.reasonCode">{{ serviceReasonLabel(card.service.reasonCode) }}</small></dd>
         <dt>服务观测时间</dt><dd>{{ observedTime(card.service.observedAt) }}</dd>
-        <dt>应用分组</dt><dd>{{ card.preinstalled ? '系统预装应用' : '普通应用' }}</dd>
+        <dt>应用分组</dt><dd>{{ groupLabel }}</dd>
       </dl></section>
       <section class="panel detail-section"><h3>应用入口</h3><dl>
         <dt>入口状态</dt><dd>{{ card.entry ? factLabel(card.entry.availability) : '尚无可用入口' }}</dd>

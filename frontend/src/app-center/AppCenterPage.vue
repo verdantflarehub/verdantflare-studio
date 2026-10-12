@@ -7,6 +7,8 @@ import { selectCards } from './controller'
 import { actionLabels, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
+import AppCommandConfirm from './AppCommandConfirm.vue'
+import { versionLabel } from './card-actions'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
 import { createDashboardWebClient } from '../app-dashboard/web-client'
 import { dashboardLocation } from '../app-dashboard/routes'
@@ -17,7 +19,20 @@ import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
-const query = ref(''), group = ref('all'), filter = ref('all'), message = ref('')
+const query = ref(''), group = ref('all'), filter = ref('installed'), message = ref(''), menuKey = ref('')
+const confirmation = ref<{ card: AppCenterCard; actionId: string; kind: string; scope: string; impact: string } | null>(null)
+const submitting = ref(false)
+async function confirmCommand() {
+  const pending = confirmation.value
+  if (!pending || submitting.value) return
+  if (pending.scope !== JSON.stringify(store.state.value?.scope) || !store.canExecute(pending.card.cardKey, pending.actionId, pending.card.bindingRevision)) {
+    confirmation.value = null; message.value = reasonLabel('APPCENTER_BINDING_CHANGED'); return
+  }
+  submitting.value = true
+  try { await store.execute(pending.card, pending.actionId); message.value = '' }
+  catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_SUBMISSION_UNKNOWN') }
+  finally { submitting.value = false; confirmation.value = null }
+}
 async function refreshPage() { if (!host.connected) await host.init(); else await store.refresh(true) }
 const theme = ref(document.body.dataset.theme === 'dark' ? 'dark' : 'light')
 try { theme.value = localStorage.getItem('vf_studio_theme') === 'dark' ? 'dark' : 'light' } catch { /* use current theme */ }
@@ -68,7 +83,7 @@ const groups = computed(() => {
   for (const card of store.state.value?.items ?? []) if (!names.has(card.display.groupId)) names.set(card.display.groupId, '未分类')
   return Array.from(names, ([id, label]) => ({ id, label }))
 })
-const tabs = [{ id: 'all', label: '全部应用' }, { id: 'installed', label: '已安装' }, { id: 'active', label: '进行中' }] as const
+const tabs = [{ id: 'installed', label: '我的应用' }, { id: 'all', label: '所有应用' }] as const
 let listScroll = 0
 function back() { void router.replace({ path: '/market', query: {} }) }
 async function perform(card: AppCenterCard, actionId: string) {
@@ -81,12 +96,11 @@ async function perform(card: AppCenterCard, actionId: string) {
   if (['install', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) {
     const impacts: Record<string, string> = {
       install: '将安装此版本的应用管理服务。', start: '将启动应用管理服务。',
-      stop: '将关闭应用管理服务，相关业务可能暂时无法访问。', restart: '将重启应用管理服务，相关业务可能暂时中断。',
-      delete: '将删除此应用安装。请先确认业务数据和工作已妥善保存。',
+      stop: '将停止应用管理服务，相关业务可能暂时无法访问。此操作与关闭页面独立，不会批量停止工作实例；活动任务和依赖保护由服务端检查。', restart: '将重启应用管理服务，相关业务可能暂时中断。',
+      delete: '将移除此应用安装。项目资料、历史任务和产物保留，模型清理独立进行。请先保存当前工作；活动任务和依赖保护由服务端检查。',
     }
-    if (!window.confirm(`${actionLabels[action.kind]}「${card.display.name}」？\n${impacts[action.kind]}`)) return
-    try { await store.execute(card, actionId); message.value = '' }
-    catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_SUBMISSION_UNKNOWN') }
+    if (confirmation.value || submitting.value) return
+    confirmation.value = { card: structuredClone(card), actionId, kind: action.kind, scope: JSON.stringify(store.state.value?.scope), impact: impacts[action.kind] }
     return
   }
   if (action.kind === 'open' && card.entry?.transport === 'dashboard' && card.installation) {
@@ -120,8 +134,10 @@ watch(directoryVisible, async (visible, previous) => {
   window.scrollTo({ top: visible ? listScroll : 0 })
 })
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id]), () => {
-  query.value = ''; group.value = 'all'; filter.value = 'all'; message.value = ''; listScroll = 0
+  query.value = ''; group.value = 'all'; filter.value = 'installed'; message.value = ''; menuKey.value = ''; confirmation.value = null; listScroll = 0
 })
+watch(() => JSON.stringify(store.state.value?.scope), () => { confirmation.value = null; menuKey.value = '' })
+watch([filter, group, query, selectedKey, businessRoute], () => { menuKey.value = '' })
 watch(selectedKey, key => store.setDetail(key), { immediate: true })
 watch(() => !businessRoute.value && !legacy.value.target && !legacy.value.error, active => store.setProgressVisible(active), { immediate: true })
 onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false) })
@@ -152,24 +168,19 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
         <p v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="panel appcenter-message" role="status">正在读取应用信息…</p>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
         <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
-        <section v-if="result.preinstalled.length" class="appcenter-preinstalled" aria-label="系统预装应用">
-          <h2>系统预装应用</h2>
-          <div class="appcenter-grid"><AppCard v-for="card in result.preinstalled" :key="card.cardKey" :card="card" :stale="store.state.stale" @action="perform" /></div>
-        </section>
-        <div class="appcenter-grid"><AppCard v-for="card in result.applications" :key="card.cardKey" :card="card" :stale="store.state.stale" @action="perform" /></div>
+        <div class="appcenter-grid"><AppCard v-for="card in result.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" /></div>
       </section>
     </template>
   </div></main>
   <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
     :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" />
   <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" />
+  <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>
 
 <style scoped>
 .appcenter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
-.appcenter-preinstalled { margin-bottom: 24px; }
-.appcenter-preinstalled h2 { font-size: 18px; margin: 0 0 16px; }
 .search-box input { min-width: 160px; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>

@@ -5,6 +5,8 @@ import { createAppCenterTransport } from '../src/app-center/transport.ts'
 import { validAppCenterView } from '../src/app-center/schema.generated.ts'
 import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.generated.ts'
 import { appCenterNavigationEntries } from '../src/app-center/navigation.ts'
+import { managementActions, versionLabel } from '../src/app-center/card-actions.ts'
+import { publisherLabel } from '../src/app-center/presentation.ts'
 import type { NavigationEnvelope } from '../src/navigation/controller.ts'
 
 const now = Date.parse('2026-10-12T00:00:00Z'), digest = `sha256:${'a'.repeat(64)}`
@@ -29,6 +31,58 @@ function view(): AppCenterView {
     groups: [{ id: 'system', label: 'System', order: 1 }], items: [card] }
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes }); return { promise, resolve } }
+
+test('my apps retains installed services through stop, failure and removal progress until authoritative removal', () => {
+  const data = view(), card = data.items[0]
+  for (const state of ['stopped', 'degraded', 'unknown'] as const) {
+    card.service.state = state
+    card.operation.blocking = true
+    card.operation.phase = 'deleting'
+    assert.deepEqual(selectCards(data, '', 'all', 'installed').items, [card])
+    assert.equal(selectCards(data).counts.installed, 1)
+  }
+  card.installation!.state = 'removed'
+  assert.equal(selectCards(data, '', 'all', 'installed').items.length, 0)
+  assert.deepEqual(selectCards(data).items, [card])
+  assert.equal(managementActions(card, false).length, 0)
+  card.installation!.state = 'failed'
+  assert.equal(selectCards(data, '', 'all', 'installed').items.length, 0)
+  assert.deepEqual(selectCards(data, '', 'all', 'active').items, [card], 'operation remains recoverable in all apps')
+})
+
+test('management menu preserves server action ids, denies stale or absent capabilities and ignores installation source', () => {
+  const card = view().items[0]
+  card.actions.push({ id: 'service.stop', kind: 'stop', enabled: true, reasonCode: null, entryId: null, confirmation: 'service-stop' },
+    { id: 'installation.remove', kind: 'delete', enabled: false, reasonCode: 'PERMISSION_DENIED', entryId: null, confirmation: 'installation-delete' })
+  const before = structuredClone(card)
+  const actions = managementActions(card, false)
+  assert.equal(actions[0].id, 'service.stop'); assert.equal(actions[0].enabled, true)
+  assert.equal(actions[1].id, 'installation.remove'); assert.equal(actions[1].enabled, false)
+  assert.equal(actions[1].reason, '当前账号没有权限')
+  assert.ok(managementActions(card, true).every(item => !item.enabled && item.reason.includes('已过期')))
+  card.preinstalled = true
+  assert.deepEqual(managementActions(card, false), actions)
+  card.preinstalled = before.preinstalled
+  assert.deepEqual(card, before, 'presentation does not mutate bindings or permission facts')
+  card.actions = card.actions.filter(item => item.kind !== 'stop')
+  assert.equal(managementActions(card, false)[0].id, null)
+  assert.equal(managementActions(card, false)[0].enabled, false)
+  card.installation = null
+  assert.deepEqual(managementActions(card, false), [])
+})
+
+test('missing metadata stays explicit and candidate updates do not replace installation versions', () => {
+  const card = view().items[0]
+  assert.equal(publisherLabel(null), '发布方资料待补充')
+  card.candidateVersion = '2.0.0'
+  assert.equal(versionLabel(card), '1.0.0')
+  card.installedVersion = null
+  assert.equal(versionLabel(card), '版本待确认')
+  card.installation = null
+  assert.equal(versionLabel(card), '2.0.0')
+  card.candidateVersion = null
+  assert.equal(versionLabel(card), '版本待确认')
+})
 
 test('declared models, capabilities and publishers share directory filtering without granting actions', () => {
   const v = view(), card = v.items[0]
