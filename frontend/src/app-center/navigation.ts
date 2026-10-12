@@ -4,7 +4,7 @@ import type { NavigationEnvelope, NavigationEntry } from '../navigation/controll
 export type AppCenterNavigationEntry = NavigationEntry & { cardKey?: string; bindingRevision?: string; openReason?: string }
 
 /** The menu contributes title/order; the shared snapshot alone permits opening. */
-export function appCenterNavigationEntries(navigation: NavigationEnvelope, state: AppCenterState, now = Date.now()): AppCenterNavigationEntry[] {
+export function appCenterNavigationEntries(navigation: NavigationEnvelope, state: AppCenterState, now: number): AppCenterNavigationEntry[] {
   const view = state.value
   const sameScope = view && (['userId', 'organizationId', 'stationId', 'authorizationEpoch'] as const)
     .every(key => view.scope[key] === navigation.projection.scope[key])

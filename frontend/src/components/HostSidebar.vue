@@ -59,7 +59,7 @@ async function openEntry(entry: NavigationEntry) {
   if (appcenter) {
     const value = navigation.state.value
     if (!value) return
-    const current = appCenterNavigationEntries(value, appcenter.state).find(item => item.installationId === entry.installationId
+    const current = appCenterNavigationEntries(value, appcenter.state, appcenter.currentTime()).find(item => item.installationId === entry.installationId
       && item.entryId === entry.entryId && item.appVersion === entry.appVersion)
     if (!current?.cardKey || !current.bindingRevision) return
     appcenter.pinOpen(entry.installationId, current.bindingRevision)

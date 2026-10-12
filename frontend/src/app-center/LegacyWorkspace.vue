@@ -23,7 +23,7 @@ function fail(errorValue: unknown) { error.value = errorValue instanceof Error ?
 async function authorize() {
   const selected = selection.value
   if (!selected) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
-  if (store.state.stale || !store.state.value || Date.parse(store.state.value.validUntil) <= Date.now()) await store.refresh()
+  if (store.state.stale || !store.state.value || Date.parse(store.state.value.validUntil) <= store.currentTime()) await store.refresh()
   const current = store.state.value
   if (selection.value !== selected || selected.identity !== identity.value || current && (JSON.stringify(current.scope) !== selected.scope
     || current.items.find(card => card.cardKey === selected.card.cardKey)?.bindingRevision !== selected.card.bindingRevision)) {
@@ -33,7 +33,7 @@ async function authorize() {
   }
   // A hidden page or failed read must block forwarding without erasing the
   // still-bound workspace or claiming that its identity changed.
-  if (!current || store.state.stale || Date.parse(current.validUntil) <= Date.now()) throw new Error('APPCENTER_DEPENDENCY_UNAVAILABLE')
+  if (!current || store.state.stale || Date.parse(current.validUntil) <= store.currentTime()) throw new Error('APPCENTER_DEPENDENCY_UNAVAILABLE')
   if (!store.canExecute(selected.card.cardKey, 'open', selected.card.bindingRevision)) {
     const denied = new Error(current.items.find(card => card.cardKey === selected.card.cardKey)?.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
     fail(denied); throw denied

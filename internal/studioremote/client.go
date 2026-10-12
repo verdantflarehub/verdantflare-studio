@@ -33,9 +33,9 @@ var contentCapabilityPath = regexp.MustCompile(`^/studio/dashboards/[0-9a-f]{8}-
 var contentHandlePath = regexp.MustCompile(`^/studio/dashboards/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/content/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 type Response struct {
-	Status          int
-	Data            []byte
-	MIME, RequestID string
+	Status                int
+	Data                  []byte
+	MIME, RequestID, Date string
 }
 type Client struct {
 	mu            sync.Mutex
@@ -270,5 +270,5 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte, exp
 	if resp.StatusCode == 401 {
 		c.resetLocked()
 	}
-	return Response{Status: resp.StatusCode, Data: data, MIME: mimeType, RequestID: resp.Header.Get("X-Request-ID")}, nil
+	return Response{Status: resp.StatusCode, Data: data, MIME: mimeType, RequestID: resp.Header.Get("X-Request-ID"), Date: resp.Header.Get("Date")}, nil
 }

@@ -209,9 +209,85 @@ test('expiration and old bindings cannot execute even before a polling tick', as
 
 test('Web and desktop use one fixed endpoint and clear unauthorized non-JSON responses', async () => {
   const seen: unknown[] = []
-  const fetcher = (async (url, init) => { seen.push([url, init?.method, init?.credentials, init?.redirect]); return new Response(JSON.stringify(view()), { headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'test-request' } }) }) as typeof fetch
+  const fetcher = (async (url, init) => { seen.push([url, init?.method, init?.credentials, init?.redirect]); return snapshotResponse() }) as typeof fetch
   assert.deepEqual(await createAppCenterTransport(fetcher).read(new AbortController().signal), view())
   assert.deepEqual(seen, [['/studio/appcenter/v1/view', 'GET', 'same-origin', 'error']])
   const denied = createAppCenterTransport((async () => new Response('forbidden', { status: 403 })) as typeof fetch)
   await assert.rejects(denied.read(new AbortController().signal), (e: unknown) => e instanceof AppCenterError && e.status === 403)
+})
+
+function snapshotResponse(value = view(), date: string | null = new Date(now).toUTCString()) {
+  const headers = new Headers({ 'Content-Type': 'application/json', 'X-Request-ID': value.requestId })
+  if (date !== null) headers.set('Date', date)
+  return new Response(JSON.stringify(value), { headers })
+}
+
+test('server snapshot clock tolerates skew and wall-clock changes without extending expiry', async () => {
+  for (const skew of [-3600000, -10000, 0, 3600000]) {
+    let elapsed = 0, wall = now + skew
+    const transport = createAppCenterTransport((async () => { elapsed += 250; return snapshotResponse() }) as typeof fetch, () => elapsed)
+    const controller = createAppCenterController(transport, () => wall)
+    controller.clear(identity); await controller.refresh()
+    assert.equal(controller.state.status, 'ready')
+    assert.equal(controller.currentTime(), now + 1250)
+    const card = view().items[0]
+    wall -= 86400000; elapsed = 13999
+    assert.equal(controller.canExecute(card.cardKey, 'open', digest), true)
+    wall += 172800000; elapsed = 14000
+    assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
+    assert.equal(controller.state.stale, true)
+    controller.dispose()
+  }
+})
+
+test('missing, malformed or stale response time fails closed, including body transit', async () => {
+  for (const date of [null, 'garbage', '2026-10-12', new Date(now + 20000).toUTCString(), new Date(now - 10000).toUTCString()]) {
+    const transport = createAppCenterTransport((async () => snapshotResponse(view(), date)) as typeof fetch, () => 0)
+    const controller = createAppCenterController(transport, () => now)
+    controller.clear(identity); await controller.refresh()
+    assert.equal(controller.state.status, 'error', String(date)); assert.equal(controller.state.value, null)
+    controller.dispose()
+  }
+  let elapsed = 0
+  const transport = createAppCenterTransport((async () => {
+    const response = snapshotResponse()
+    return new Response(new ReadableStream({ pull(stream) {
+      elapsed = 14500
+      stream.enqueue(new TextEncoder().encode(JSON.stringify(view()))); stream.close()
+    } }), { headers: response.headers })
+  }) as typeof fetch, () => elapsed)
+  const controller = createAppCenterController(transport, () => now)
+  controller.clear(identity); await controller.refresh()
+  assert.equal(controller.state.status, 'error'); controller.dispose()
+})
+
+test('early source expiry, hidden page and identity reset block actions', async () => {
+  let elapsed = 0
+  const early = view(); early.validUntil = new Date(now + 2500).toISOString()
+  const transport = createAppCenterTransport((async () => snapshotResponse(early)) as typeof fetch, () => elapsed)
+  const controller = createAppCenterController(transport, () => now - 3600000), card = early.items[0]
+  controller.clear(identity); await controller.refresh()
+  elapsed = 1500
+  assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
+  elapsed = 0; await controller.refresh(); controller.suspend()
+  assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
+  controller.clear({ ...identity, userId: id(8) }); await controller.refresh()
+  assert.equal(controller.state.value, null)
+  assert.equal(controller.currentTime(), now - 3600000, 'invalid scope cannot install a clock')
+  controller.dispose()
+})
+
+test('late and rejected response clocks cannot recalibrate the active snapshot', async () => {
+  let elapsed = 0, calls = 0
+  const first = deferred<Response>()
+  const transport = createAppCenterTransport((async () => ++calls === 1 ? first.promise : snapshotResponse()) as typeof fetch, () => elapsed)
+  const controller = createAppCenterController(transport, () => now - 3600000)
+  controller.clear(identity); const pending = controller.refresh()
+  elapsed = 500; await controller.refresh()
+  assert.equal(controller.currentTime(), now + 1000)
+  first.resolve(snapshotResponse(view(), new Date(now + 3600000).toUTCString())); await pending
+  assert.equal(controller.currentTime(), now + 1000)
+  elapsed = 14500
+  assert.equal(controller.canExecute(view().items[0].cardKey, 'open', digest), false)
+  controller.dispose()
 })

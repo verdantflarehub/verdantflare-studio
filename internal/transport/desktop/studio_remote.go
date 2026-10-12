@@ -133,6 +133,11 @@ func RemoteAssetHandler(s *Service, fallback http.Handler) http.Handler {
 			return
 		}
 		w.Header().Set("X-Request-ID", out.RequestID)
+		// Preserve upstream time; never substitute the desktop machine's clock.
+		w.Header()["Date"] = nil
+		if out.Date != "" {
+			w.Header().Set("Date", out.Date)
+		}
 		w.Header().Set("Content-Type", out.MIME)
 		if publicAsset {
 			w.Header().Set("Access-Control-Allow-Origin", "*")

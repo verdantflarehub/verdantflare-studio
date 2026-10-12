@@ -2,7 +2,10 @@ import { validAppCenterView } from './schema.generated.ts'
 import type { AppCenterCard, AppCenterScope, AppCenterView } from './schema.generated'
 
 export type Identity = Pick<AppCenterScope, 'userId' | 'organizationId' | 'stationId'>
-export interface AppCenterTransport { read(signal: AbortSignal): Promise<unknown> }
+export interface AppCenterTransport {
+  read(signal: AbortSignal): Promise<unknown>
+  clock?(value: unknown): (() => number) | undefined
+}
 export interface AppCenterState {
   status: 'idle' | 'loading' | 'empty' | 'ready' | 'error'
   value: AppCenterView | null
@@ -60,15 +63,17 @@ export function selectCards(view: AppCenterView | null, query = '', group = 'all
 export function createAppCenterController(transport: AppCenterTransport, now = Date.now) {
   let state: AppCenterState = { status: 'idle', value: null, refreshing: false, stale: true, error: '' }
   let identity: Identity | null = null, generation = 0, pending: AbortController | null = null
+  let snapshotClock = now
+  const currentTime = () => snapshotClock()
   const listeners = new Set<(state: AppCenterState) => void>()
   function publish(next: AppCenterState) { state = next; for (const listener of listeners) listener(state) }
   function cancel() { generation++; pending?.abort(); pending = null }
   function clear(next: Identity | null = null) {
-    cancel(); identity = next ? { ...next } : null
+    cancel(); identity = next ? { ...next } : null; snapshotClock = now
     publish({ status: 'idle', value: null, refreshing: false, stale: true, error: '' })
   }
   function expire() {
-    if (state.value && !state.stale && Date.parse(state.value.validUntil) <= now()) publish({ ...state, stale: true })
+    if (state.value && !state.stale && Date.parse(state.value.validUntil) <= currentTime()) publish({ ...state, stale: true })
   }
   function canExecute(cardKey: string, actionId: string, bindingRevision: string): boolean {
     expire()
@@ -86,7 +91,10 @@ export function createAppCenterController(transport: AppCenterTransport, now = D
       const raw = await transport.read(controller.signal)
       if (epoch !== generation) return
       if (controller.signal.aborted) throw new AppCenterError(408, 'APPCENTER_TIMEOUT')
-      const value = decodeView(raw, expected, now())
+      const clock = transport.clock ? transport.clock(raw) : now
+      if (!clock) return invalid()
+      const value = decodeView(raw, expected, clock())
+      snapshotClock = clock
       publish({ status: value.items.length ? 'ready' : 'empty', value, refreshing: false, stale: false, error: '' })
     } catch (error) {
       if (epoch !== generation) return
@@ -96,8 +104,8 @@ export function createAppCenterController(transport: AppCenterTransport, now = D
     } finally { clearTimeout(timer); if (pending === controller) pending = null }
   }
   function dispose() { clear(); listeners.clear() }
-  function suspend() { cancel(); expire(); publish({ ...state, status: state.value ? state.status : 'idle', refreshing: false }) }
-  return { get state() { return state }, clear, refresh, expire, canExecute, dispose, suspend,
+  function suspend() { cancel(); publish({ ...state, status: state.value ? state.status : 'idle', refreshing: false, stale: true }) }
+  return { get state() { return state }, clear, refresh, expire, canExecute, currentTime, dispose, suspend,
     subscribe(listener: (state: AppCenterState) => void) { listeners.add(listener); listener(state); return () => { listeners.delete(listener) } },
   }
 }

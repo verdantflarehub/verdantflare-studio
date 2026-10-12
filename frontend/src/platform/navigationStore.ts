@@ -15,7 +15,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   const entries = computed(() => {
     const value = state.value.status === 'ready' ? state.value.value : null
     if (!value) return []
-    return appcenter && value.mode === 'preinstalled' ? appCenterNavigationEntries(value, appcenter.state) : value.projection.entries
+    return appcenter && value.mode === 'preinstalled' ? appCenterNavigationEntries(value, appcenter.state, appcenter.currentTime()) : value.projection.entries
   })
   const pinned = computed(() => entries.value.filter(entry => entry.pinned))
   const legacy = computed(() => state.value.status === 'ready' && state.value.value?.mode === 'legacy')

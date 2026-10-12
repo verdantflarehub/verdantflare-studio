@@ -69,7 +69,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   function schedule() {
     clearTimeout(timer)
     if (!visible() || !host.connected) return
-    const until = state.value.value ? Date.parse(state.value.value.validUntil) - Date.now() : 15000
+    const until = state.value.value ? Date.parse(state.value.value.validUntil) - controller.currentTime() : 15000
     const delay = state.value.status === 'ready' && !state.value.stale ? Math.max(100, Math.min(15000, until)) : 15000
     timer = setTimeout(() => { controller.expire(); void refresh() }, delay)
   }
@@ -105,5 +105,5 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
   onScopeDispose(() => { clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
-  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, canExecute: controller.canExecute }
+  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

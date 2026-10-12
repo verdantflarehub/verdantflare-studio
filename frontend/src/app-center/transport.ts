@@ -2,8 +2,10 @@ import { AppCenterError } from './controller.ts'
 import type { AppCenterTransport } from './controller'
 
 /** Wails' in-process asset handler forwards this same fixed path to Studio. */
-export function createAppCenterTransport(fetcher: typeof fetch = fetch): AppCenterTransport {
-  return { async read(signal) {
+export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotonic = () => performance.now()): AppCenterTransport {
+  const clocks = new WeakMap<object, () => number>()
+  return { clock: value => value && typeof value === 'object' ? clocks.get(value) : undefined, async read(signal) {
+    const started = monotonic()
     const response = await fetcher('/studio/appcenter/v1/view', { method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal })
     if (response.status === 401 || response.status === 403) throw new AppCenterError(response.status, response.status === 401 ? 'UNAUTHENTICATED' : 'PERMISSION_DENIED')
     if (!response.body || response.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
@@ -22,6 +24,11 @@ export function createAppCenterTransport(fetcher: typeof fetch = fetch): AppCent
         throw new AppCenterError(response.status, code)
       }
       if (!value || typeof value !== 'object' || !('requestId' in value) || value.requestId !== response.headers.get('X-Request-ID')) throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
+      const date = response.headers.get('Date'), server = Date.parse(date ?? '')
+      if (!Number.isFinite(server) || new Date(server).toUTCString() !== date) throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
+      // Date is rounded to seconds. Charge a full second and the entire request
+      // duration, including body reads, so network latency never extends a lease.
+      clocks.set(value, () => server + 1000 + Math.max(0, monotonic() - started))
       return value
     } catch (error) { await reader.cancel().catch(() => undefined); throw error }
     finally { reader.releaseLock() }

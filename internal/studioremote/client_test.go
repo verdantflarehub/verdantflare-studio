@@ -46,6 +46,21 @@ func login(t *testing.T, c *Client) {
 	}
 }
 
+func TestAppCenterPreservesUpstreamDate(t *testing.T) {
+	for _, date := range []string{"Mon, 12 Oct 2026 00:00:00 GMT", "", "invalid"} {
+		c := fixture(t, func(r *http.Request) (*http.Response, error) {
+			response := jsonResponse(200, `{}`)
+			response.Header.Set("Date", date)
+			return response, nil
+		})
+		login(t, c)
+		out, err := c.Send(context.Background(), "GET", "/studio/appcenter/v1/view", nil)
+		if err != nil || out.Date != date {
+			t.Fatal("upstream clock was replaced or lost")
+		}
+	}
+}
+
 func TestRemoteCancelledRequestsDoNotMutateSession(t *testing.T) {
 	c := fixture(t, func(r *http.Request) (*http.Response, error) { return jsonResponse(200, `{}`), nil })
 	login(t, c)
