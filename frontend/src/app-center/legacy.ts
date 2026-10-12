@@ -1,9 +1,10 @@
 import { AppCenterError } from './controller.ts'
+import { validStudioOrigin } from './legacy-blender.ts'
 import type { AppCenterCard, AppCenterView } from './schema.generated'
 
 export type LegacyAdapterID = 'image-iframe-v1' | 'video-iframe-v1' | 'blender-host-v1'
 export interface LegacyTarget { adapterId: LegacyAdapterID; route: string; cardKey?: string }
-export interface LegacyOpened { schemaVersion: 1; transport: 'legacy'; adapterId: LegacyAdapterID; bindingId: string; bindingRevision: string; route: string; resourceBase?: string }
+export interface LegacyOpened { schemaVersion: 1; transport: 'legacy'; adapterId: LegacyAdapterID; bindingId: string; bindingRevision: string; route: string; resourceBase?: string; mcpOrigin?: string }
 const id = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 const mediaPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/
 const invalid = (): never => { throw new AppCenterError(400, 'INVALID_LEGACY_ROUTE') }
@@ -52,7 +53,7 @@ export function selectLegacyCard(view: AppCenterView, target: LegacyTarget): App
   return matches[0]
 }
 
-const desktopWorkspace = /^\/studio\/legacy-media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const desktopWorkspace = /^\/studio\/legacy-(?:media|blender)\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 export function createLegacyClient(fetcher: typeof fetch = fetch, desktop = typeof location !== 'undefined' && new URLSearchParams(location.search).get('host') === 'desktop') {
   async function close(opened: Pick<LegacyOpened, 'resourceBase'>): Promise<void> {
     if (!desktop || !opened.resourceBase || !desktopWorkspace.test(opened.resourceBase)) return
@@ -61,11 +62,13 @@ export function createLegacyClient(fetcher: typeof fetch = fetch, desktop = type
   return { close, async open(view: AppCenterView, card: AppCenterCard, signal?: AbortSignal): Promise<LegacyOpened> {
     const entry = card.entry
     if (!entry || entry.transport !== 'legacy') throw new AppCenterError(409, 'APPCENTER_OPEN_UNAVAILABLE')
-    if (desktop && !['image-iframe-v1', 'video-iframe-v1'].includes(entry.entryId)) throw new AppCenterError(409, 'HOST_UNSUPPORTED')
-    const response = await fetcher(desktop ? '/studio/legacy-media' : '/studio/appcenter/v1/open', { method: 'POST', credentials: desktop ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error', signal,
+    if (desktop && !['image-iframe-v1', 'video-iframe-v1', 'blender-host-v1'].includes(entry.entryId)) throw new AppCenterError(409, 'HOST_UNSUPPORTED')
+    const localPrefix = entry.entryId === 'blender-host-v1' ? '/studio/legacy-blender' : '/studio/legacy-media'
+    const response = await fetcher(desktop ? localPrefix : '/studio/appcenter/v1/open', { method: 'POST', credentials: desktop ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error', signal,
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schemaVersion: 1, cardKey: card.cardKey, entryId: entry.entryId,
         expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }) })
-    const resourceBase = desktop ? '/studio/legacy-media/' + response.headers.get('X-Studio-Legacy-Workspace') : undefined
+    const resourceBase = desktop ? localPrefix + '/' + response.headers.get('X-Studio-Legacy-Workspace') : undefined
+    const mcpOrigin = desktop && entry.entryId === 'blender-host-v1' ? response.headers.get('X-Studio-Legacy-Origin') : undefined
     if (!response.body || response.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') {
       await close({ resourceBase }); throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
     }
@@ -80,13 +83,14 @@ export function createLegacyClient(fetcher: typeof fetch = fetch, desktop = type
       if (signal?.aborted) throw new AppCenterError(408, 'REQUEST_CANCELLED')
       if (!response.ok) throw new AppCenterError(response.status, typeof value?.code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/.test(value.code) ? value.code : 'APPCENTER_OPEN_UNAVAILABLE')
       if (desktop && (!resourceBase || !desktopWorkspace.test(resourceBase))) throw new AppCenterError(409, 'HOST_UNSUPPORTED')
+      if (mcpOrigin !== undefined && !validStudioOrigin(mcpOrigin)) throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
       if (!value || Object.keys(value).sort().join(',') !== 'adapterId,bindingId,bindingRevision,route,schemaVersion,transport'
         || value.schemaVersion !== 1 || value.transport !== 'legacy' || value.adapterId !== entry.entryId
         || typeof value.bindingId !== 'string' || !id.test(value.bindingId) || value.bindingRevision !== card.bindingRevision
         || typeof value.route !== 'string') throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
       const target = legacyTarget(value.route)
       if (!target || target.adapterId !== value.adapterId || target.cardKey || target.route !== value.route) throw new AppCenterError(502, 'APPCENTER_INVALID_OPEN')
-      return desktop ? { ...value, resourceBase } : value as LegacyOpened
+      return desktop ? { ...value, resourceBase, ...(mcpOrigin ? { mcpOrigin } : {}) } : value as LegacyOpened
     } catch (error) { await reader.cancel().catch(() => undefined); await close({ resourceBase }); throw error }
     finally { reader.releaseLock() }
   } }

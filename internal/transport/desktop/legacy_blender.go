@@ -25,6 +25,7 @@ var desktopBlenderEdit = regexp.MustCompile(`^[A-Za-z0-9_-]{32,128}$`)
 
 type blenderRemoteSession interface {
 	Active() bool
+	Origin() string
 	Send(context.Context, string, string, []byte) (studioremote.Response, error)
 	LegacyBlender(context.Context, string, string, []byte) (studioremote.Response, error)
 }
@@ -250,6 +251,9 @@ func (b *desktopLegacyBlender) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	}
 	b.mu.Unlock()
 	switch {
+	case tail == "signal-shim.js" && r.Method == "GET":
+		w.Header().Set("Content-Type", "text/javascript")
+		_, _ = w.Write(blenderSignalScript)
 	case tail == "requests":
 		b.request(w, r.WithContext(ctx), lease)
 	case tail == "asset":
@@ -308,6 +312,7 @@ func (b *desktopLegacyBlender) open(w http.ResponseWriter, r *http.Request) {
 	b.leases[lease.id] = lease
 	b.mu.Unlock()
 	w.Header().Set("X-Studio-Legacy-Workspace", lease.id)
+	w.Header().Set("X-Studio-Legacy-Origin", session.Origin())
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	_, _ = w.Write(out.Data)
@@ -430,14 +435,19 @@ func (b *desktopLegacyBlender) asset(w http.ResponseWriter, r *http.Request, lea
 		blenderFailure(w, 409, "STUDIO_SESSION_CHANGED")
 		return
 	}
-	// The legacy viewer needs a WebView signal shim before its HTML can run.
-	// Keep this precise boundary explicit while static/config transport is tested.
 	if out.Status == 200 && out.MIME == "text/html" {
-		blenderFailure(w, 409, "HOST_UNSUPPORTED")
-		return
+		out.Data, err = blenderViewer(out.Data, blenderWorkspacePrefix+"/"+lease.id, parts[0], parts[1])
+		if err != nil {
+			blenderFailure(w, 502, "INVALID_LEGACY_VIEWER")
+			return
+		}
 	}
 	w.Header().Set("Content-Type", out.MIME)
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
+	var viewer []byte
+	if out.Status == 200 && out.MIME == "text/html" {
+		viewer = out.Data
+	}
+	w.Header().Set("Content-Security-Policy", blenderViewerCSP(localLegacyOrigin(r), viewer))
 	w.WriteHeader(out.Status)
 	_, _ = w.Write(out.Data)
 }

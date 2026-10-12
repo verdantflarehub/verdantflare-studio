@@ -1,8 +1,9 @@
 import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summary, instanceCard, detail } from './blender-management';
 import { mountBlenderCreation } from './blender-create';
 import { createBlenderStarter } from './blender-start';
+import { blenderMCPAddress } from '../app-center/legacy-blender';
 
-export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize }) {
+export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize, fetcher = fetch, mcpOrigin = location.origin }) {
   const $ = id => root.querySelector('#' + id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
   const lifetime = new AbortController();
   let active = false, items = [], route = null, epoch = 0, session = null, pending = null;
@@ -36,7 +37,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!keepalive && authorize) await authorize();
     const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 30000);
     try {
-      const response = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: keepalive ? controller.signal : AbortSignal.any([controller.signal, lifetime.signal]),
+      const response = await fetcher(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: keepalive ? controller.signal : AbortSignal.any([controller.signal, lifetime.signal]),
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw Object.assign(Error(messages[data.code] || '暂时无法连接，请重试。'), {code:data.code,status:response.status});
@@ -304,7 +305,10 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   listen($('blenderSave'), 'click', () => void save());
   listen($('blenderCopy'), 'click', () => {
     const item = items.find(i => i.alias === alias());
-    if (item) navigator.clipboard.writeText(location.origin + item.mcp_path).then(() => notice('已复制实例 MCP 地址')).catch(() => notice('复制失败，请检查浏览器权限。'));
+    if (item) {
+      try { navigator.clipboard.writeText(blenderMCPAddress(mcpOrigin, item.alias, item.mcp_path)).then(() => notice('已复制实例 MCP 地址')).catch(() => notice('复制失败，请检查浏览器权限。')); }
+      catch { notice('实例 MCP 地址无效，请刷新后重试。'); }
+    }
   });
   listen($('blenderSearch'), 'input', renderList); listen($('blenderListRetry'), 'click', () => void sync(true));
   const startInstance = createBlenderStarter({request,storage:sessionStorage});

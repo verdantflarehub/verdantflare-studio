@@ -74,6 +74,9 @@ func TestLegacyBlenderPreservesBytesAndOriginalSession(t *testing.T) {
 	})
 	login(t, c)
 	s, _ := c.Session()
+	if s.Origin() != c.base {
+		t.Fatal("original gateway origin missing")
+	}
 	out, err := s.LegacyBlender(context.Background(), "POST", "/studio/apps/blender/instances/blenderA/start", []byte(original))
 	if err != nil || out.Status != 202 || string(out.Data) != `{"operation_id":"same-operation"}` || out.MIME != "application/json" {
 		t.Fatal(out, err)
@@ -82,6 +85,9 @@ func TestLegacyBlenderPreservesBytesAndOriginalSession(t *testing.T) {
 		t.Fatal("transfer leaked or retried")
 	}
 	login(t, c)
+	if s.Origin() != "" {
+		t.Fatal("old session exposed new login origin")
+	}
 	if _, err = s.LegacyBlender(context.Background(), "POST", "/studio/apps/blender/instances/blenderA/start", []byte(original)); !errors.Is(err, ErrChanged) || calls != 1 {
 		t.Fatal("old workspace acquired new login")
 	}

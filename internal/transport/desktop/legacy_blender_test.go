@@ -25,7 +25,8 @@ type memoryBlenderSession struct {
 	read     func(context.Context, string, string, []byte) (studioremote.Response, error)
 }
 
-func (s *memoryBlenderSession) Active() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.active }
+func (s *memoryBlenderSession) Active() bool   { s.mu.Lock(); defer s.mu.Unlock(); return s.active }
+func (s *memoryBlenderSession) Origin() string { return "https://studio.invalid" }
 func (s *memoryBlenderSession) Send(_ context.Context, method, path string, body []byte) (studioremote.Response, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -431,7 +432,7 @@ func TestDesktopLegacyBlenderSignalConcurrencyAndCancellation(t *testing.T) {
 	}
 }
 
-func TestDesktopLegacyBlenderBoundAssetsAndPendingViewer(t *testing.T) {
+func TestDesktopLegacyBlenderBoundAssetsAndViewer(t *testing.T) {
 	b, s, body, _ := blenderDesktopFixture(t)
 	prefix := openBlenderWorkspace(t, b, body)
 	openBlenderEdit(t, b, prefix)
@@ -441,7 +442,7 @@ func TestDesktopLegacyBlenderBoundAssetsAndPendingViewer(t *testing.T) {
 		data := "window.ready=true"
 		if strings.HasSuffix(path, "/") {
 			kind = "text/html"
-			data = "<html><head></head></html>"
+			data = `<html><head><script src="studio-embed.js"></script></head></html>`
 		}
 		return studioremote.Response{Status: 200, MIME: kind, Data: []byte(data)}, nil
 	}
@@ -451,8 +452,12 @@ func TestDesktopLegacyBlenderBoundAssetsAndPendingViewer(t *testing.T) {
 	if w.Code != 200 || w.Body.String() != "window.ready=true" || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("bound asset failed")
 	}
-	if callBlender(b, "GET", root, nil).Code != 409 {
-		t.Fatal("viewer enabled before shim")
+	viewer := callBlender(b, "GET", root, nil)
+	if viewer.Code != 200 || !strings.Contains(viewer.Body.String(), prefix+"/signal-shim.js") || !strings.Contains(viewer.Header().Get("Content-Security-Policy"), "connect-src http://wails.localhost;") {
+		t.Fatal("bound viewer missing shim or local CSP")
+	}
+	if shim := callBlender(b, "GET", prefix+"/signal-shim.js", nil); shim.Code != 200 || !bytes.Equal(shim.Body.Bytes(), blenderSignalScript) {
+		t.Fatal("bound signal shim unavailable")
 	}
 	if callBlender(b, "GET", strings.Replace(root, "blenderA", "blenderB", 1)+"studio-embed.js", nil).Code != 410 {
 		t.Fatal("asset alias changed")

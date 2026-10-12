@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mountBlender } from '../pages/blender-embed'
+import { createBlenderFetcher } from './legacy-blender'
 import '../theme/blender-management.css'
 
-const props = defineProps<{ route: string; authorize: () => Promise<void> }>()
+const props = defineProps<{ route: string; resourceBase?: string; mcpOrigin?: string; authorize: () => Promise<void> }>()
 const emit = defineEmits<{ navigate: [route: string] }>()
 const root = ref<HTMLElement>(), message = ref('')
 const controller = new AbortController()
@@ -19,7 +20,8 @@ onMounted(() => {
     if (!anchor) return
     event.preventDefault(); emit('navigate', anchor.getAttribute('href')!.slice(1))
   }, { capture: true, signal: controller.signal })
-  adapter = mountBlender({ root: root.value!, location: routeLocation, listen, notice: (value: string) => { message.value = value }, authorize: props.authorize })
+  adapter = mountBlender({ root: root.value!, location: routeLocation, listen, notice: (value: string) => { message.value = value }, authorize: props.authorize,
+    fetcher: createBlenderFetcher(props.resourceBase), mcpOrigin: props.mcpOrigin ?? location.origin })
   void adapter.sync().catch(() => { message.value = '应用暂时无法读取，请返回后重试。' })
 })
 watch(() => props.route, () => { void adapter?.sync().catch(() => { message.value = '应用暂时无法读取，请返回后重试。' }) })

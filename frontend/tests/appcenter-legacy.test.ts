@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } from '../src/app-center/legacy.ts'
 import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
+import { createBlenderFetcher, validStudioOrigin, blenderMCPAddress } from '../src/app-center/legacy-blender.ts'
 import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.generated.ts'
 
 const digest = `sha256:${'a'.repeat(64)}`, key = `obs:${'b'.repeat(64)}`
@@ -22,7 +23,35 @@ test('desktop media opens a bound local workspace and releases it without changi
   assert.deepEqual(result, { ...opened, resourceBase: '/studio/legacy-media/' + handle })
   await client.close(result)
   assert.deepEqual(calls, ['POST /studio/legacy-media', 'DELETE /studio/legacy-media/' + handle])
-  await assert.rejects(client.open(view, { ...card, entry: { ...card.entry!, entryId: 'blender-host-v1' } }), /HOST_UNSUPPORTED/)
+})
+
+test('desktop Blender binds management and MCP origin to the original workspace', async () => {
+  const handle = '01980000-0000-4000-8000-000000000001', resourceBase = '/studio/legacy-blender/' + handle
+  const blender = { ...card, entry: { ...card.entry!, entryId: 'blender-host-v1' } }
+  const reply = { ...opened, adapterId: 'blender-host-v1', route: '/market?blender=instances' }
+  for (const origin of ['https://studio.invalid', 'http://127.0.0.1:9000', null, 'https://studio.invalid/', 'https://user@studio.invalid', 'http://untrusted.invalid', 'https://studio.invalid/path']) {
+    let closed = 0
+    const client = createLegacyClient(async (url, init) => {
+      if (init!.method === 'DELETE') { assert.equal(url, resourceBase); closed++; return new Response(null, { status: 204 }) }
+      assert.equal(url, '/studio/legacy-blender')
+      return Response.json(reply, { headers: { 'X-Studio-Legacy-Workspace': handle, ...(origin ? { 'X-Studio-Legacy-Origin': origin } : {}) } })
+    }, true)
+    if (validStudioOrigin(origin)) {
+      assert.deepEqual(await client.open(view, blender), { ...reply, resourceBase, mcpOrigin: origin })
+      assert.equal(blenderMCPAddress(origin, 'blenderA', '/mcp/blenderA'), origin + '/mcp/blenderA')
+    } else { await assert.rejects(client.open(view, blender), /APPCENTER_INVALID_OPEN/); assert.equal(closed, 1) }
+  }
+  const controller = new AbortController(), raw = '{ "id": "original", "method": "tools/call" }'
+  const calls: string[] = []
+  const fetcher = createBlenderFetcher(resourceBase, async (url, init) => {
+    assert.equal(url, resourceBase + '/requests'); assert.equal(init!.signal, controller.signal); assert.equal(init!.credentials, 'omit')
+    calls.push(init!.body as string); return Response.json({ ok: true })
+  })
+  await fetcher('/mcp/blenderA', { method: 'POST', body: raw, signal: controller.signal })
+  await fetcher('/studio/apps/blender/instances', { signal: controller.signal })
+  assert.deepEqual(calls.map(value => JSON.parse(value)), [{ method: 'POST', path: '/mcp/blenderA', body: raw }, { method: 'GET', path: '/studio/apps/blender/instances', body: '' }])
+  for (const path of ['https://other.invalid/mcp/blenderA', '/api/commands', '/mcp/blenderA?secret=x', '/mcp/%62lenderA']) await assert.rejects(fetcher(path))
+  assert.throws(() => blenderMCPAddress('https://studio.invalid', 'blenderA', '/mcp/blenderB'))
   assert.equal(calls.length, 2)
 })
 
