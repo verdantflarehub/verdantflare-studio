@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
+	"github.com/verdantflarehub/verdantflare-studio/internal/appstatehints"
 	"github.com/verdantflarehub/verdantflare-studio/internal/buildinfo"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -32,6 +34,7 @@ type Server struct {
 	mu              sync.Mutex
 	sessions        map[string]session
 	etcd            *clientv3.Client
+	appStateHints   func(context.Context, appcenter.Scope) (<-chan appstatehints.RefreshEvent, error)
 	mcpGateway      *mcp.Gateway
 	blenderEndpoint func() (string, bool)
 	comfyuiEndpoint func() (string, bool)
