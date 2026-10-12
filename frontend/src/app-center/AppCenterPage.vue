@@ -88,6 +88,43 @@ const groups = computed(() => {
   for (const card of store.state.value?.items ?? []) if (!names.has(card.display.groupId)) names.set(card.display.groupId, '未分类')
   return Array.from(names, ([id, label]) => ({ id, label }))
 })
+const groupMeta: Record<string, { title: string; subtitle: string }> = {
+  image: { title: '图像应用', subtitle: 'Image' },
+  video: { title: '视频制作', subtitle: 'Video' },
+  music: { title: '音频制作', subtitle: 'Music' },
+  desktop: { title: '创作工具', subtitle: 'Desktop Tools' },
+  system: { title: '系统应用', subtitle: 'System' },
+}
+const visibleSections = computed(() => {
+  const items = result.value.items
+  const groupOrder = new Map((store.state.value?.groups ?? []).map((g, idx) => [g.id, g.order ?? idx]))
+  const map = new Map<string, AppCenterCard[]>()
+  for (const card of items) {
+    const gid = card.display.groupId || 'uncategorized'
+    let list = map.get(gid)
+    if (!list) {
+      list = []
+      map.set(gid, list)
+    }
+    list.push(card)
+  }
+  const sections: { id: string; title: string; subtitle: string; order: number; items: AppCenterCard[] }[] = []
+  for (const [gid, cardList] of map.entries()) {
+    if (!cardList.length) continue
+    const meta = groupMeta[gid]
+    const label = groups.value.find(g => g.id === gid)?.label ?? gid
+    const order = groupOrder.get(gid) ?? 999
+    sections.push({
+      id: gid,
+      title: meta?.title ?? label,
+      subtitle: meta?.subtitle ?? gid.toUpperCase(),
+      order,
+      items: cardList
+    })
+  }
+  sections.sort((a, b) => a.order - b.order)
+  return sections
+})
 let listScroll = 0
 function back() { void router.replace(returnLocation.value) }
 async function perform(card: AppCenterCard, actionId: string) {
@@ -172,7 +209,18 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
         <p v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="panel appcenter-message" role="status">正在读取应用信息…</p>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
         <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
-        <div class="appcenter-grid"><AppCard v-for="card in result.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" /></div>
+        <div v-else class="catalog-groups">
+          <section v-for="sec in visibleSections" :key="sec.id" class="group-section">
+            <div class="section-title">
+              <h2>{{ sec.title }}</h2>
+              <small>{{ sec.subtitle }} · {{ sec.items.length }}</small>
+              <span class="line" aria-hidden="true"></span>
+            </div>
+            <div class="appcenter-grid">
+              <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" />
+            </div>
+          </section>
+        </div>
       </section>
     </template>
   </div></main>
@@ -183,6 +231,11 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 </template>
 
 <style scoped>
+.group-section { margin-bottom: 28px; }
+.section-title { display: flex; align-items: center; gap: 10px; margin: 22px 0 14px; }
+.section-title h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.2px; color: var(--ink); margin: 0; }
+.section-title small { color: var(--muted-2); font-size: 11px; }
+.section-title .line { height: 1px; background: var(--line); flex: 1; margin-left: 6px; }
 .appcenter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
 .appcenter-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
