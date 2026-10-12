@@ -1,5 +1,6 @@
 import { AppCenterError } from './controller.ts'
 import type { AppCenterTransport } from './controller'
+import { responseClock } from '../pages/response-clock.js'
 
 /** Wails' in-process asset handler forwards this same fixed path to Studio. */
 export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotonic = () => performance.now()): AppCenterTransport {
@@ -24,11 +25,8 @@ export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotoni
         throw new AppCenterError(response.status, code)
       }
       if (!value || typeof value !== 'object' || !('requestId' in value) || value.requestId !== response.headers.get('X-Request-ID')) throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
-      const date = response.headers.get('Date'), server = Date.parse(date ?? '')
-      if (!Number.isFinite(server) || new Date(server).toUTCString() !== date) throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
-      // Date is rounded to seconds. Charge a full second and the entire request
-      // duration, including body reads, so network latency never extends a lease.
-      clocks.set(value, () => server + 1000 + Math.max(0, monotonic() - started))
+      try { clocks.set(value, responseClock(response.headers.get('Date'), started, monotonic)) }
+      catch { throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW') }
       return value
     } catch (error) { await reader.cancel().catch(() => undefined); throw error }
     finally { reader.releaseLock() }

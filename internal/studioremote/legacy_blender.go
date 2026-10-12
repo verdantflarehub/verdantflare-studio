@@ -222,7 +222,7 @@ func (s *Session) LegacyBlender(ctx context.Context, method, target string, body
 			return Response{}, ErrInvalid
 		}
 	}
-	return Response{Status: resp.StatusCode, MIME: kind, Data: data}, nil
+	return Response{Status: resp.StatusCode, MIME: kind, Date: resp.Header.Get("Date"), Data: data}, nil
 }
 
 // BlenderSignal is a Go-owned text connection. A local workspace must close it

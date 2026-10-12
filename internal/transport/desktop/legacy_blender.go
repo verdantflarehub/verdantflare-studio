@@ -416,6 +416,11 @@ func (b *desktopLegacyBlender) request(w http.ResponseWriter, r *http.Request, l
 		return
 	}
 	w.Header().Set("Content-Type", out.MIME)
+	// Preserve the observation clock and suppress Go's local Date fallback.
+	w.Header()["Date"] = nil
+	if out.Date != "" {
+		w.Header().Set("Date", out.Date)
+	}
 	w.WriteHeader(out.Status)
 	_, _ = w.Write(out.Data)
 }

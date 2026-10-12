@@ -15,6 +15,19 @@ function fixture() {
   return {item,actor,map,calls,storage,result,request};
 }
 
+test('lifecycle uses injected response time and rechecks expiry after permission read',async()=>{
+  const f=fixture();
+  const stamp=Date.parse(f.item.observed_at);
+  let current=stamp;
+  const request=async(path,body)=>{const result=await f.request(path,body);if(!body)current+=31000;return result;};
+  const start=createBlenderStarter({...f,request,now:()=>current});
+  await assert.rejects(start(f.item),/过期/);
+  assert.equal(f.calls.filter(call=>call.body).length,0);
+  assert.equal(f.map.size,0);
+  current=stamp;
+  assert.equal(await createBlenderStarter({...f,now:()=>current})(f.item),f.result);
+});
+
 test('start requires fresh server permission and a stopped, versioned instance',()=>{
   const f = fixture();
   assert.ok(canStart(f.item));

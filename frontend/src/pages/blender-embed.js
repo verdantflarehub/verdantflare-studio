@@ -2,10 +2,14 @@ import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summa
 import { mountBlenderCreation } from './blender-create';
 import { createBlenderStarter } from './blender-start';
 import { blenderMCPAddress } from '../app-center/legacy-blender';
+import { responseClock } from './response-clock.js';
 
 export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize, fetcher = fetch, mcpOrigin = location.origin }) {
   const $ = id => root.querySelector('#' + id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
   const lifetime = new AbortController();
+  const clocks = new WeakMap();
+  let snapshotClock = () => NaN, expiry;
+  const now = () => snapshotClock();
   let active = false, items = [], route = null, epoch = 0, session = null, pending = null;
   let timeout, renewal, saving = false, listScroll = 0, marketScroll = 0;
   let polling, filter = 'all', refreshing = false, hasSnapshot = false, createAvailable = false, operation = null, operationError = '';
@@ -37,15 +41,36 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!keepalive && authorize) await authorize();
     const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 30000);
     try {
+      const started = performance.now();
       const response = await fetcher(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: keepalive ? controller.signal : AbortSignal.any([controller.signal, lifetime.signal]),
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw Object.assign(Error(messages[data.code] || '暂时无法连接，请重试。'), {code:data.code,status:response.status});
+      if (path === '/studio/apps/blender/instances' && body === undefined) {
+        if (data?.schema_version !== 1 || !Array.isArray(data.instances)) throw Error('实例管理服务需要更新，请联系管理员。');
+        clocks.set(data, responseClock(response.headers.get('Date'), started));
+      }
       return data;
     } catch (error) {
       if (controller.signal.aborted) throw Error('连接请求超时，请重试。');
       throw error;
     } finally { clearTimeout(deadline); }
+  }
+  function adoptSnapshot(data) {
+    snapshotClock = clocks.get(data);
+    items = data.instances; hasSnapshot = true;
+    clearTimeout(expiry);
+    scheduleExpiry();
+  }
+  function scheduleExpiry() {
+    const currentTime = now();
+    const remaining = items.map(item => Date.parse(item.observed_at) + 30001 - currentTime).filter(value => value > 0);
+    if (!remaining.length) return;
+    expiry = setTimeout(() => {
+      if (!active) return;
+      if (alias() === 'instances') renderList(); else if (panel()) renderDetail();
+      scheduleExpiry();
+    }, Math.min(...remaining));
   }
   const creation = mountBlenderCreation({host:$('blenderCreateView'),request,listen,onAccepted:value=>{
     location.hash = '/market?blender='+encodeURIComponent(value.alias)+'&panel=overview&operation='+encodeURIComponent(value.operation_id);
@@ -118,6 +143,14 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     timeout = setTimeout(() => { if (current === epoch) void stop('连接超时，请重试。', 'error'); }, 45000);
     pending = (async () => {
       try {
+        // Reconnects and direct links must recheck the same current observation
+        // as the cards; old snapshots cannot authorize a new editing lease.
+        const data = await request('/studio/apps/blender/instances');
+        if (current !== epoch || !active || alias() !== target) return;
+        adoptSnapshot(data);
+        if (!canOpen(items.find(item => item.alias === target) || {}, now())) {
+          throw Error('实例状态或控制权暂不允许连接，请返回详情刷新检查。');
+        }
         const value = await request('/studio/apps/blender/' + target + '/open', {});
         const opened = { alias: target, id: value.editing_session_id };
         if (current !== epoch || !active || alias() !== target) { await closeLease(opened); return; }
@@ -137,11 +170,12 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   }
   function renderList() {
     if (!hasSnapshot) return;
+    const currentTime = now();
     const search = $('blenderSearch').value.trim().toLowerCase();
     const matches = items.filter(item => (name(item) + ' ' + item.alias + ' ' + (item.project_name || '')).toLowerCase().includes(search)
-      && (filter === 'all' || filter === 'failed' && (!isFresh(item) || ['unknown','failed'].includes(item.status)) || isFresh(item) && item.status === filter));
-    $('blenderRows').innerHTML = matches.map(instanceCard).join('');
-    $('blenderSummary').innerHTML = summary(items); $('blenderSummary').hidden = false;
+      && (filter === 'all' || filter === 'failed' && (!isFresh(item, currentTime) || ['unknown','failed'].includes(item.status)) || isFresh(item, currentTime) && item.status === filter));
+    $('blenderRows').innerHTML = matches.map(item => instanceCard(item, currentTime)).join('');
+    $('blenderSummary').innerHTML = summary(items, currentTime); $('blenderSummary').hidden = false;
     $('blenderListMessage').hidden = !!matches.length;
     $('blenderListMessage').textContent = items.length ? '没有匹配的实例。' : '当前账号暂无可访问的实例。';
   }
@@ -150,7 +184,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!selected || !['overview','resources','activity'].includes(panel())) {
       $('blenderDetail').textContent = '实例不存在或当前账号无权访问。'; return;
     }
-    $('blenderDetail').innerHTML = detail(selected, panel());
+    $('blenderDetail').innerHTML = detail(selected, panel(), now());
     operationView();
   }
   function detailError(message) {
@@ -171,8 +205,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     try {
       const data = await request('/studio/apps/blender/instances');
       if (current !== epoch) return;
-      if (data.schema_version !== 1 || !Array.isArray(data.instances)) throw Error('实例管理服务需要更新，请联系管理员。');
-      items = data.instances; hasSnapshot = true;
+      adoptSnapshot(data);
       createAvailable = data.capabilities?.create === true; creationAction();
       await readOperation(current); if(current !== epoch) return;
       breadcrumb(alias());
@@ -184,6 +217,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       if (current !== epoch) return;
       createAvailable = false; creationAction(); operation = null; operationError = '实例状态刷新失败，操作仍在后台核对。';
       // Never leave stale open links enabled after a failed refresh.
+      snapshotClock = () => NaN; clearTimeout(expiry);
       items = items.map(item => ({...item,observed_at:null,status:'unknown',allowed_actions:['view'],resources_observed_at:null,
         resources:Object.fromEntries(Object.entries(item.resources || {}).map(([key,value]) => [key,{...value,value:null,quality:'unavailable'}]))}));
       if (alias() === 'instances') {
@@ -213,7 +247,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (route === 'instances') listScroll = window.scrollY;
     const current = ++epoch, opening = pending;
     if (!active) marketScroll = window.scrollY;
-    active = true; route = key; items = []; hasSnapshot = false; operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
+    active = true; route = key; items = []; hasSnapshot = false; snapshotClock = () => NaN; clearTimeout(expiry); operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
     host.hidden = false; host.style.display = 'flex'; if ($('marketView')) { $('marketView').hidden = true; $('marketView').style.display = 'none'; }
     main.classList.add('embed-active', 'blender-active');
     const management = target !== 'instances' && target !== 'create' && !!panel();
@@ -232,8 +266,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     try {
       const data = await request('/studio/apps/blender/instances');
       if (current !== epoch) return;
-      if (data.schema_version !== 1 || !Array.isArray(data.instances)) throw Error('实例管理服务需要更新，请联系管理员。');
-      items = data.instances; hasSnapshot = true; breadcrumb(target);
+      adoptSnapshot(data); breadcrumb(target);
       createAvailable=data.capabilities?.create===true;creationAction();
       await readOperation(current);if(current!==epoch)return;
       if (target === 'instances') { renderList(); requestAnimationFrame(() => window.scrollTo(0, listScroll)); }
@@ -243,7 +276,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
         const selected = items.find(item => item.alias === target);
         if (!selected) status('实例不存在或当前账号无权访问。', 'empty', false);
         else if (selected.access !== 'edit') status('当前账号没有桌面编辑权限。', 'empty', false);
-        else if (!canOpen(selected)) status('实例状态或控制权暂不允许连接，请返回详情刷新检查。', 'empty', false);
+        else if (!canOpen(selected, now())) status('实例状态或控制权暂不允许连接，请返回详情刷新检查。', 'empty', false);
         else if (saving) status('正在保存工程…', 'saving', false);
         else void connect();
       }
@@ -259,7 +292,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!active) return;
     if (route === 'instances') listScroll = window.scrollY;
     active = false; route = null; ++epoch;
-    clearTimeout(polling);creation.hide();
+    clearTimeout(polling);clearTimeout(expiry);snapshotClock = () => NaN;creation.hide();
     void release().catch(() => {}); host.hidden = true; host.style.display = 'none'; main.classList.remove('blender-active');
     if (!location.hash.includes('video=') && !location.hash.includes('image=')) {
       main.classList.remove('embed-active'); if ($('marketView')) { $('marketView').hidden = false; $('marketView').style.display = ''; }
@@ -311,9 +344,9 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     }
   });
   listen($('blenderSearch'), 'input', renderList); listen($('blenderListRetry'), 'click', () => void sync(true));
-  const startInstance = createBlenderStarter({request,storage:sessionStorage});
-  const stopInstance = createBlenderStarter({request,storage:sessionStorage,action:'stop'});
-  const destroyInstance = createBlenderStarter({request,storage:sessionStorage,action:'destroy'});
+  const startInstance = createBlenderStarter({request,now,storage:sessionStorage});
+  const stopInstance = createBlenderStarter({request,now,storage:sessionStorage,action:'stop'});
+  const destroyInstance = createBlenderStarter({request,now,storage:sessionStorage,action:'destroy'});
   const stopDialog = document.createElement('dialog');stopDialog.className='blender-management blender-stop-dialog';
   stopDialog.setAttribute('aria-labelledby','blenderStopTitle');
   stopDialog.innerHTML='<h2 id="blenderStopTitle"></h2><p data-description></p><ul><li data-retention></li><li data-access></li></ul><label class="field" data-name-field hidden><span>输入实例名称以确认</span><input autocomplete="off" data-name></label><p class="state-note" role="status"></p><div class="actions"><button class="btn" data-cancel>取消</button><button class="btn primary" data-confirm>保存并停止</button></div>';
@@ -327,7 +360,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   listen(stopConfirm,'click',async()=>{
     const item=items.find(value=>value.alias===stopTarget),current=epoch;
     const note=stopDialog.querySelector('[role=status]');
-    if(!item || !(dialogAction==='destroy'?canDestroy(item):canStop(item))){note.textContent='实例状态已变化，请关闭后刷新检查。';return;}
+    if(!item || !(dialogAction==='destroy'?canDestroy(item, now()):canStop(item, now()))){note.textContent='实例状态已变化，请关闭后刷新检查。';return;}
     stopConfirm.disabled=true;
     try{
       const result=await (dialogAction==='destroy'?destroyInstance(item,confirmName.value):stopInstance(item));
@@ -340,7 +373,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if(stopButton && !stopButton.disabled){
       const destroying=stopButton.hasAttribute('data-blender-destroy');
       const item=items.find(value=>value.alias===(destroying?stopButton.dataset.blenderDestroy:stopButton.dataset.blenderStop));
-      if(!item || !(destroying?canDestroy(item):canStop(item)))return;
+      if(!item || !(destroying?canDestroy(item, now()):canStop(item, now())))return;
       dialogAction=destroying?'destroy':'stop';stopTarget=item.alias;stopTrigger=stopButton;stopConfirm.disabled=destroying;
       stopConfirm.textContent=destroying?'确认销毁':'保存并停止';stopConfirm.className=destroying?'btn danger':'btn primary';
       confirmName.value='';stopDialog.querySelector('[data-name-field]').hidden=!destroying;
@@ -369,7 +402,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     for (const el of $('blenderFilters').querySelectorAll('[data-status]')) el.setAttribute('aria-pressed', String(el === button));
     renderList();
   });
-  listen(document, 'visibilitychange', () => { if (active && (alias() === 'instances' || panel())) { if (!document.hidden) void refresh(); else scheduleRefresh(); } });
+  listen(document, 'visibilitychange', () => { if (active && (alias() === 'instances' || panel())) { if (!document.hidden) void refresh(); else { ++epoch; snapshotClock = () => NaN; clearTimeout(expiry); if (alias() === 'instances') renderList(); else renderDetail(); scheduleRefresh(); } } });
   listen(window, 'hashchange', () => void sync()); listen(window, 'pagehide', () => { ++epoch; void release().catch(() => {}); });
   listen(window, 'message', event => {
     if (!active || !session || event.source !== frame.contentWindow || event.origin !== location.origin || event.data?.channel !== 'vf-blender' || event.data?.session !== session.id) return;

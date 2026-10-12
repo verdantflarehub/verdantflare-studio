@@ -17,6 +17,59 @@ import (
 )
 
 // Uses an isolated real gateway listener. Run on the documented dev host.
+func TestDesktopLegacyBlenderDateRelay(t *testing.T) {
+	for _, date := range []string{"Mon, 12 Oct 2026 00:00:00 GMT", "", "invalid"} {
+		_, fixture, openBody, _ := blenderDesktopFixture(t)
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header()["Date"] = nil
+			if date != "" {
+				w.Header().Set("Date", date)
+			}
+			switch r.URL.Path {
+			case "/api/login":
+				http.SetCookie(w, &http.Cookie{Name: "vf_studio_session", Value: "fixture-only", HttpOnly: true, Path: "/"})
+				w.WriteHeader(201)
+				_, _ = io.WriteString(w, `{}`)
+			case "/studio/appcenter/v1/open":
+				_ = json.NewEncoder(w).Encode(fixture.opened)
+			case "/studio/apps/blender/instances":
+				_, _ = io.WriteString(w, `{"schema_version":1,"instances":[]}`)
+			default:
+				w.WriteHeader(404)
+			}
+		}))
+		remote, err := studioremote.New(upstream.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = remote.Send(context.Background(), "POST", "/api/login", []byte(`{}`)); err != nil {
+			t.Fatal(err)
+		}
+		handler := RemoteAssetHandler(NewRemote(remote), http.NotFoundHandler())
+		request := httptest.NewRequest("POST", "http://wails.localhost"+blenderWorkspacePrefix, bytes.NewReader(openBody))
+		request.Header.Set("Content-Type", "application/json")
+		opened := httptest.NewRecorder()
+		handler.ServeHTTP(opened, request)
+		if opened.Code != 200 {
+			t.Fatal("workspace open failed", opened.Code)
+		}
+		prefix := blenderWorkspacePrefix + "/" + opened.Header().Get("X-Studio-Legacy-Workspace")
+		relay := httptest.NewServer(handler)
+		response, err := http.Post(relay.URL+prefix+"/requests", "application/json", bytes.NewReader(blenderEnvelope("GET", "/studio/apps/blender/instances", "")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		relay.Close()
+		remote.Close()
+		upstream.Close()
+		if response.StatusCode != 200 || response.Header.Get("Date") != date {
+			t.Fatal("Blender relay replaced upstream observation time", response.StatusCode)
+		}
+	}
+}
+
 func TestDesktopLegacyBlenderGatewayHTTP(t *testing.T) {
 	for _, mode := range []string{"close", "binding"} {
 		t.Run(mode, func(t *testing.T) {

@@ -3,12 +3,12 @@ import { canStart, canStop, canDestroy, instanceName } from './blender-managemen
 const validID = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 
 // Persist before sending: refresh or uncertain responses replay the same command.
-export function createBlenderStarter({ request, storage, newID = () => crypto.randomUUID(), action = 'start' }) {
+export function createBlenderStarter({ request, storage, newID = () => crypto.randomUUID(), action = 'start', now = () => Date.now() }) {
   if (!['start','stop','destroy'].includes(action)) throw Error('不支持的实例操作。');
   const allowed = {start:canStart,stop:canStop,destroy:canDestroy}[action], label = {start:'启动',stop:'停止',destroy:'销毁'}[action];
   let busy = false;
   return async (item, confirmation) => {
-    if (busy || !allowed(item)) return null;
+    if (busy || !allowed(item, now())) return null;
     if(action === 'destroy' && confirmation !== instanceName(item)) throw Error('请输入完整的实例名称以确认销毁。');
     busy = true;
     let key;
@@ -16,6 +16,7 @@ export function createBlenderStarter({ request, storage, newID = () => crypto.ra
       const actor = await request('/studio/apps/blender/instance-options');
       if (actor.can_manage !== true || ![actor.station_id,actor.organization_id,actor.user_id,item.instance_id].every(validID)
           || !/^blender[A-Za-z0-9_-]{1,57}$/.test(item.alias)) throw Error('当前账号或实例不允许'+label+'。');
+      if (!allowed(item, now())) throw Error('实例状态已过期，请刷新后重试。');
       key = 'vf-blender-'+action+':' + [actor.station_id,actor.organization_id,actor.user_id,item.instance_id].join(':');
       let draft;
       const raw = storage.getItem(key);
