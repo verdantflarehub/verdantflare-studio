@@ -199,7 +199,7 @@ func (g *Gateway) ServiceEndpoint(domain string) (string, bool) {
 	return r.Endpoint, ok
 }
 func (g *Gateway) CallTool(ctx context.Context, name string, args map[string]any, headers map[string]string) (any, int, error) {
-	if Managed(name) || generationControlEnabled() && generationMayConsume(name) {
+	if Managed(name) || generationControlEnabled() && (generationMayConsume(name) || generationPreparation(name)) {
 		return nil, 403, errors.New("verified identity required")
 	}
 	return g.call(ctx, name, args, headers)
@@ -211,8 +211,8 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 	if name == "project.generation_submit" {
 		return g.generationSubmit(ctx, p, args, projectHeader)
 	}
-	if generationControlEnabled() && generationMayConsume(name) {
-		if status, e := g.CheckGenerationDirect(ctx, p, args, projectHeader); e != nil {
+	if generationControlEnabled() && (generationMayConsume(name) || generationPreparation(name)) {
+		if status, e := g.checkGenerationAccess(ctx, p, args, projectHeader, generationMayConsume(name)); e != nil {
 			return nil, status, e
 		}
 		if body, ok := args["project_id"].(string); ok {

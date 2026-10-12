@@ -16,14 +16,27 @@ import (
 
 func generationControlEnabled() bool { return os.Getenv("STUDIO_GENERATION_CONTROL_ENABLED") == "true" }
 
+// These audited operations only import existing bytes or validate references.
+// They still require project authorization, but do not consume generation calls.
+func generationPreparation(name string) bool {
+	switch name {
+	case "video.import", "video.import_prepare", "video.import_chunk", "video.import_status", "video.import_commit", "video.preflight":
+		return true
+	}
+	return false
+}
+
 func generationMayConsume(name string) bool {
+	if generationPreparation(name) {
+		return false
+	}
 	domain := strings.SplitN(name, ".", 2)[0]
 	switch domain {
 	case "image", "video", "music", "sound", "audio", "render", "blender":
 	default:
 		return false
 	}
-	// New/unknown actions fail closed. Only audited non-generating reads bypass.
+	// New/unknown actions fail closed. Only audited non-generating tools bypass.
 	switch name {
 	case "image.capabilities", "image.status", "image.result", "image.list", "video.capabilities", "video.status", "video.result", "video.list", "music.capabilities", "music.status", "music.result", "music.list":
 		return false
@@ -34,6 +47,10 @@ func generationMayConsume(name string) bool {
 // CheckGenerationDirect is shared by MCP and the legacy Image dashboard proxy.
 // It checks the actual project in the body; dropping the header is not a bypass.
 func (g *Gateway) CheckGenerationDirect(ctx context.Context, p project.Principal, args map[string]any, header string) (int, error) {
+	return g.checkGenerationAccess(ctx, p, args, header, true)
+}
+
+func (g *Gateway) checkGenerationAccess(ctx context.Context, p project.Principal, args map[string]any, header string, consumes bool) (int, error) {
 	if !generationControlEnabled() {
 		return 200, nil
 	}
@@ -52,7 +69,7 @@ func (g *Gateway) CheckGenerationDirect(ctx context.Context, p project.Principal
 	if strictjson.Decode(bytes.NewReader(data), 4096, &policy) != nil {
 		return 503, errors.New("generation policy unavailable")
 	}
-	if policy.Controlled {
+	if policy.Controlled && consumes {
 		return 403, errors.New("GENERATION_APPROVAL_REQUIRED: use project.generation_submit")
 	}
 	return 200, nil
