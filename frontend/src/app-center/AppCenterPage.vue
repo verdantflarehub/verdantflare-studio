@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
 import { selectCards } from './controller'
+import { directoryLocation, directoryView } from './directory-route'
 import { actionLabels, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
@@ -19,7 +20,11 @@ import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
-const query = ref(''), group = ref('all'), filter = ref('installed'), message = ref(''), menuKey = ref('')
+const query = ref(''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
+watch(() => [route.path, route.query.view] as const, ([path, view]) => {
+  if (path === '/market') filter.value = directoryView(view)
+}, { immediate: true })
+const returnLocation = computed(() => directoryLocation(filter.value))
 const confirmation = ref<{ card: AppCenterCard; actionId: string; kind: string; scope: string; impact: string } | null>(null)
 const submitting = ref(false)
 async function confirmCommand() {
@@ -83,13 +88,12 @@ const groups = computed(() => {
   for (const card of store.state.value?.items ?? []) if (!names.has(card.display.groupId)) names.set(card.display.groupId, '未分类')
   return Array.from(names, ([id, label]) => ({ id, label }))
 })
-const tabs = [{ id: 'installed', label: '我的应用' }, { id: 'all', label: '所有应用' }] as const
 let listScroll = 0
-function back() { void router.replace({ path: '/market', query: {} }) }
+function back() { void router.replace(returnLocation.value) }
 async function perform(card: AppCenterCard, actionId: string) {
   const action = card.actions.find(item => item.id === actionId)
   if (actionId === 'detail' || action?.kind === 'progress' && action.enabled) {
-    await router.push({ query: { card: card.cardKey } }); return
+    await router.push({ query: { ...route.query, card: card.cardKey } }); return
   }
   if (action?.kind === 'refresh') { await store.refresh(); return }
   if (!action || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) return
@@ -134,7 +138,7 @@ watch(directoryVisible, async (visible, previous) => {
   window.scrollTo({ top: visible ? listScroll : 0 })
 })
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id]), () => {
-  query.value = ''; group.value = 'all'; filter.value = 'installed'; message.value = ''; menuKey.value = ''; confirmation.value = null; listScroll = 0
+  query.value = ''; group.value = 'all'; message.value = ''; menuKey.value = ''; confirmation.value = null; listScroll = 0
 })
 watch(() => JSON.stringify(store.state.value?.scope), () => { confirmation.value = null; menuKey.value = '' })
 watch([filter, group, query, selectedKey, businessRoute], () => { menuKey.value = '' })
@@ -145,7 +149,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 
 <template>
   <main v-show="!businessRoute && !legacy.target && !legacy.error" class="main appcenter-page"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>应用中心</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
+    <header class="heading"><div class="heading-left"><h1>{{ filter === 'installed' ? '我的应用' : '所有应用' }}</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
     <div v-if="!host.connected" class="panel appcenter-message" role="status">
       <p v-if="host.sessionStatus === 'loading'">正在恢复登录状态…</p>
       <template v-else-if="host.sessionStatus === 'error'"><p>暂时无法连接 Station，请重试。</p><button class="btn" @click="host.init()">重试连接</button></template>
@@ -163,7 +167,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
       </template>
       <section v-else class="catalog-section">
-        <div class="tabs-row"><div class="tabs"><button v-for="tab in tabs" :key="tab.id" class="tab" :class="{ active: filter === tab.id }" :aria-pressed="filter === tab.id" @click="filter = tab.id">{{ tab.label }} <span>{{ result.counts[tab.id] ?? '—' }}</span></button></div><label class="search-box"><input v-model="query" type="search" aria-label="搜索应用、模型或能力" placeholder="搜索应用、模型或能力" /></label></div>
+        <div class="appcenter-toolbar"><label class="search-box"><input v-model="query" type="search" aria-label="搜索应用、模型或能力" placeholder="搜索应用、模型或能力" /></label></div>
         <div class="filters-bar"><button class="chip" :class="{ active: group === 'all' }" :aria-pressed="group === 'all'" @click="group = 'all'">全部</button><button v-for="item in groups" :key="item.id" class="chip" :class="{ active: group === item.id }" :aria-pressed="group === item.id" @click="group = item.id">{{ item.label }}</button><span class="result-count">{{ store.state.value ? `${result.items.length} 个应用` : '等待读取' }}</span></div>
         <p v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="panel appcenter-message" role="status">正在读取应用信息…</p>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
@@ -173,14 +177,15 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
     </template>
   </div></main>
   <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
-    :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" />
-  <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" />
+    :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation" />
+  <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation" />
   <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>
 
 <style scoped>
 .appcenter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
+.appcenter-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
 .search-box input { min-width: 160px; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>

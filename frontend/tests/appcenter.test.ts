@@ -7,6 +7,7 @@ import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.gene
 import { appCenterNavigationEntries } from '../src/app-center/navigation.ts'
 import { managementActions, versionLabel } from '../src/app-center/card-actions.ts'
 import { publisherLabel } from '../src/app-center/presentation.ts'
+import { directoryLocation, directoryView } from '../src/app-center/directory-route.ts'
 import type { NavigationEnvelope } from '../src/navigation/controller.ts'
 
 const now = Date.parse('2026-10-12T00:00:00Z'), digest = `sha256:${'a'.repeat(64)}`
@@ -31,6 +32,19 @@ function view(): AppCenterView {
     groups: [{ id: 'system', label: 'System', order: 1 }], items: [card] }
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes }); return { promise, resolve } }
+
+test('sidebar view bookmarks keep one fact filter across direct links and detail return', () => {
+  const data = view(), catalog = structuredClone(data.items[0])
+  catalog.installation = null; catalog.installedVersion = null; catalog.origin = 'catalog'; catalog.cardKey = 'catalog:available'
+  data.items.push(catalog)
+  for (const input of [undefined, 'installed', 'all', 'active', ['all'], null]) {
+    const selected = directoryView(input)
+    const location = directoryLocation(selected)
+    assert.equal(location.path, '/market')
+    assert.equal(directoryView(location.query.view), selected, 'return location keeps the selected business view')
+    assert.equal(selectCards(data, '', 'all', selected).items.length, input === 'all' ? 2 : 1)
+  }
+})
 
 test('my apps retains installed services through stop, failure and removal progress until authoritative removal', () => {
   const data = view(), card = data.items[0]

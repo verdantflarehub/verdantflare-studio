@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import vfLogo from '../assets/verdantflare-logo.png'
 import { useHostStore } from '../platform/hostStore'
@@ -11,12 +11,20 @@ import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
 import { appCenterNavigationEntries } from '../app-center/navigation'
 import { reasonLabel } from '../app-center/labels'
+import { directoryLocation, directoryView } from '../app-center/directory-route'
+import { selectCards } from '../app-center/controller'
 
 const hostStore = useHostStore()
 const navigation = useNavigationStore()
 const appcenter = import.meta.env.VITE_APPCENTER_MODE === 'unified' ? useAppCenterStore() : null
 const router = useRouter()
 const route = useRoute()
+const appCenterActive = computed(() => route.path === '/market' || route.name === 'app-dashboard' || route.name === 'app-instance')
+const appCenterExpanded = ref(appCenterActive.value)
+watch(appCenterActive, active => { if (active) appCenterExpanded.value = true })
+watch(appCenterExpanded, expanded => appcenter?.setVisible('directory-menu', expanded), { immediate: true })
+const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
+const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'all', label: '所有应用' }] as const
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 function refreshNavigation() { if (!document.hidden && hostStore.connected) void navigation.refresh() }
@@ -35,6 +43,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', refreshNavigation)
 })
 onBeforeUnmount(() => {
+  appcenter?.setVisible('directory-menu', false)
   clearInterval(refreshTimer)
   window.removeEventListener('focus', refreshNavigation)
   window.removeEventListener('studio:logout', clearNavigation)
@@ -221,7 +230,21 @@ function handleHelpClick() {
       <span>数字世界</span>
     </a>
 
-    <a class="nav-link"
+    <button v-if="appcenter" class="nav-link appcenter-parent" :class="{ selected: appCenterActive }"
+       aria-controls="appcenter-directory-nav" :aria-expanded="appCenterExpanded" @click="appCenterExpanded = !appCenterExpanded">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path :d="icons.app" /></svg></span>
+      <span>应用中心</span><span class="appcenter-chevron" aria-hidden="true">{{ appCenterExpanded ? '▾' : '▸' }}</span>
+    </button>
+    <nav v-if="appcenter" v-show="appCenterExpanded" id="appcenter-directory-nav" class="nav-sub-group" aria-label="应用中心">
+      <a v-for="item in directoryMenus" :key="item.view" class="group-nav"
+         :class="{ active: route.path === '/market' && directoryView(route.query.view) === item.view }"
+         :aria-current="route.path === '/market' && directoryView(route.query.view) === item.view ? 'page' : undefined"
+         :href="router.resolve(directoryLocation(item.view)).href" @click.prevent="router.push(directoryLocation(item.view))">
+        <span>{{ item.label }}</span><span class="directory-count">{{ directoryCounts[item.view] ?? '—' }}</span>
+      </a>
+    </nav>
+
+    <a v-else class="nav-link"
        :class="{ selected: activeNav === 'market' }"
        href="#/market"
        data-nav="market"
@@ -237,7 +260,7 @@ function handleHelpClick() {
       <span>应用中心</span>
     </a>
 
-    <div class="nav-sub-group" id="groupNav" v-show="activeNav === 'market'">
+    <div v-if="!appcenter" class="nav-sub-group" id="groupNav" v-show="activeNav === 'market'">
       <!-- Injected by JavaScript -->
     </div>
 
@@ -356,6 +379,9 @@ function handleHelpClick() {
 </template>
 
 <style scoped>
+.appcenter-parent { background: transparent; border: 0; cursor: pointer; }
+.appcenter-chevron, .directory-count { margin-left: auto; color: var(--muted); }
+.directory-count { font-size: 11px; }
 .app-navigation-row { display: flex; align-items: center; }
 .app-navigation-row .nav-link { flex: 1; min-width: 0; }
 .app-navigation-row .nav-link > span:not(.nav-icon) { overflow-wrap: anywhere; }

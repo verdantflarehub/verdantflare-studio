@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import type { RouteLocationRaw } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
 import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } from './legacy'
@@ -10,7 +11,7 @@ import { reasonLabel } from './labels'
 import LegacyMediaHost from './LegacyMediaHost.vue'
 import LegacyBlenderHost from './LegacyBlenderHost.vue'
 
-const props = defineProps<{ target: LegacyTarget | null; routeError: string }>()
+const props = defineProps<{ returnLocation?: RouteLocationRaw; target: LegacyTarget | null; routeError: string }>()
 const router = useRouter(), host = useHostStore(), store = useAppCenterStore(), client = createLegacyClient()
 const selection = shallowRef<{ card: AppCenterCard; opened: LegacyOpened; route: string; scope: string; identity: string } | null>(null)
 const error = ref(''), loading = ref(false), retry = ref(0)
@@ -40,7 +41,7 @@ async function authorize() {
   }
 }
 async function navigate(route: string) {
-  if (route === '/market') { await router.push(route); return }
+  if (route === '/market') { await router.push(props.returnLocation ?? route); return }
   const selected = selection.value
   if (!selected) return
   try {
@@ -92,8 +93,8 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 
 <template>
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>{{ selection?.card.display.name || '应用入口' }}</h1><p>{{ selection?.card.display.description }}</p></div><button class="btn" @click="router.push('/market')">返回应用中心</button></header>
-    <nav aria-label="面包屑"><a href="#/market" @click.prevent="router.push('/market')">应用中心</a><span v-if="selection"> / {{ selection.card.display.name }}</span></nav>
+    <header class="heading"><div class="heading-left"><h1>{{ selection?.card.display.name || '应用入口' }}</h1><p>{{ selection?.card.display.description }}</p></div><button class="btn" @click="router.push(props.returnLocation ?? '/market')">返回应用中心</button></header>
+    <nav aria-label="面包屑"><a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a><span v-if="selection"> / {{ selection.card.display.name }}</span></nav>
     <p v-if="loading" role="status">正在确认应用入口…</p>
     <div v-if="error" class="panel legacy-error" role="alert"><p>{{ reasonLabel(error) }}</p><button class="btn" @click="retry++">重试</button></div>
     <template v-if="selection">

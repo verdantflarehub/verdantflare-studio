@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
-import type { RouteLocationNormalized } from 'vue-router'
+import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import AppDashboardHost from './AppDashboardHost.vue'
 import AppInstanceHost from './AppInstanceHost.vue'
@@ -15,7 +15,9 @@ import { decodeNavigation } from '../navigation/controller'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { createFileAccess } from './files'
 
-const props = defineProps<{ active: boolean; installationId: string; titles: Record<string, string>;
+const props = defineProps<{
+  returnLocation?: RouteLocationRaw;
+  active: boolean; installationId: string; titles: Record<string, string>;
   openDashboard?: (installationId: string, signal?: AbortSignal) => Promise<OpenedDashboard>;
   authorizeDashboard?: (installationId: string, signal: AbortSignal) => Promise<void>;
 }>()
@@ -73,7 +75,7 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       await client!.inspect(id, opened.launch.installationId, signal)
       if (input.target === 'appcenter') {
         if (input.path !== '/') throw new Error('INVALID_PATH')
-        await router.push('/market')
+        await router.push(props.returnLocation ?? '/market')
       } else await router.push(dashboardLocation(opened.launch.installationId, input.path))
     },
     requestApp: (input, signal) => client!.request(id, input, signal),
@@ -149,14 +151,14 @@ async function cancelled() {
   const unused = selection.value
   selection.value = previousSelection
   if (unused && unused.launch.dashboardSessionId !== previousSelection?.launch.dashboardSessionId) await unused.releaseSession()
-  await router.replace(previousSelection ? dashboardLocation(previousSelection.launch.installationId, previousSelection.route) : '/market')
+  await router.replace(previousSelection ? dashboardLocation(previousSelection.launch.installationId, previousSelection.route) : props.returnLocation ?? '/market')
 }
 function ready() { previousSelection = selection.value; state.value = 'ready' }
 function dashboardError(code: string) { if (!workspaceId.value) showError(code) }
 async function close() {
   if (!await host.value?.closeActive()) return
   previousSelection = null
-  await router.push('/market')
+  await router.push(props.returnLocation ?? '/market')
 }
 async function prepareNavigation(to: RouteLocationNormalized) {
   const staysInAppCenter = to.path === '/market' || to.name === 'app-dashboard' || to.name === 'app-instance'
@@ -174,11 +176,11 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
     <div class="workspace">
       <header class="heading">
         <div class="heading-left"><h1>{{ title }}</h1><p>{{ workspaceId ? '实例工作区' : '配置应用，管理运行实例。' }}</p></div>
-        <div class="heading-actions"><button class="btn" @click="router.push('/market')">返回应用中心</button>
+        <div class="heading-actions"><button class="btn" @click="router.push(props.returnLocation ?? '/market')">返回应用中心</button>
           <button v-if="workspaceId" class="btn ghost" @click="router.push(dashboardLocation(installationId))">关闭工作区并返回控制台</button>
           <button v-else class="btn ghost" :disabled="state !== 'ready'" @click="close">关闭控制台</button></div>
       </header>
-      <nav class="dashboard-breadcrumb" aria-label="面包屑"><a href="#/market">应用中心</a><span aria-hidden="true"> / </span><span>{{ title }}</span></nav>
+      <nav class="dashboard-breadcrumb" aria-label="面包屑"><a :href="router.resolve(props.returnLocation ?? '/market').href">应用中心</a><span aria-hidden="true"> / </span><span>{{ title }}</span></nav>
       <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
       <div v-if="state === 'error'" class="dashboard-error" role="alert"><p>{{ error }}</p><button class="btn" @click="retry++">重试</button></div>
       <AppDashboardHost ref="host" v-show="visible" :selection="selection" :visible="visible"
