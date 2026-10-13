@@ -51,9 +51,10 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     await refresh()
   }
   async function resumeCommand(key: string) { await commands.resume(key); await refresh() }
-  const openBindings = new Map<string, string>()
-  function pinOpen(id: string, binding: string) { openBindings.set(id, binding) }
-  function takeOpenBinding(id: string) { const binding = openBindings.get(id); openBindings.delete(id); return binding }
+  const openBindings = new Map<string, { revision: string; payload?: unknown }>()
+  function pinOpen(id: string, binding: string, payload?: unknown) { openBindings.set(id, { revision: binding, payload }) }
+  function takeOpenBinding(id: string) { const binding = openBindings.get(id); openBindings.delete(id); return binding?.revision }
+  function takeOpenEntry<T = unknown>(id: string) { const binding = openBindings.get(id); openBindings.delete(id); return binding as { revision: string; payload?: T } | undefined }
   let timer: ReturnType<typeof setTimeout> | undefined
   controller.subscribe(next => {
     state.value = next; progress.select(next.value?.items.find(card => card.cardKey === detailKey))
@@ -126,5 +127,5 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
   onScopeDispose(() => { calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
-  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, canExecute: controller.canExecute, currentTime: controller.currentTime }
+  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

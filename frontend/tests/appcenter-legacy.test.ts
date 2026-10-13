@@ -135,3 +135,21 @@ test('iframe requests stay within the old finite API and do not select arbitrary
     assert.equal(validMediaRequest(image, method as string, path as string, body), false)
   }
 })
+
+test('open binding supports pinning and taking revision with opened payload', () => {
+  const map = new Map<string, { revision: string; payload?: unknown }>()
+  const pinOpen = (id: string, binding: string, payload?: unknown) => { map.set(id, { revision: binding, payload }) }
+  const takeOpenBinding = (id: string) => { const item = map.get(id); map.delete(id); return item?.revision }
+  const takeOpenEntry = <T = unknown>(id: string) => { const item = map.get(id); map.delete(id); return item as { revision: string; payload?: T } | undefined }
+
+  pinOpen('card-1', 'rev-1', opened)
+  const entry = takeOpenEntry<typeof opened>('card-1')
+  assert.equal(entry?.revision, 'rev-1')
+  assert.deepEqual(entry?.payload, opened)
+  assert.equal(takeOpenBinding('card-1'), undefined)
+
+  pinOpen('card-2', 'rev-2')
+  assert.equal(takeOpenBinding('card-2'), 'rev-2')
+  assert.equal(takeOpenBinding('card-2'), undefined)
+})
+

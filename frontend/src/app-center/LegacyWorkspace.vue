@@ -66,14 +66,33 @@ watch(() => [props.target?.route, props.target?.cardKey, props.routeError, ident
   try {
     if (props.routeError) throw new Error(props.routeError)
     if (!target || !host.connected) throw new Error('UNAUTHENTICATED')
-    await store.refresh()
+    if (!store.state.value || store.state.stale) {
+      await store.refresh()
+    }
     if (epoch !== generation || controller.signal.aborted) return
     const view = store.state.value
     if (!view) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
-    const card = selectLegacyCard(view, target), expected = store.takeOpenBinding(card.cardKey)
+    const card = selectLegacyCard(view, target), pinned = store.takeOpenEntry<LegacyOpened>(card.cardKey)
+    const expected = pinned?.revision
     if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
-    if (!store.canExecute(card.cardKey, 'open', card.bindingRevision)) throw new Error(card.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
-    opened = await client.open(view, card, AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]))
+    if (!store.canExecute(card.cardKey, 'open', card.bindingRevision)) {
+      if (store.state.stale) {
+        await store.refresh()
+        const refreshedView = store.state.value
+        if (!refreshedView) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+        const refreshedCard = selectLegacyCard(refreshedView, target)
+        if (!store.canExecute(refreshedCard.cardKey, 'open', refreshedCard.bindingRevision)) {
+          throw new Error(refreshedCard.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
+        }
+      } else {
+        throw new Error(card.actions.find(action => action.kind === 'open')?.reasonCode ?? 'APPCENTER_OPEN_UNAVAILABLE')
+      }
+    }
+    if (pinned?.payload && pinned.payload.bindingRevision === card.bindingRevision && pinned.payload.adapterId === target.adapterId) {
+      opened = pinned.payload
+    } else {
+      opened = await client.open(view, card, AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]))
+    }
     if (epoch !== generation || controller.signal.aborted) return
     const current = store.state.value
     if (!current || JSON.stringify(current.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, 'open', card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')

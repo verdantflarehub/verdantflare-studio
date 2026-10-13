@@ -17,6 +17,7 @@ import AppInstallDetail from './AppInstallDetail.vue'
 import AppCommandRecovery from './AppCommandRecovery.vue'
 import LegacyWorkspace from './LegacyWorkspace.vue'
 import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
+import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
@@ -133,7 +134,28 @@ async function perform(card: AppCenterCard, actionId: string) {
     await router.push({ query: { ...route.query, card: card.cardKey } }); return
   }
   if (action?.kind === 'refresh') { await store.refresh(); return }
-  if (!action || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) return
+  if (!action) return
+  if (!store.canExecute(card.cardKey, actionId, card.bindingRevision)) {
+    if (store.state.stale) {
+      await store.refresh()
+      const freshCard = store.state.value?.items.find(item => item.cardKey === card.cardKey)
+      if (freshCard) {
+        card = freshCard
+        const freshAction = card.actions.find(item => item.id === actionId)
+        if (!freshAction || !store.canExecute(card.cardKey, actionId, card.bindingRevision)) {
+          message.value = reasonLabel(freshAction?.reasonCode ?? (action.kind === 'open' ? 'APPCENTER_OPEN_UNAVAILABLE' : '')) || '应用状态已更新，请重新操作。'
+          return
+        }
+      } else {
+        message.value = reasonLabel('APPCENTER_OPEN_UNAVAILABLE')
+        return
+      }
+    } else {
+      const code = action.reasonCode ?? (action.kind === 'open' ? 'APPCENTER_OPEN_UNAVAILABLE' : '')
+      if (code) message.value = reasonLabel(code)
+      return
+    }
+  }
   if (['install', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) {
     const impacts: Record<string, string> = {
       install: '将安装此版本的应用管理服务。', start: '将启动应用管理服务。',
@@ -153,15 +175,20 @@ async function perform(card: AppCenterCard, actionId: string) {
   if (action.kind === 'open' && card.entry?.transport === 'legacy') {
     const view = store.state.value
     if (!view) return
+    let opened: LegacyOpened | undefined = undefined, adopted = false
     try {
-      const opened = await legacyClient.open(view, card, AbortSignal.timeout(30000))
-      try {
-        if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
-        store.pinOpen(card.cardKey, card.bindingRevision)
-        const failed = await router.push(legacyLocation(opened, card.cardKey))
-        if (failed) store.takeOpenBinding(card.cardKey)
-      } finally { void legacyClient.close(opened) }
-    } catch (error) { message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_OPEN_UNAVAILABLE') }
+      const result = await legacyClient.open(view, card, AbortSignal.timeout(30000))
+      opened = result
+      if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
+      store.pinOpen(card.cardKey, card.bindingRevision, opened)
+      const failed = await router.push(legacyLocation(opened, card.cardKey))
+      if (failed) store.takeOpenBinding(card.cardKey)
+      else adopted = true
+    } catch (error) {
+      message.value = reasonLabel(error instanceof Error ? error.message : 'APPCENTER_OPEN_UNAVAILABLE')
+    } finally {
+      if (opened && !adopted) void legacyClient.close(opened)
+    }
     return
   }
   // The current directory delivery does not promise an unconnected mutation or
