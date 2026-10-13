@@ -19,6 +19,7 @@ type ImageConfig struct{ URL, Token string }
 
 var imageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var imageWrite = regexp.MustCompile(`^/api/(tasks|artifacts/upload)$`)
+var imageContent = regexp.MustCompile(`^/artifacts/art-[0-9a-f]{16}/content$`)
 
 func imageStatic(path string) bool {
 	if path == "/dashboard" || path == "/dashboard/" || path == "/image/dashboard" || path == "/image/dashboard/" {
@@ -57,11 +58,31 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 			c.Status(403)
 			return
 		}
-		sid, _ := c.Cookie(cookieName)
-		token, valid := s.getSession(c.Request.Context(), sid)
-		if !valid {
-			c.Status(401)
-			return
+		var token string
+		if c.GetHeader("Authorization") != "" {
+			// Existing admin content access may use the caller's MCP identity.
+			// Do not extend Bearer access to dashboard APIs or writes.
+			r := c.Request
+			if r.Method != http.MethodGet || !imageContent.MatchString(path) || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 || len(r.TransferEncoding) != 0 || r.Header.Get("Content-Encoding") != "" || len(r.Header.Values("Range")) > 1 {
+				c.Status(400)
+				return
+			}
+			if c.GetHeader("Sec-Fetch-Site") == "same-site" {
+				c.Status(403)
+				return
+			}
+			if _, valid := s.authenticateMCP(c); !valid {
+				return
+			}
+			token = c.GetString("verifiedStationToken")
+		} else {
+			sid, _ := c.Cookie(cookieName)
+			var valid bool
+			token, valid = s.getSession(c.Request.Context(), sid)
+			if !valid {
+				c.Status(401)
+				return
+			}
 		}
 		auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
 		if auth.Status != 200 {
