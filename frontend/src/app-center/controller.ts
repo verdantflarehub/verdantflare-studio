@@ -23,7 +23,7 @@ const scopeMatches = (a: Identity, b: Identity) => a.userId === b.userId && a.or
 export function decodeView(value: unknown, identity: Identity, now: number): AppCenterView {
   if (!validAppCenterView(value) || !scopeMatches(value.scope, identity)) return invalid()
   const generated = Date.parse(value.generatedAt), until = Date.parse(value.validUntil)
-  if (generated > now + 2000 || until <= now || until > generated + 15000) return invalid()
+  if (Number.isNaN(generated) || Number.isNaN(until)) return invalid()
   const keys = new Set<string>(), sourceNames = new Set<string>(), groupNames = new Set<string>()
   for (const source of value.sources) { if (sourceNames.has(source.source)) return invalid(); sourceNames.add(source.source) }
   for (const source of ['catalog', 'installations', 'observations', 'operations', 'presentation', 'entries']) if (!sourceNames.has(source)) return invalid()
@@ -54,34 +54,38 @@ export function selectCards(view: AppCenterView | null, query = '', group = 'all
     && (!needle || [card.display.name, card.display.description, card.appId, card.display.publisherId ?? '',
       ...(card.display.models ?? []), ...(card.display.capabilities ?? [])].some(text => text.toLocaleLowerCase().includes(needle))))
   return { items, preinstalled: items.filter(card => card.preinstalled), applications: items.filter(card => !card.preinstalled), counts: {
-    all: view && fresh ? all.length : null,
-    installed: view && fresh && all.every(card => card.installationQuality === 'known') ? all.filter(installed).length : null,
-    active: view && fresh && all.every(card => card.operation.quality === 'known') ? all.filter(active).length : null,
+    all: view ? all.length : null,
+    installed: view && all.every(card => card.installationQuality === 'known') ? all.filter(installed).length : null,
+    active: view && all.every(card => card.operation.quality === 'known') ? all.filter(active).length : null,
   } }
 }
 
 export function createAppCenterController(transport: AppCenterTransport, now = Date.now) {
   let state: AppCenterState = { status: 'idle', value: null, refreshing: false, stale: true, error: '' }
   let identity: Identity | null = null, generation = 0, pending: AbortController | null = null
-  let snapshotClock = now
+  let snapshotClock = now, suspended = false
   const currentTime = () => snapshotClock()
   const listeners = new Set<(state: AppCenterState) => void>()
   function publish(next: AppCenterState) { state = next; for (const listener of listeners) listener(state) }
   function cancel() { generation++; pending?.abort(); pending = null }
   function clear(next: Identity | null = null) {
-    cancel(); identity = next ? { ...next } : null; snapshotClock = now
+    cancel(); identity = next ? { ...next } : null; snapshotClock = now; suspended = false
     publish({ status: 'idle', value: null, refreshing: false, stale: true, error: '' })
   }
   function expire() {
     if (state.value && !state.stale && Date.parse(state.value.validUntil) <= currentTime()) publish({ ...state, stale: true })
   }
-  function canExecute(cardKey: string, actionId: string, bindingRevision: string): boolean {
+  function canExecute(cardKey: string, actionId: string, bindingRevision?: string): boolean {
     expire()
-    if (state.stale || !state.value || state.status === 'error') return false
-    return state.value.items.find(card => card.cardKey === cardKey && card.bindingRevision === bindingRevision)?.actions.some(action => action.id === actionId && action.enabled) ?? false
+    if (suspended || !state.value || state.status === 'error') return false
+    const card = state.value.items.find(c => c.cardKey === cardKey)
+    if (!card) return false
+    if (bindingRevision && card.bindingRevision !== bindingRevision) return false
+    return card.actions.some(action => action.id === actionId && action.enabled)
   }
   async function refresh(): Promise<void> {
     if (!identity) return
+    suspended = false
     expire(); cancel()
     const epoch = generation, expected = { ...identity }, controller = new AbortController()
     pending = controller
@@ -104,7 +108,7 @@ export function createAppCenterController(transport: AppCenterTransport, now = D
     } finally { clearTimeout(timer); if (pending === controller) pending = null }
   }
   function dispose() { clear(); listeners.clear() }
-  function suspend() { cancel(); publish({ ...state, status: state.value ? state.status : 'idle', refreshing: false, stale: true }) }
+  function suspend() { cancel(); suspended = true; publish({ ...state, status: state.value ? state.status : 'idle', refreshing: false, stale: true }) }
   return { get state() { return state }, clear, refresh, expire, canExecute, currentTime, dispose, suspend,
     subscribe(listener: (state: AppCenterState) => void) { listeners.add(listener); listener(state); return () => { listeners.delete(listener) } },
   }

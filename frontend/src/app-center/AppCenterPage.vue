@@ -63,8 +63,6 @@ async function authorizeDashboard(id: string, signal: AbortSignal) {
   const card = store.state.value?.items.find(item => item.installation?.installationId === id)
   const action = card?.actions.find(item => item.kind === 'open')
   if (!card || !action || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
-  const expected = store.takeOpenBinding(id)
-  if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
 }
 async function openDashboard(id: string, signal?: AbortSignal) {
   const view = store.state.value, card = view?.items.find(item => item.installation?.installationId === id)
@@ -74,7 +72,6 @@ async function openDashboard(id: string, signal?: AbortSignal) {
     expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }, id, signal)
   const current = store.state.value
   if (signal?.aborted || !current || JSON.stringify(current.scope) !== JSON.stringify(view.scope)
-    || current.items.find(item => item.cardKey === card.cardKey)?.bindingRevision !== card.bindingRevision
     || opened.context.contextRevision !== view.scope.authorizationEpoch || opened.context.userId !== view.scope.userId
     || opened.context.organizationId !== view.scope.organizationId || opened.context.stationId !== view.scope.stationId
     || opened.launch.appVersion !== card.installedVersion || opened.launch.appId !== card.appId) {
@@ -83,7 +80,7 @@ async function openDashboard(id: string, signal?: AbortSignal) {
   }
   return opened
 }
-const result = computed(() => selectCards(store.state.value, query.value, group.value, filter.value, !store.state.stale))
+const result = computed(() => selectCards(store.state.value, query.value, group.value, filter.value))
 const groups = computed(() => {
   const names = new Map((store.state.value?.groups ?? []).map(item => [item.id, item.label]))
   for (const card of store.state.value?.items ?? []) if (!names.has(card.display.groupId)) names.set(card.display.groupId, '未分类')

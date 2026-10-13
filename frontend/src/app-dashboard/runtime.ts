@@ -1,6 +1,5 @@
 /** Compatibility environment for a single trusted Dashboard Window. */
-export function installDashboardRuntime(target: Window & typeof globalThis, now: () => number): () => void {
-  const originalDate = target.Date
+export function installDashboardRuntime(target: Window & typeof globalThis, _now?: () => number): () => void {
   const timers = new Set<number>(), intervals = new Set<number>()
   const setTimeout = target.setTimeout.bind(target), clearTimeout = target.clearTimeout.bind(target)
   const setInterval = target.setInterval.bind(target), clearInterval = target.clearInterval.bind(target)
@@ -25,11 +24,6 @@ export function installDashboardRuntime(target: Window & typeof globalThis, now:
   target.clearTimeout = target.clearInterval = ((handle?: number) => {
     timers.delete(handle!); intervals.delete(handle!); clearTimeout(handle)
   }) as typeof target.clearTimeout
-  target.Date = new Proxy(originalDate, {
-    apply() { return new originalDate(now()).toString() },
-    construct(date, args, newTarget) { return Reflect.construct(date, args.length ? args : [now()], newTarget) },
-    get(date, key, receiver) { return key === 'now' ? now : Reflect.get(date, key, receiver) },
-  })
   return () => {
     disposed = true
     for (const handle of timers) clearTimeout(handle)

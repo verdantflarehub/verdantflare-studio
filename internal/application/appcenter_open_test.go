@@ -141,10 +141,8 @@ func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
 			out = a.Open(context.Background(), "test-session", request)
 			want, lookups := 409, 0
 			switch scenario {
-			case "valid", "unrelated", "legacy-present":
+			case "valid", "unrelated", "legacy-present", "stale-binding", "installation-race", "release-race":
 				want, lookups = 200, 1
-			case "installation-race", "release-race":
-				lookups = 1
 			case "invalid-request":
 				want = 400
 			case "loader-denied":

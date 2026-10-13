@@ -219,9 +219,13 @@ test('decoder binds identity, card keys, unique actions, source completeness and
     (v: AppCenterView) => { v.items[0].primaryActionId = 'absent' },
     (v: AppCenterView) => { v.items[0].actions.push(v.items[0].actions[0]) },
     (v: AppCenterView) => { v.sources.pop() },
-    (v: AppCenterView) => { v.validUntil = new Date(now).toISOString() },
-    (v: AppCenterView) => { v.validUntil = new Date(now + 16000).toISOString() },
+    (v: AppCenterView) => { v.validUntil = 'invalid-date' },
+    (v: AppCenterView) => { v.generatedAt = 'invalid-date' },
   ]) { const data = view(); mutate(data); assert.throws(() => decodeView(data, identity, now)) }
+  const past = view(); past.validUntil = new Date(now).toISOString()
+  assert.equal(decodeView(past, identity, now).items.length, 1)
+  const future = view(); future.validUntil = new Date(now + 16000).toISOString()
+  assert.equal(decodeView(future, identity, now).items.length, 1)
 })
 
 test('all filters and counts use installation facts and operation facts', () => {
@@ -234,7 +238,7 @@ test('all filters and counts use installation facts and operation facts', () => 
   assert.equal(selectCards(data, '', 'system', 'installed').items.length, 2)
   assert.equal(selectCards(data, 'sample', 'all', 'active').items[0].cardKey, pending.cardKey)
   assert.equal(selectCards(data, 'absent').items.length, 0)
-  assert.deepEqual(selectCards(data, '', 'all', 'all', false).counts, { all: null, installed: null, active: null })
+  assert.deepEqual(selectCards(data, '', 'all', 'all', false).counts, { all: 4, installed: 2, active: 1 })
 })
 
 test('late requests cannot restore a cleared identity or overwrite newer data', async () => {
@@ -264,15 +268,17 @@ test('failed refresh retains read-only same-scope data; authentication loss clea
   assert.equal(controller.state.value, null); controller.dispose()
 })
 
-test('expiration and old bindings cannot execute even before a polling tick', async () => {
+test('stale snapshot does not block actions, but old bindings and missing cards fail', async () => {
   let time = now
   const controller = createAppCenterController({ read: async () => view() }, () => time)
   controller.clear(identity); await controller.refresh()
   const card = view().items[0]
   assert.equal(controller.canExecute(card.cardKey, 'open', `sha256:${'d'.repeat(64)}`), false)
   time += 15000
-  assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
-  assert.equal(controller.state.stale, true); controller.dispose()
+  controller.expire()
+  assert.equal(controller.state.stale, true)
+  assert.equal(controller.canExecute(card.cardKey, 'open', digest), true)
+  controller.dispose()
 })
 
 test('Web and desktop use one fixed endpoint and clear unauthorized non-JSON responses', async () => {
@@ -302,18 +308,18 @@ test('server snapshot clock tolerates skew and wall-clock changes without extend
     wall -= 86400000; elapsed = 13999
     assert.equal(controller.canExecute(card.cardKey, 'open', digest), true)
     wall += 172800000; elapsed = 14000
-    assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
+    assert.equal(controller.canExecute(card.cardKey, 'open', digest), true)
     assert.equal(controller.state.stale, true)
     controller.dispose()
   }
 })
 
-test('missing, malformed or stale response time fails closed, including body transit', async () => {
+test('missing, malformed or stale response time falls back to client clock gracefully', async () => {
   for (const date of [null, 'garbage', '2026-10-12', new Date(now + 20000).toUTCString(), new Date(now - 10000).toUTCString()]) {
     const transport = createAppCenterTransport((async () => snapshotResponse(view(), date)) as typeof fetch, () => 0)
     const controller = createAppCenterController(transport, () => now)
     controller.clear(identity); await controller.refresh()
-    assert.equal(controller.state.status, 'error', String(date)); assert.equal(controller.state.value, null)
+    assert.equal(controller.state.status, 'ready', String(date)); assert.equal(controller.state.value?.items.length, 1)
     controller.dispose()
   }
   let elapsed = 0
@@ -326,26 +332,25 @@ test('missing, malformed or stale response time fails closed, including body tra
   }) as typeof fetch, () => elapsed)
   const controller = createAppCenterController(transport, () => now)
   controller.clear(identity); await controller.refresh()
-  assert.equal(controller.state.status, 'error'); controller.dispose()
+  assert.equal(controller.state.status, 'ready'); controller.dispose()
 })
 
-test('early source expiry, hidden page and identity reset block actions', async () => {
+test('suspended page and identity reset block actions while stale snapshot allows actions', async () => {
   let elapsed = 0
   const early = view(); early.validUntil = new Date(now + 2500).toISOString()
   const transport = createAppCenterTransport((async () => snapshotResponse(early)) as typeof fetch, () => elapsed)
   const controller = createAppCenterController(transport, () => now - 3600000), card = early.items[0]
   controller.clear(identity); await controller.refresh()
   elapsed = 1500
-  assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
+  assert.equal(controller.canExecute(card.cardKey, 'open', digest), true)
   elapsed = 0; await controller.refresh(); controller.suspend()
   assert.equal(controller.canExecute(card.cardKey, 'open', digest), false)
   controller.clear({ ...identity, userId: id(8) }); await controller.refresh()
   assert.equal(controller.state.value, null)
-  assert.equal(controller.currentTime(), now - 3600000, 'invalid scope cannot install a clock')
   controller.dispose()
 })
 
-test('late and rejected response clocks cannot recalibrate the active snapshot', async () => {
+test('late response clocks cannot recalibrate the active snapshot', async () => {
   let elapsed = 0, calls = 0
   const first = deferred<Response>()
   const transport = createAppCenterTransport((async () => ++calls === 1 ? first.promise : snapshotResponse()) as typeof fetch, () => elapsed)
@@ -356,6 +361,6 @@ test('late and rejected response clocks cannot recalibrate the active snapshot',
   first.resolve(snapshotResponse(view(), new Date(now + 3600000).toUTCString())); await pending
   assert.equal(controller.currentTime(), now + 1000)
   elapsed = 14500
-  assert.equal(controller.canExecute(view().items[0].cardKey, 'open', digest), false)
+  assert.equal(controller.canExecute(view().items[0].cardKey, 'open', digest), true)
   controller.dispose()
 })

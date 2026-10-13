@@ -26,7 +26,7 @@ export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotoni
       }
       if (!value || typeof value !== 'object' || !('requestId' in value) || value.requestId !== response.headers.get('X-Request-ID')) throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW')
       try { clocks.set(value, responseClock(response.headers.get('Date'), started, monotonic)) }
-      catch { throw new AppCenterError(502, 'APPCENTER_INVALID_VIEW') }
+      catch { clocks.set(value, () => Date.now()) }
       return value
     } catch (error) { await reader.cancel().catch(() => undefined); throw error }
     finally { reader.releaseLock() }

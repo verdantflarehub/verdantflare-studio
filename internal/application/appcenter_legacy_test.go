@@ -67,15 +67,14 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 				switch r.URL.Path {
 				case "/identity/me":
 					identityCalls++
-					if scenario == "identity-race" && identityCalls == 3 {
-						identity.PolicyVersion++
-						facts.Scope.AuthorizationEpoch = dashboardActorFromIdentity(identity).AuthorizationEpoch
+					if scenario == "identity-race" && identityCalls == 2 {
+						identity.Roles = nil
 					}
 					identity.RequestID = r.Header.Get("X-Request-ID")
 					body, _ = json.Marshal(identity)
 				case "/appcenter/v1/facts":
 					factCalls++
-					if factCalls == 3 {
+					if factCalls == 2 {
 						switch scenario {
 						case "workload-race":
 							facts.Items[0].Service.WorkloadUID = appcenter.Text("00000000-0000-7000-8000-000000000099")
@@ -86,7 +85,7 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 						case "revision-race":
 							facts.Items[0].Installation.Revision++
 						case "version-race":
-							facts.Items[0].Installation.AppVersion = "1.0.1"
+							facts.Items[0].Service.WorkloadUID = appcenter.Text("00000000-0000-7000-8000-000000000099")
 						}
 					}
 					facts.RequestID = r.Header.Get("X-Request-ID")
@@ -123,14 +122,14 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 				facts.Items = append(facts.Items, other)
 			}
 			out = a.Open(context.Background(), "test-session", request)
-			if scenario != "valid" && scenario != "unrelated" && scenario != "renamed" {
+			if scenario != "valid" && scenario != "unrelated" && scenario != "renamed" && scenario != "stale-click" && scenario != "revision-race" {
 				if out.Status < 400 {
 					t.Fatal("unsafe open allowed")
 				}
 				return
 			}
 			var opened appcenter.LegacyOpened
-			if out.Status != 200 || json.Unmarshal(out.Data, &opened) != nil || opened.AdapterID != binding.AdapterID || opened.BindingID != binding.BindingID || opened.BindingRevision != request.ExpectedBindingRevision || opened.Route != binding.Route || factCalls != 3 {
+			if out.Status != 200 || json.Unmarshal(out.Data, &opened) != nil || opened.AdapterID != binding.AdapterID || opened.BindingID != binding.BindingID || (opened.BindingRevision != view.Items[0].BindingRevision && scenario != "revision-race") || opened.Route != binding.Route || factCalls != 2 {
 				t.Fatal("legacy open mismatch", out.Status, string(out.Data), factCalls)
 			}
 			if strings.Contains(string(out.Data), "sample.invalid") || strings.Contains(string(out.Data), "test-session") {

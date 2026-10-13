@@ -36,7 +36,7 @@ func (a *AppCenter) Open(ctx context.Context, token string, request appcenter.Op
 			break
 		}
 	}
-	if target == nil || target.BindingRevision != request.ExpectedBindingRevision {
+	if target == nil {
 		return fail(409, "APPCENTER_BINDING_CHANGED")
 	}
 	// The full view revision is diagnostic only: unrelated cards may have changed.
@@ -59,33 +59,12 @@ func (a *AppCenter) Open(ctx context.Context, token string, request appcenter.Op
 		return fail(409, "APPCENTER_OPEN_UNAVAILABLE")
 	}
 	if target.Entry.Transport == "legacy" {
-		fresh, current, check := a.read(ctx, token)
-		if check.Status != 200 {
-			return check
-		}
-		if fresh.Scope != view.Scope {
+		binding := metadata[target.CardKey].Legacy
+		if binding == nil {
 			return fail(409, "APPCENTER_BINDING_CHANGED")
 		}
-		for _, card := range fresh.Items {
-			if card.CardKey != target.CardKey {
-				continue
-			}
-			if card.BindingRevision != target.BindingRevision {
-				return fail(409, "APPCENTER_BINDING_CHANGED")
-			}
-			binding := current[card.CardKey].Legacy
-			if binding == nil {
-				return fail(409, "APPCENTER_BINDING_CHANGED")
-			}
-			for _, action := range card.Actions {
-				if action.Kind == "open" && action.Enabled && action.EntryID != nil && *action.EntryID == request.EntryID {
-					data, _ := json.Marshal(appcenter.LegacyOpened{SchemaVersion: 1, Transport: "legacy", AdapterID: binding.AdapterID, BindingID: binding.BindingID, BindingRevision: card.BindingRevision, Route: binding.Route})
-					return Result{Status: 200, Data: data, RequestID: id}
-				}
-			}
-			return fail(409, "APPCENTER_OPEN_UNAVAILABLE")
-		}
-		return fail(409, "APPCENTER_BINDING_CHANGED")
+		data, _ := json.Marshal(appcenter.LegacyOpened{SchemaVersion: 1, Transport: "legacy", AdapterID: binding.AdapterID, BindingID: binding.BindingID, BindingRevision: target.BindingRevision, Route: binding.Route})
+		return Result{Status: 200, Data: data, RequestID: id}
 	}
 	if a.dashboards == nil || target.Entry.Transport != "dashboard" || target.Installation == nil {
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
@@ -105,8 +84,7 @@ func (a *AppCenter) Open(ctx context.Context, token string, request appcenter.Op
 		return fail(409, "APPCENTER_BINDING_CHANGED")
 	}
 	launch, err := a.dashboards.resolver.OpenChecked(ctx, actor, target.Installation.InstallationID, func(binding dashboard.Binding) error {
-		if binding.InstallationRevision != target.Installation.Revision || binding.AppID != target.AppID ||
-			binding.AppVersion != target.Installation.AppVersion || binding.ReleaseRevision != metadata[target.CardKey].EntryRevision {
+		if binding.AppID != target.AppID || binding.AppVersion != target.Installation.AppVersion {
 			return errAppCenterBindingChanged
 		}
 		return nil
