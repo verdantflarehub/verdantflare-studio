@@ -170,8 +170,12 @@ export function mountImage({ listen, api, notice, login }) {
       if (frame) frame.style.height = Math.max(d.height, 600) + 'px';
       return;
     }
-    if (d.type === 'wheel' && typeof d.deltaY === 'number') {
-      window.scrollBy({ top: d.deltaY, behavior: 'auto' });
+    if (d.type === 'wheel' && Number.isFinite(d.deltaY)) {
+      if (Number.isSafeInteger(d.captureId) && d.captureId > 0) {
+        frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'restore', viewport: { captureId: d.captureId, scrollY: window.scrollY } }, '*');
+        return;
+      }
+      window.scrollBy({ top: Math.max(-1000, Math.min(1000, d.deltaY)), behavior: 'auto' });
       return;
     }
     if (d.type !== 'request' || !Number.isSafeInteger(d.id) || typeof d.path !== 'string' || d.path.length > 2048 || pending.has(d.id) || pending.size >= 32) return;

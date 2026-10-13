@@ -37,7 +37,12 @@ async function receive(event: MessageEvent) {
     emit('navigate', '/market?' + a.query + '=' + encodeURIComponent(data.path)); return
   }
   if (data.type === 'resize' && Number.isFinite(data.height)) { if (frame.value) frame.value.style.height = Math.max(600, Math.min(100000, data.height)) + 'px'; return }
-  if (data.type === 'wheel' && Number.isFinite(data.deltaY)) { window.scrollBy({ top: Math.max(-1000, Math.min(1000, data.deltaY)), behavior: 'auto' }); return }
+  if (data.type === 'wheel' && Number.isFinite(data.deltaY)) {
+    if (Number.isSafeInteger(data.captureId) && data.captureId > 0) {
+      post({ type: 'restore', viewport: { captureId: data.captureId, scrollY: window.scrollY } }); return
+    }
+    window.scrollBy({ top: Math.max(-1000, Math.min(1000, data.deltaY)), behavior: 'auto' }); return
+  }
   if (data.type !== 'request' || !Number.isSafeInteger(data.id) || data.id < 0 || typeof data.path !== 'string' || pending.has(data.id) || pending.size >= 32) return
   const epoch = generation, method = data.method ?? 'GET', signal = controller.signal
   const reply = (value: object) => { if (!disposed && epoch === generation && !signal.aborted) post({ type: 'response', id: data.id, ...value }) }
