@@ -13,6 +13,10 @@ export function videoPage(route: string) {
   return { path, taskId: task?.[1] ?? '', section: task ? 'tasks' : path.split('#')[1] || 'tasks' }
 }
 
+export function videoTasksLocation(cardKey?: string): string {
+  return '/market?video=' + encodeURIComponent('/dashboard#tasks') + (cardKey ? '&legacyCard=' + encodeURIComponent(cardKey) : '')
+}
+
 /** Only the authorized detail response for the currently displayed task names it. */
 export function videoTaskLabel(route: string, request: string, status: number, task: unknown): string | null {
   const { taskId } = videoPage(route)

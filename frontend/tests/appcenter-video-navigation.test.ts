@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { videoPage, videoTaskLabel, videoTaskName } from '../src/app-center/legacy-video-navigation.ts'
+import { videoPage, videoTaskLabel, videoTaskName, videoTasksLocation } from '../src/app-center/legacy-video-navigation.ts'
+import { legacyTarget } from '../src/app-center/legacy.ts'
 
 const route = '/market?video=' + encodeURIComponent('/dashboard/tasks/task-A')
 const task = { video_task_id: 'task-A', project_id: '纸船', idempotency_key: '河上漂流' }
@@ -32,4 +33,12 @@ test('root routes and direct task routes retain the correct breadcrumb ancestry'
     assert.equal(videoTaskLabel(root, '/api/tasks/task-A', 200, task), null)
   }
   assert.equal(videoPage('/market?image=%2Fdashboard').path, '')
+})
+
+test('ancestor href retains the exact object binding when opened directly or in another tab', () => {
+  const cardKey = 'installation:01a130a5-2000-7000-8000-000000000003'
+  const target = legacyTarget(videoTasksLocation(cardKey))
+  assert.equal(target?.cardKey, cardKey)
+  assert.equal(videoPage(target!.route).section, 'tasks')
+  assert.equal(videoPage(target!.route).taskId, '')
 })

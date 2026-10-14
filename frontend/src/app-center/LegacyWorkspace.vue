@@ -8,7 +8,7 @@ import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } fr
 import type { LegacyOpened, LegacyTarget } from './legacy'
 import type { AppCenterCard } from './schema.generated'
 import { reasonLabel } from './labels'
-import { videoPage } from './legacy-video-navigation'
+import { videoPage, videoTasksLocation } from './legacy-video-navigation'
 import LegacyMediaHost from './LegacyMediaHost.vue'
 import LegacyBlenderHost from './LegacyBlenderHost.vue'
 
@@ -20,7 +20,10 @@ const taskLabel = ref<{ route: string; label: string } | null>(null)
 const video = computed(() => props.target?.adapterId === 'video-iframe-v1' ? videoPage(props.target.route) : null)
 const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP' })[video.value?.section as 'tasks' | 'models' | 'mcp'] || '任务')
 const currentTaskLabel = computed(() => error.value ? '任务不可用' : taskLabel.value && taskLabel.value.route === props.target?.route ? taskLabel.value.label : '加载中')
-const videoTasksRoute = '/market?video=' + encodeURIComponent('/dashboard#tasks')
+const videoTasksRoute = computed(() => {
+  const cardKey = props.target?.cardKey || selection.value?.card.cardKey
+  return videoTasksLocation(cardKey)
+})
 function setTaskLabel(value: { route: string; label: string }) { if (value.route === props.target?.route) taskLabel.value = value }
 let generation = 0, pending: AbortController | undefined
 const identity = computed(() => JSON.stringify([host.connected, host.identity.user_id, host.identity.organization_id, host.identity.station_id,
@@ -50,7 +53,10 @@ async function authorize() {
 async function navigate(route: string) {
   if (route === '/market') { await router.push(props.returnLocation ?? route); return }
   const selected = selection.value
-  if (!selected) return
+  if (!selected) {
+    if (props.target?.adapterId === 'video-iframe-v1' && route === videoTasksRoute.value) await router.push(route)
+    return
+  }
   try {
     const next = legacyTarget(route)
     if (!next || next.adapterId !== selected.opened.adapterId) throw new Error('INVALID_LEGACY_ROUTE')
