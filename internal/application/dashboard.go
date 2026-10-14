@@ -308,6 +308,11 @@ func (d *Dashboards) Request(ctx context.Context, token, sessionID string, in da
 	if err != nil {
 		return dashboardError(err, result.RequestID)
 	}
+	if status == 200 && in.Method == "GET" && (in.Path == "/instances" || in.Path == "/internal/instances") {
+		if enriched, ok := d.instanceResourceView(ctx, token, data); ok {
+			data = enriched
+		}
+	}
 	result.Status = status
 	result.Data = data
 	return result

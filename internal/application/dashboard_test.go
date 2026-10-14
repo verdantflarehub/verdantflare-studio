@@ -308,3 +308,46 @@ func TestDashboardServiceChecksCurrentPermissionsBeforeOpeningOrClosing(t *testi
 		t.Fatal("close must not perform installation or instance operation")
 	}
 }
+
+func TestDashboardInstanceResourceViewJoinsWorkloadMetricsAndStripsBindings(t *testing.T) {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	station := &Station{base: "https://station.invalid", client: &http.Client{Transport: dashboardIdentityTransport(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/api/v1/resources/workloads" {
+			t.Fatalf("unexpected path: %s", req.URL.Path)
+		}
+		payload := `{"schema_version":2,"updated_at":"` + now + `","gpu_samples":[],"workloads":[{"pod_uid":"e7234653-ce65-49d4-b543-e5acba6510aa","namespace":"verdantflare-comfyui","pod_name":"appr-01a138c4312178d6b1497b10e53edfd4","instance_alias":"","created_at":"` + now + `","containers":[{"name":"worker","cpu":{"value":0.12,"request":0.1,"limit":4,"sampled_at":"` + now + `","quality":"fresh"},"memory":{"value":529858560,"request":268435456,"limit":8589934592,"sampled_at":"` + now + `","quality":"fresh"},"gpu_request":null,"gpu_limit":null}]}]}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(payload)), Header: http.Header{"Content-Type": {"application/json"}}, Request: req}, nil
+	})}}
+	d := &Dashboards{station: station}
+	raw := []byte(`{"schema_version":1,"allowed_actions":["create"],"profiles":[{"profile_id":"base-cpu","name":"基础 CPU"}],"instances":[{"instance_id":"019d8b35-02fd-778e-a4a0-a1f9df750c3d","alias":"comfyui019d8b3502fd778ea4a0a1f9df750c3d","name":"ComfyUI Dashboard A","status":"running","observed_at":"` + now + `","access":"manage","allowed_actions":["open","stop"],"editor_state":"ready","package_profile":"base","resources":{},"_resource_binding":{"pod_uid":"e7234653-ce65-49d4-b543-e5acba6510aa","namespace":"verdantflare-comfyui","pod_name":"appr-01a138c4312178d6b1497b10e53edfd4","container":"worker"}}]}`)
+	enriched, ok := d.instanceResourceView(context.Background(), "test-session", raw)
+	if !ok {
+		t.Fatal("expected instanceResourceView to succeed")
+	}
+	if strings.Contains(string(enriched), "_resource_binding") {
+		t.Fatal("private _resource_binding leaked")
+	}
+	var parsed struct {
+		AllowedActions []string `json:"allowed_actions"`
+		Instances      []struct {
+			Resources map[string]dashboardResourceMetric `json:"resources"`
+		} `json:"instances"`
+	}
+	if err := json.Unmarshal(enriched, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.AllowedActions) != 1 || parsed.AllowedActions[0] != "create" {
+		t.Fatalf("unexpected allowed_actions: %v", parsed.AllowedActions)
+	}
+	res := parsed.Instances[0].Resources
+	if res["cpu"].Quality != "fresh" || res["cpu"].Value == nil || *res["cpu"].Value != 0.12 {
+		t.Fatalf("unexpected cpu metric: %+v", res["cpu"])
+	}
+	if res["memory"].Quality != "fresh" || res["memory"].Value == nil || *res["memory"].Value != 529858560 {
+		t.Fatalf("unexpected memory metric: %+v", res["memory"])
+	}
+	if res["gpu"].Quality != "fresh" || res["gpu"].Value == nil || *res["gpu"].Value != 0 {
+		t.Fatalf("unexpected gpu metric: %+v", res["gpu"])
+	}
+}
+
