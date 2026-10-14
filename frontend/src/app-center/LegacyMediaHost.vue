@@ -12,6 +12,7 @@ const adapter = computed(() => mediaAdapter(props.adapterId))
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
 let currentBase = '', currentRoute = ''
+let previousScrollRestoration: ScrollRestoration | undefined
 let listScroll: number | null = null, restoreScroll: number | null = null, listRendered = false, scrollFrame = 0
 const isTaskList = (route: string) => {
   const page = videoPage(route)
@@ -110,8 +111,17 @@ async function receive(event: MessageEvent) {
 }
 const observer = new MutationObserver(() => { if (!disposed) post({ type: 'theme', theme: theme() }) })
 watch(() => [props.adapterId, props.route, props.resourceBase], () => load())
-onMounted(() => { window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load() })
-onBeforeUnmount(() => { disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive) })
+onMounted(() => {
+  if (props.adapterId === 'video-iframe-v1') {
+    previousScrollRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+  }
+  window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load()
+})
+onBeforeUnmount(() => {
+  disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive)
+  if (previousScrollRestoration !== undefined && window.history.scrollRestoration === 'manual') window.history.scrollRestoration = previousScrollRestoration
+})
 </script>
 
 <template>

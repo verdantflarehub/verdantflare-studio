@@ -13,12 +13,12 @@ const detail = (id: string) => '/market?video=' + encodeURIComponent('/dashboard
 function host(fetcher: typeof fetch = async () => Response.json({})) {
   const props = { adapterId: 'video-iframe-v1', route: root, title: 'Video MCP', authorize: async () => {} }
   const events: Array<[string, any]> = [], posts: any[] = [], scrolls: number[] = [], callbacks = new Map<number, FrameRequestCallback>()
-  let next = 0, dispose = () => {}
+  let next = 0, dispose = () => {}, mount = () => {}
   const frameWindow = { postMessage: (data: any) => posts.push(data) }
-  const win = { scrollY: 0, scrollTo: ({ top }: { top: number }) => { scrolls.push(top); win.scrollY = top }, scrollBy: () => {}, addEventListener: () => {}, removeEventListener: () => {} }
+  const win = { history: { scrollRestoration: 'auto' }, scrollY: 0, scrollTo: ({ top }: { top: number }) => { scrolls.push(top); win.scrollY = top }, scrollBy: () => {}, addEventListener: () => {}, removeEventListener: () => {} }
   const doc = { body: { dataset: { theme: 'light' } }, documentElement: { scrollHeight: 5000 } }
   const deps = { defineProps: () => props, defineEmits: () => (name: string, data: any) => events.push([name, data]),
-    ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: () => {}, onBeforeUnmount: (fn: () => void) => { dispose = fn },
+    ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: (fn: () => void) => { mount = fn }, onBeforeUnmount: (fn: () => void) => { dispose = fn },
     mediaAdapter, validMediaRequest, videoPage, videoTaskLabel, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
     window: win, document: doc, location: { origin: 'https://studio.invalid' }, innerHeight: 1000, fetch: fetcher,
     MutationObserver: class { observe() {} disconnect() {} },
@@ -28,8 +28,16 @@ function host(fetcher: typeof fetch = async () => Response.json({})) {
   const receive = (data: object) => api.receive({ source: frameWindow, origin: 'null', data: { channel: 'vf-video', view: new URL(api.src.value, 'https://studio.invalid').searchParams.get('view'), ...data } })
   const load = () => api.load()
   const flush = () => { while (callbacks.size) { const batch = [...callbacks.values()]; callbacks.clear(); batch.forEach(fn => fn(0)) } }
-  return { props, events, posts, scrolls, win, doc, receive, load, flush, dispose: () => dispose() }
+  return { props, events, posts, scrolls, win, doc, receive, load, flush, mount: () => mount(), dispose: () => dispose() }
 }
+
+test('Video owns scroll restoration only while its host is mounted', () => {
+  const h = host()
+  h.mount()
+  assert.equal(h.win.history.scrollRestoration, 'manual')
+  h.dispose()
+  assert.equal(h.win.history.scrollRestoration, 'auto')
+})
 
 test('breadcrumb navigation and browser history restore list state after render and resize', async () => {
   const h = host()
