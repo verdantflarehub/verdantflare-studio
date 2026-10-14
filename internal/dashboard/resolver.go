@@ -62,6 +62,7 @@ type Rule struct {
 	UpstreamPath   string `json:"upstreamPath"`
 	MaxBody        int    `json:"maxBody"`
 	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
+	RequireManage  bool   `json:"requireManage,omitempty"`
 }
 
 // Binding is platform-owned installed release data. Source must authenticate the

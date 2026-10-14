@@ -235,7 +235,7 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 		}
 		rules := []Rule{}
 		for _, rule := range release.Rules {
-			if rule.Method == "GET" || installed.CanManage {
+			if installed.CanManage || (rule.Method == "GET" && !rule.RequireManage) {
 				rules = append(rules, rule)
 			}
 		}
