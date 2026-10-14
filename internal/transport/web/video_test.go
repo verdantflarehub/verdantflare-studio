@@ -63,6 +63,8 @@ func TestVideoIsolation(t *testing.T) {
 		r := httptest.NewRequest(method, path, strings.NewReader(`{}`))
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("Origin", origin)
+		r.Header.Set("X-User-Id", "spoofed")
+		r.Header.Set("X-Organization-Id", "spoofed")
 		if cookie != nil {
 			r.AddCookie(cookie)
 		}
@@ -127,6 +129,24 @@ func TestVideoIsolation(t *testing.T) {
 		t.Fatal("CSRF")
 	}
 	role = "viewer"
+	for _, path := range []string{"projects", "capabilities", "assets", "tasks", "tasks/task_1", "tasks/task_1/content"} {
+		if call("GET", "/apps/video/api/higgsfield/"+path, "", cookie).Code != 200 {
+			t.Fatal("member read denied", path)
+		}
+	}
+	for _, path := range []string{"preflight", "tasks", "attempt", "imports/prepare", "imports/chunk", "imports/status", "imports/commit", "tasks/task_1/result"} {
+		if call("POST", "/apps/video/api/higgsfield/"+path, "https://studio.example", cookie).Code != 200 {
+			t.Fatal("member action denied", path)
+		}
+	}
+	for _, path := range []string{"account", "limits", "auth", "tasks/task_1/delete"} {
+		if call("GET", "/apps/video/api/higgsfield/"+path, "", cookie).Code != 404 {
+			t.Fatal("member boundary bypass", path)
+		}
+	}
+	if call("POST", "/apps/video/api/higgsfield/tasks", "https://evil.example", cookie).Code != 403 || call("GET", "/apps/video/api/higgsfield/tasks", "", nil).Code != 401 {
+		t.Fatal("member session or origin bypass")
+	}
 	if call("GET", "/apps/video/api/dashboard", "", cookie).Code != 403 {
 		t.Fatal("nonadmin access")
 	}

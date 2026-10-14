@@ -36,6 +36,7 @@ type LegacyOpened struct {
 }
 
 var mediaRoute = regexp.MustCompile(`^/dashboard(?:/tasks/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$`)
+var videoRoute = regexp.MustCompile(`^/dashboard(?:/tasks/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp|create|higgsfield|higgsfield-task-[a-zA-Z0-9_-]+))?$`)
 var legacyBlenderAlias = regexp.MustCompile(`^blender[A-Za-z0-9_-]{1,57}$`)
 
 // Only the compatibility adapter owns these historical bookmark keys. Neither
@@ -59,7 +60,8 @@ func LegacyRoute(route string) (string, string, error) {
 	}
 	for key, adapter := range map[string]string{"image": "image-iframe-v1", "video": "video-iframe-v1"} {
 		if value := q.Get(key); value != "" {
-			if len(q) != 1 || !mediaRoute.MatchString(value) {
+			allowed := mediaRoute.MatchString(value) || key == "video" && videoRoute.MatchString(value)
+			if len(q) != 1 || !allowed {
 				return "", "", ErrInvalid
 			}
 			return adapter, "/market?" + q.Encode(), nil

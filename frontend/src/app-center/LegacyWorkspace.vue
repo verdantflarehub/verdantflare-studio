@@ -18,7 +18,7 @@ const selection = shallowRef<{ card: AppCenterCard; opened: LegacyOpened; route:
 const error = ref(''), loading = ref(false), retry = ref(0)
 const taskLabel = ref<{ route: string; label: string } | null>(null)
 const video = computed(() => props.target?.adapterId === 'video-iframe-v1' ? videoPage(props.target.route) : null)
-const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP' })[video.value?.section as 'tasks' | 'models' | 'mcp'] || '任务')
+const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP', create: '新建视频', higgsfield: 'Higgsfield 任务' })[video.value?.section as 'tasks' | 'models' | 'mcp' | 'create' | 'higgsfield'] || '任务')
 const currentTaskLabel = computed(() => error.value ? '任务不可用' : taskLabel.value && taskLabel.value.route === props.target?.route ? taskLabel.value.label : '加载中')
 const videoTasksRoute = computed(() => {
   const cardKey = props.target?.cardKey || selection.value?.card.cardKey

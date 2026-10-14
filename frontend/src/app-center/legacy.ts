@@ -8,6 +8,7 @@ export interface LegacyTarget { adapterId: LegacyAdapterID; route: string; cardK
 export interface LegacyOpened { schemaVersion: 1; transport: 'legacy'; adapterId: LegacyAdapterID; bindingId: string; bindingRevision: string; route: string; resourceBase?: string; mcpOrigin?: string }
 const id = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 const mediaPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/
+export const videoPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp|create|higgsfield|higgsfield-task-[a-zA-Z0-9_-]+))?$/
 const invalid = (): never => { throw new AppCenterError(400, 'INVALID_LEGACY_ROUTE') }
 
 /** Historical query names live only in this finite compatibility adapter. */
@@ -26,7 +27,7 @@ export function legacyTarget(route: string): LegacyTarget | null {
   q.delete('legacyCard')
   const finish = (adapterId: LegacyAdapterID): LegacyTarget => { q.sort(); return { adapterId, route: '/market?' + q.toString(), cardKey } }
   for (const [key, adapter] of [['image', 'image-iframe-v1'], ['video', 'video-iframe-v1']] as const) {
-    if (q.has(key)) { if (q.size !== 1 || !mediaPath.test(q.get(key)!)) return invalid(); return finish(adapter) }
+    if (q.has(key)) { if (q.size !== 1 || !(key === 'video' ? videoPath : mediaPath).test(q.get(key)!)) return invalid(); return finish(adapter) }
   }
   const alias = q.get('blender') ?? ''
   if (!['instances', 'create'].includes(alias) && !/^blender[A-Za-z0-9_-]{1,57}$/.test(alias)) return invalid()

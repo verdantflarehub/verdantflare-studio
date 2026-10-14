@@ -7,7 +7,7 @@ export function videoTaskName(task: unknown): string {
 
 export function videoPage(route: string) {
   const path = new URL(route, 'https://studio.invalid').searchParams.get('video') ?? ''
-  const task = /^\/dashboard\/tasks\/([a-zA-Z0-9_-]+)(?:#(?:tasks|models|mcp))?$/.exec(path)
+  const task = /^\/dashboard\/tasks\/([a-zA-Z0-9_-]+)(?:#(?:tasks|models|mcp))?$/.exec(path) || /^\/dashboard#higgsfield-task-([a-zA-Z0-9_-]+)$/.exec(path)
   return { path, taskId: task?.[1] ?? '', section: task ? 'tasks' : path.split('#')[1] || 'tasks' }
 }
 
@@ -18,7 +18,7 @@ export function videoTasksLocation(cardKey?: string): string {
 /** Only the authorized detail response for the currently displayed task names it. */
 export function videoTaskLabel(route: string, request: string, status: number, task: unknown): string | null {
   const { taskId } = videoPage(route)
-  if (!taskId || request !== `/api/tasks/${taskId}`) return null
+  if (!taskId || ![`/api/tasks/${taskId}`, `/api/higgsfield/tasks/${taskId}`].includes(request)) return null
   if (status === 404) return '未找到任务'
   if (status !== 200 || !task || typeof task !== 'object' || (task as Record<string, unknown>).video_task_id !== taskId) return '任务不可用'
   return videoTaskName(task)

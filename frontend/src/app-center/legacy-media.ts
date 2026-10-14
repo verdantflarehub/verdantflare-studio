@@ -17,6 +17,10 @@ export function validMediaRequest(adapter: NonNullable<ReturnType<typeof mediaAd
   if (path.length > 2048 || /[#\\\u0000-\u001f\u007f]/.test(path) || path.split('?')[0].includes('%') || !path.startsWith('/')
     || body != null && (typeof body !== 'string' || body.length > 1048576)) return false
   const pathname = path.split('?')[0]
+  if (adapter.channel === 'vf-video' && pathname.startsWith('/api/higgsfield/')) {
+    return method === 'GET' && body == null && /^\/api\/higgsfield\/(projects|capabilities|assets|assets\/art_[a-zA-Z0-9_-]+\/content|tasks|tasks\/[a-zA-Z0-9_-]+(?:\/(?:thumbnail|content))?)$/.test(pathname)
+      || method === 'POST' && /^\/api\/higgsfield\/(preflight|tasks|attempt|imports\/(prepare|chunk|status|commit)|tasks\/[a-zA-Z0-9_-]+\/result)$/.test(pathname)
+  }
   if (adapter.channel === 'vf-video' && pathname.endsWith('/title')) {
     if (method !== 'POST' || pathname !== path || typeof body !== 'string') return false
     try {

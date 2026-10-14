@@ -157,3 +157,23 @@ test('open binding supports pinning and taking revision with opened payload', ()
   assert.equal(takeOpenBinding('card-2'), undefined)
 })
 
+test('Higgsfield member routes are scoped to Video and known operations', () => {
+  const video = mediaAdapter('video-iframe-v1')!, image = mediaAdapter('image-iframe-v1')!
+  for (const path of ['/dashboard#create', '/dashboard#higgsfield', '/dashboard#higgsfield-task-video_task_123']) {
+    assert.equal(legacyTarget('/market?video=' + encodeURIComponent(path))?.adapterId, 'video-iframe-v1')
+    assert.throws(() => legacyTarget('/market?image=' + encodeURIComponent(path)))
+  }
+  for (const path of ['projects', 'capabilities', 'assets', 'tasks', 'tasks/task1/content']) {
+    assert.equal(validMediaRequest(video, 'GET', '/api/higgsfield/' + path, undefined), true)
+    assert.equal(validMediaRequest(image, 'GET', '/api/higgsfield/' + path, undefined), false)
+  }
+  for (const path of ['preflight', 'tasks', 'attempt', 'imports/chunk', 'tasks/task1/result']) {
+    assert.equal(validMediaRequest(video, 'POST', '/api/higgsfield/' + path, '{}'), true)
+    assert.equal(validMediaRequest(image, 'POST', '/api/higgsfield/' + path, '{}'), false)
+  }
+  for (const path of ['account', 'limits', 'auth', 'imports/delete', 'tasks/task1/delete']) {
+    assert.equal(validMediaRequest(video, 'GET', '/api/higgsfield/' + path, undefined), false)
+    assert.equal(validMediaRequest(video, 'POST', '/api/higgsfield/' + path, '{}'), false)
+  }
+})
+

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
+import { videoPath } from './legacy'
 import { mediaAdapter, validMediaRequest } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
 import { videoPage, videoTaskLabel } from './legacy-video-navigation'
@@ -59,7 +60,7 @@ async function receive(event: MessageEvent) {
   const a = adapter.value, data = event.data
   if (disposed || !a || event.source !== frame.value?.contentWindow || event.origin !== 'null' || !data || data.channel !== a.channel || data.view !== String(generation)) return
   if (data.type === 'ready') { clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState }); return }
-  if (data.type === 'navigate' && typeof data.path === 'string' && /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(data.path)) {
+  if (data.type === 'navigate' && typeof data.path === 'string' && (a.channel === 'vf-video' ? videoPath : /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/).test(data.path)) {
     if (data.state && typeof data.state === 'object') viewState = data.state
     const current = new URL(props.route, location.origin).searchParams.get(a.query)
     if (props.adapterId === 'video-iframe-v1' && (data.path === current || data.path === '/dashboard#tasks' && current === '/dashboard')) {
@@ -95,14 +96,16 @@ async function receive(event: MessageEvent) {
     if (disposed || epoch !== generation || signal.aborted) return
     if (props.adapterId === 'video-iframe-v1') {
       let task: unknown = null
-      if (response.status === 200 && data.path === `/api/tasks/${videoPage(props.route).taskId}`) {
+      if (response.status === 200 && [`/api/tasks/${videoPage(props.route).taskId}`, `/api/higgsfield/tasks/${videoPage(props.route).taskId}`].includes(data.path)) {
         try { task = JSON.parse(new TextDecoder().decode(body)) } catch { /* Invalid payload never supplies a name. */ }
       }
       const label = videoTaskLabel(props.route, data.path, response.status, task)
       if (label !== null) emit('taskLabel', { route: props.route, label })
     }
     const titleEdit = props.adapterId === 'video-iframe-v1' && method === 'POST' && /^\/api\/tasks\/[a-zA-Z0-9_-]+\/title$/.test(data.path)
-    if ([401, 410].includes(response.status) || !titleEdit && [403, 409].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
+    // Video project denials and quote conflicts are business errors. Keep the
+    // workspace open so members can select another project or refresh a quote.
+    if ([401, 410].includes(response.status) || a.channel !== 'vf-video' && !titleEdit && [403, 409].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
     reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body })
   } catch {
     if (!disposed && epoch === generation && !signal.aborted && props.adapterId === 'video-iframe-v1' && data.path === `/api/tasks/${videoPage(props.route).taskId}`) emit('taskLabel', { route: props.route, label: '任务不可用' })

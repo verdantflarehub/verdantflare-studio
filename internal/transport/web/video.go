@@ -23,12 +23,16 @@ type VideoConfig struct{ URL, Token string }
 var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
+var videoMemberRead = regexp.MustCompile(`^/api/higgsfield/(projects|capabilities|assets|assets/art_[a-zA-Z0-9_-]+/content|tasks|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)$`)
+var videoMemberWrite = regexp.MustCompile(`^/api/higgsfield/(preflight|tasks|attempt|imports/(prepare|chunk|status|commit)|tasks/[a-zA-Z0-9_-]+/result)$`)
 
 func videoStatic(path string) bool {
 	if path == "/dashboard" || videoTask.MatchString(path) {
 		return true
 	}
 	switch path {
+	case "/dashboard/frontend/higgsfield-member.js", "/dashboard/frontend/higgsfield-member.css":
+		return true
 	case "/dashboard/static/model-catalog.js", "/dashboard/static/model-catalog.css", "/dashboard/frontend/model-catalog.js", "/dashboard/frontend/model-catalog.css":
 		return true
 	case "/dashboard/static/dashboard.css", "/dashboard/static/dashboard.js", "/dashboard/static/resources.js", "/dashboard/static/task-detail.js", "/dashboard/static/studio-embed.js", "/dashboard/static/studio-theme.css":
@@ -43,7 +47,8 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	path := c.Param("path")
 	static := c.Request.Method == "GET" && videoStatic(path)
-	if !static && !(c.Request.Method == "GET" && videoRead.MatchString(path)) && !(c.Request.Method == "POST" && videoWrite.MatchString(path)) {
+	member := c.Request.Method == "GET" && videoMemberRead.MatchString(path) || c.Request.Method == "POST" && videoMemberWrite.MatchString(path)
+	if !static && !member && !(c.Request.Method == "GET" && videoRead.MatchString(path)) && !(c.Request.Method == "POST" && videoWrite.MatchString(path)) {
 		c.Status(404)
 		return
 	}
@@ -78,7 +83,7 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 				admin = true
 			}
 		}
-		if !admin {
+		if !admin && !member {
 			c.Status(403)
 			return
 		}
