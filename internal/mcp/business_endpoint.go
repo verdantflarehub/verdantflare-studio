@@ -26,6 +26,11 @@ func (g *Gateway) BusinessEndpoint(domain string) (string, bool) {
 	case "split":
 		return businessOrigin(os.Getenv(key), true)
 	case "", "legacy":
+		// Artifact can separate its MCP and binary listeners independently of
+		// the Project/World authority migration. Keep their legacy routes intact.
+		if domain == "artifact" && os.Getenv(key) != "" {
+			return businessOrigin(os.Getenv(key), true)
+		}
 		endpoint, ok := g.ServiceEndpoint(domain)
 		if !ok {
 			return "", false

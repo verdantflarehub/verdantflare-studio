@@ -85,6 +85,28 @@ func TestBusinessEndpointLegacyUsesOriginalSharedListener(t *testing.T) {
 	}
 }
 
+func TestLegacyArtifactExplicitBusinessListener(t *testing.T) {
+	g := NewGatewayWithClient(nil)
+	g.services["artifact"] = ServiceRegistration{Endpoint: "https://artifact.example:8194/mcp"}
+	for _, mode := range []string{"", "legacy"} {
+		t.Setenv("STUDIO_CONTENT_SERVICE_MODE", mode)
+		t.Setenv("STUDIO_ARTIFACT_URL", "https://artifact.example:8094")
+		if origin, ok := g.BusinessEndpoint("artifact"); !ok || origin != "https://artifact.example:8094" {
+			t.Fatal("Artifact transfer inherited MCP listener")
+		}
+		for _, bad := range []string{"http://artifact.example:8094", "https://artifact.example:8094/mcp", "https://user:secret@artifact.example"} {
+			t.Setenv("STUDIO_ARTIFACT_URL", bad)
+			if _, ok := g.BusinessEndpoint("artifact"); ok {
+				t.Fatal("invalid business endpoint fell back")
+			}
+		}
+		t.Setenv("STUDIO_ARTIFACT_URL", "")
+		if origin, ok := g.BusinessEndpoint("artifact"); !ok || origin != "https://artifact.example:8194" {
+			t.Fatal("unconfigured legacy compatibility changed")
+		}
+	}
+}
+
 func TestBusinessTransferUsesArtifactBusinessPortAndIdentity(t *testing.T) {
 	g := NewGatewayWithClient(nil)
 	t.Setenv("STUDIO_CONTENT_SERVICE_MODE", "split")
