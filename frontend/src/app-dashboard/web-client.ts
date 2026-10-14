@@ -12,7 +12,7 @@ export interface AppCenterOpenInput {
 }
 export interface DashboardInstallation { installationId: string; appId: string; appVersion: string }
 export interface InstanceWorkspaceLaunch {
-  workspaceSessionId: string; installationId: string; appId: string; instanceId: string; entryId: string
+  workspaceSessionId: string; installationId: string; appId: string; instanceId: string; instanceName?: string; entryId: string
   entryUrl: string; assetBaseUrl: string; expiresAt: string
   now?: () => number
 }
@@ -64,10 +64,13 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
   function workspace(response: AppResponse, installationId: string): InstanceWorkspaceLaunch {
     if (response.status !== 200) return failure(codeFrom(response.data))
     const value = response.data
+    const keys = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).sort().join(',') : ''
     if (!value || typeof value !== 'object' || Array.isArray(value)
-      || Object.keys(value).sort().join(',') !== 'appId,assetBaseUrl,entryId,entryUrl,expiresAt,installationId,instanceId,workspaceSessionId'
+      || (keys !== 'appId,assetBaseUrl,entryId,entryUrl,expiresAt,installationId,instanceId,workspaceSessionId'
+        && keys !== 'appId,assetBaseUrl,entryId,entryUrl,expiresAt,installationId,instanceId,instanceName,workspaceSessionId')
       || value.installationId !== installationId || !uuid.test(installationId) || installationId[14] !== '7'
       || ['appId', 'instanceId', 'entryId'].some(key => typeof value[key] !== 'string' || !identifier.test(value[key] as string))
+      || (value.instanceName !== undefined && (typeof value.instanceName !== 'string' || !value.instanceName.trim() || value.instanceName.length > 256))
       || typeof value.workspaceSessionId !== 'string' || typeof value.entryUrl !== 'string'
       || typeof value.assetBaseUrl !== 'string' || !/^\/studio\/instance-assets\/[a-f0-9]{64}\/$/.test(value.assetBaseUrl)
       || typeof value.expiresAt !== 'string' || !Number.isFinite(Date.parse(value.expiresAt)) || !Number.isFinite(now()) || Date.parse(value.expiresAt) <= now()) return failure('INVALID_WORKSPACE_RESPONSE')

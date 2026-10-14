@@ -80,6 +80,7 @@ type InstanceWorkspaceLaunch struct {
 	InstallationID     string    `json:"installationId"`
 	AppID              string    `json:"appId"`
 	InstanceID         string    `json:"instanceId"`
+	InstanceName       string    `json:"instanceName,omitempty"`
 	EntryID            string    `json:"entryId"`
 	EntryURL           string    `json:"entryUrl"`
 	AssetBaseURL       string    `json:"assetBaseUrl"`
@@ -147,7 +148,15 @@ func (w *Workspaces) Open(ctx context.Context, actor Actor, installationID strin
 	if err != nil {
 		return InstanceWorkspaceLaunch{}, err
 	}
-	if err = w.source.ResolveInstance(ctx, actor, binding, entry, in); err != nil {
+	var instanceName string
+	if named, ok := w.source.(interface {
+		ResolveInstanceName(context.Context, Actor, Binding, InstanceEntry, InstanceOpen) (string, error)
+	}); ok {
+		instanceName, err = named.ResolveInstanceName(ctx, actor, binding, entry, in)
+	} else {
+		err = w.source.ResolveInstance(ctx, actor, binding, entry, in)
+	}
+	if err != nil {
 		return InstanceWorkspaceLaunch{}, err
 	}
 	// Resolve can block on a running service. Revalidate release and permissions
@@ -177,7 +186,8 @@ func (w *Workspaces) Open(ctx context.Context, actor Actor, installationID strin
 	}
 	id := uuid.NewString()
 	launch := InstanceWorkspaceLaunch{WorkspaceSessionID: id, InstallationID: installationID, AppID: binding.AppID,
-		InstanceID: in.InstanceID, EntryID: in.EntryID, EntryURL: "/studio/instance-workspaces/" + id + "/assets/" + entry.EntryRef,
+		InstanceID: in.InstanceID, InstanceName: instanceName, EntryID: in.EntryID,
+		EntryURL:     "/studio/instance-workspaces/" + id + "/assets/" + entry.EntryRef,
 		AssetBaseURL: "/studio/instance-assets/" + strings.TrimPrefix(entry.ArtifactDigest, "sha256:") + "/",
 		ExpiresAt:    w.now().UTC().Add(15 * time.Minute)}
 	w.sessions[id] = workspaceSession{actor, launch, bindingHash(binding)}

@@ -13,28 +13,35 @@ import (
 // ResolveInstance asks the installed App about its instance. URLs and credentials
 // are exclusively platform registration data and cannot come back from this API.
 func (s *RegisteredSource) ResolveInstance(ctx context.Context, actor Actor, binding Binding, entry InstanceEntry, in InstanceOpen) error {
+	_, err := s.ResolveInstanceName(ctx, actor, binding, entry, in)
+	return err
+}
+
+func (s *RegisteredSource) ResolveInstanceName(ctx context.Context, actor Actor, binding Binding, entry InstanceEntry, in InstanceOpen) (string, error) {
 	if binding.Backend == nil || !ValidInstanceOpen(in) || entry.EntryID != in.EntryID {
-		return ErrDenied
+		return "", ErrDenied
 	}
 	body, _ := json.Marshal(in)
 	data, status, err := s.fetch(ctx, actor, *binding.Backend, "POST", entry.ResolvePath, body, 4096, "application/json")
 	if err != nil {
-		return err
+		return "", err
 	}
 	var result struct {
-		InstanceID string `json:"instanceId"`
-		EntryID    string `json:"entryId"`
-		State      string `json:"state"`
+		InstanceID   string `json:"instanceId"`
+		InstanceName string `json:"instanceName,omitempty"`
+		EntryID      string `json:"entryId"`
+		State        string `json:"state"`
 	}
 	if status != 200 || strictjson.Decode(bytes.NewReader(data), 4096, &result) != nil ||
-		result.InstanceID != in.InstanceID || result.EntryID != in.EntryID {
-		return ErrInvalid
+		result.InstanceID != in.InstanceID || result.EntryID != in.EntryID ||
+		len(result.InstanceName) > 256 || strings.TrimSpace(result.InstanceName) != result.InstanceName {
+		return "", ErrInvalid
 	}
 	if result.State != "running" {
-		return ErrUnavailable
+		return "", ErrUnavailable
 	}
 	_, err = s.workspaceIndex(ctx, actor, binding, entry)
-	return err
+	return result.InstanceName, err
 }
 
 func (s *RegisteredSource) workspaceIndex(ctx context.Context, actor Actor, binding Binding, entry InstanceEntry) (assetIndex, error) {

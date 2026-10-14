@@ -38,7 +38,7 @@ const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([ide
   identity.identity.session_id, identity.identity.policy_version, identity.identity.revocation_version,
   [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
 const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
-const workspaceAppId = ref('')
+const workspaceAppId = ref(''), workspaceInstanceName = ref('')
 const title = computed(() => {
   const appId = selection.value?.launch.installationId === props.installationId
     ? selection.value.context.appId
@@ -104,6 +104,8 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       const launch = await client!.openInstance(id, opened.launch.installationId, input, signal)
       try {
         if (signal.aborted || opened.context.contextRevision !== selection.value?.context.contextRevision) throw new Error('REQUEST_CANCELLED')
+        workspaceAppId.value = launch.appId
+        workspaceInstanceName.value = launch.instanceName || launch.instanceId
         const failed = await router.push(instanceWorkspaceLocation(launch.installationId, launch.workspaceSessionId))
         if (failed) throw new Error('NAVIGATION_CANCELLED')
       } catch (cause) {
@@ -128,6 +130,7 @@ watch([() => props.active, () => props.installationId, () => route.query.path, w
   if (!props.active) { state.value = 'idle'; return }
   if (!scope) { showError(new Error('UNAUTHENTICATED')); return }
   if (workspaceId.value) { state.value = 'idle'; error.value = ''; return }
+  workspaceInstanceName.value = ''
   state.value = 'resolving'; error.value = ''
   const controller = new AbortController(); pending = controller
   try {
@@ -184,9 +187,9 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
         <span aria-hidden="true" class="breadcrumb-sep"> / </span>
         <a v-if="workspaceId" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
-        <template v-if="workspaceId">
+        <template v-if="workspaceId && workspaceInstanceName">
           <span aria-hidden="true" class="breadcrumb-sep"> / </span>
-          <span class="breadcrumb-current">实例工作区</span>
+          <span class="breadcrumb-current">{{ workspaceInstanceName }}</span>
         </template>
       </nav>
       <header v-if="!workspaceId" class="heading">
@@ -205,7 +208,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
         @ready="ready" @error="dashboardError" @cancelled="cancelled" @retry="retry++" />
       <AppInstanceHost v-if="workspaceId && actorScope" :key="actorScope + workspaceId" ref="instanceHost"
         :workspace-session-id="workspaceId" :installation-id="installationId"
-        @loaded="id => { workspaceAppId = id }" />
+        @loaded="info => { workspaceAppId = info.appId; workspaceInstanceName = info.instanceName }" />
     </div>
   </main>
 </template>

@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { createDashboardWebClient } from './web-client'
 
 const props = defineProps<{ workspaceSessionId: string; installationId: string }>()
-const emit = defineEmits<{ (e: 'loaded', appId: string): void }>()
+const emit = defineEmits<{ (e: 'loaded', info: { appId: string; instanceName: string }): void }>()
 const client = createDashboardWebClient(location.origin)
 const frame = ref<HTMLIFrameElement>(), entry = ref(''), message = ref('正在打开实例工作区…')
 const lifetime = new AbortController()
@@ -47,7 +47,7 @@ onMounted(async () => {
   try {
     const launch = await client.inspectWorkspace(props.workspaceSessionId, props.installationId, lifetime.signal)
     if (lifetime.signal.aborted) return
-    emit('loaded', launch.appId)
+    emit('loaded', { appId: launch.appId, instanceName: launch.instanceName || launch.instanceId })
     entry.value = launch.entryUrl
     message.value = ''
     loading = setTimeout(() => { message.value = '实例工作区加载超时，请关闭后重试。' }, 30000)
