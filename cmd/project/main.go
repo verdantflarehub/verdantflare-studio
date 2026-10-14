@@ -96,7 +96,27 @@ func run(ctx context.Context, args []string) error {
 	})
 	mux.Handle("/", handler)
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 10 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
-	done := make(chan error, 1)
+	done := make(chan error, 2)
+	var peerServer *http.Server
+	if peerAddr := os.Getenv("STUDIO_PROJECT_READ_LISTEN"); peerAddr != "" {
+		if validateReadListener(addr, peerAddr, certFile != "") != nil {
+			return errors.New("invalid Project peer read listener")
+		}
+		peerListener, err := net.Listen("tcp", peerAddr)
+		if err != nil {
+			return errors.New("Project peer read listener unavailable")
+		}
+		defer peerListener.Close()
+		peerServer = &http.Server{Handler: projectReadHandler(mux), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+		defer peerServer.Close()
+		go func() {
+			if certFile != "" {
+				done <- peerServer.ServeTLS(peerListener, certFile, keyFile)
+			} else {
+				done <- peerServer.Serve(peerListener)
+			}
+		}()
+	}
 	if certFile != "" {
 		go func() { done <- server.ServeTLS(listener, certFile, keyFile) }()
 	} else {
@@ -152,6 +172,9 @@ func run(ctx context.Context, args []string) error {
 	case <-ctx.Done():
 		finish, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
+		if peerServer != nil {
+			_ = peerServer.Shutdown(finish)
+		}
 		if server.Shutdown(finish) != nil {
 			_ = server.Close()
 			return errors.New("Studio Project shutdown deadline exceeded")
