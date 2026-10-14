@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
 )
 
@@ -284,6 +285,7 @@ func (s *RegisteredSource) internalRequest(ctx context.Context, actor Actor, bac
 	req.Header.Set("X-User-Id", actor.UserID)
 	req.Header.Set("X-Organization-Id", actor.OrganizationID)
 	req.Header.Set("X-Station-Id", actor.StationID)
+	req.Header.Set("X-Request-Id", uuid.Must(uuid.NewV7()).String())
 	req.Header.Set("Accept", mime)
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
