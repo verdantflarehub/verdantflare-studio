@@ -1591,6 +1591,23 @@
             "display": {
               "$ref": "station://contracts/appcenter-v1/common#/$defs/display"
             },
+            "ordering": {
+              "type": "object",
+              "properties": {
+                "priorityClass": {
+                  "const": "normal"
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "required": [
+                "priorityClass"
+              ],
+              "additionalProperties": false
+            },
             "sourceRef": {
               "type": "string",
               "minLength": 1,
@@ -1627,6 +1644,13 @@
                       }
                     }
                   }
+                }
+              },
+              "else": {
+                "not": {
+                  "required": [
+                    "ordering"
+                  ]
                 }
               }
             }

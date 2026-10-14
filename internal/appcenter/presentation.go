@@ -10,12 +10,18 @@ import (
 	"time"
 )
 
+type AppOrdering struct {
+	PriorityClass string `json:"priorityClass"`
+	Order         *int   `json:"order,omitempty"`
+}
+
 type PresentationRecord struct {
-	AppID        string  `json:"appId"`
-	AppVersion   *string `json:"appVersion"`
-	Display      Display `json:"display"`
-	SourceRef    string  `json:"sourceRef"`
-	SourceDigest string  `json:"sourceDigest"`
+	AppID        string       `json:"appId"`
+	AppVersion   *string      `json:"appVersion"`
+	Display      Display      `json:"display"`
+	Ordering     *AppOrdering `json:"ordering,omitempty"`
+	SourceRef    string       `json:"sourceRef"`
+	SourceDigest string       `json:"sourceDigest"`
 }
 type PresentationRegistry struct {
 	SchemaVersion int                  `json:"schemaVersion"`
@@ -80,10 +86,13 @@ func LoadPresentation(ctx context.Context, path string, facts Facts) ([]Group, m
 		return nil, nil, source, err
 	}
 	records := map[string]Display{}
+	ordering := map[string]*AppOrdering{}
 	for _, r := range reg.Records {
 		version := "*"
 		if r.AppVersion != nil {
 			version = *r.AppVersion
+		} else {
+			ordering[r.AppID] = r.Ordering
 		}
 		records[r.AppID+"@"+version] = r.Display
 	}
@@ -102,7 +111,7 @@ func LoadPresentation(ctx context.Context, path string, facts Facts) ([]Group, m
 		}
 		if ok {
 			copy := display
-			metadata[fact.CardKey] = Metadata{Display: &copy}
+			metadata[fact.CardKey] = Metadata{Display: &copy, Ordering: ordering[fact.AppID]}
 		}
 	}
 	now := time.Now().UTC()

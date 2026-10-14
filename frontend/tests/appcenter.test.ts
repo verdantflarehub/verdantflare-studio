@@ -13,6 +13,32 @@ import type { NavigationEnvelope } from '../src/navigation/controller.ts'
 const now = Date.parse('2026-10-12T00:00:00Z'), digest = `sha256:${'a'.repeat(64)}`
 const id = (n: number) => `00000000-0000-7000-8000-${String(n).padStart(12, '0')}`
 const identity = { userId: id(1), organizationId: id(2), stationId: id(3) }
+
+test('MCP server order survives installed, category and search filters without inserting absent cards', () => {
+  const data = view(), base = data.items[0]
+  data.items = ['image', 'video', 'music'].flatMap(group => [true, false].map(mcp => {
+    const card = structuredClone(base)
+    card.appId = `${group}-${mcp ? 'mcp-server' : 'ordinary'}`
+    card.cardKey = `catalog:${card.appId}`
+    card.display.groupId = group
+    card.display.name = mcp ? `${group} MCP` : 'A ordinary application'
+    if (group === 'music' && mcp) card.installation = null
+    return card
+  }))
+  const before = structuredClone(data)
+  const ids = (cards: AppCenterCard[]) => cards.map(card => card.appId)
+  assert.deepEqual(ids(selectCards(data).items), ids(data.items))
+  assert.deepEqual(ids(selectCards(data, '', 'all', 'installed').items), [
+    'image-mcp-server', 'image-ordinary', 'video-mcp-server', 'video-ordinary', 'music-ordinary',
+  ])
+  assert.deepEqual(ids(selectCards(data, 'MCP').items), ['image-mcp-server', 'video-mcp-server', 'music-mcp-server'])
+  assert.deepEqual(ids(selectCards(data, 'MCP', 'all', 'installed').items), ['image-mcp-server', 'video-mcp-server'])
+  assert.deepEqual(ids(selectCards(data, '', 'video').items), ['video-mcp-server', 'video-ordinary'])
+  assert.deepEqual(ids(selectCards(data, 'ordinary', 'video').items), ['video-ordinary'])
+  assert.deepEqual(selectCards(data, 'no match').items, [])
+  assert.deepEqual(data, before, 'filtering preserves server facts and order')
+})
+
 function view(): AppCenterView {
   const card: AppCenterCard = {
     cardKey: `installation:${id(4)}`, appId: 'sample', origin: 'installation',

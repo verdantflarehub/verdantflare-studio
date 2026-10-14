@@ -13,6 +13,7 @@ import (
 // the browser or a running App. EntryRevision binds the exact trusted material.
 type Metadata struct {
 	Display        *Display
+	Ordering       *AppOrdering
 	Entry          *Entry
 	EntryRevision  string
 	ArtifactDigest string
@@ -38,6 +39,15 @@ func Digest(value any) string {
 	raw, _ := json.Marshal(value)
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// Sorting is platform presentation policy. It never participates in entry
+// binding or action permissions, and is not exposed in the public View.
+func orderingValue(ordering *AppOrdering) int {
+	if ordering != nil && ordering.Order != nil {
+		return *ordering.Order
+	}
+	return 1000
 }
 func catalogDisplay(f Fact) (Display, *string) {
 	d := Display{Name: f.AppID, GroupID: "other", ResourceTags: []ResourceTag{}, Quality: "unknown"}
@@ -319,6 +329,14 @@ func Resolve(in Input) (View, error) {
 		}
 		if order(a.Display.GroupID) != order(b.Display.GroupID) {
 			return order(a.Display.GroupID) < order(b.Display.GroupID)
+		}
+		if a.Display.GroupID != b.Display.GroupID {
+			return a.Display.GroupID < b.Display.GroupID
+		}
+		ao := orderingValue(in.Metadata[a.CardKey].Ordering)
+		bo := orderingValue(in.Metadata[b.CardKey].Ordering)
+		if ao != bo {
+			return ao < bo
 		}
 		if a.Display.Name != b.Display.Name {
 			return a.Display.Name < b.Display.Name
