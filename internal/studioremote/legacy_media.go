@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
+	"github.com/verdantflarehub/verdantflare-studio/internal/videotitle"
 )
 
 const legacyJSONLimit = 4 << 20
@@ -21,7 +22,7 @@ const legacyMediaLimit = 1 << 30
 
 var legacyImageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
-var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/result|artifacts/import)$`)
+var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
 var legacyVideoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 var legacyBinaryPath = regexp.MustCompile(`^/(artifacts/[a-zA-Z0-9_-]+/content|api/tasks/[a-zA-Z0-9_-]+/(thumbnail|content))$`)
 var legacyRange = regexp.MustCompile(`^bytes=([0-9]+)-([0-9]*)$|^bytes=-([0-9]+)$`)
@@ -149,6 +150,9 @@ func (s *Session) LegacyMedia(ctx context.Context, adapter, method, target strin
 		return nil, ErrInvalid
 	}
 	if method == "POST" {
+		if strings.HasSuffix(route.path, "/title") && !videotitle.ValidBody(body) {
+			return nil, ErrInvalid
+		}
 		kind, params, err := mime.ParseMediaType(contentType)
 		if adapter == "image-iframe-v1" && route.path == "/studio/apps/image/api/artifacts/upload" {
 			if err != nil || kind != "multipart/form-data" || len(params) != 1 || params["boundary"] == "" || len(params["boundary"]) > 70 || len(body) == 0 {

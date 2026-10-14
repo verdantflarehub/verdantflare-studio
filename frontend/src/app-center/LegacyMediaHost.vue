@@ -101,7 +101,8 @@ async function receive(event: MessageEvent) {
       const label = videoTaskLabel(props.route, data.path, response.status, task)
       if (label !== null) emit('taskLabel', { route: props.route, label })
     }
-    if ([401, 403, 409, 410].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
+    const titleEdit = props.adapterId === 'video-iframe-v1' && method === 'POST' && /^\/api\/tasks\/[a-zA-Z0-9_-]+\/title$/.test(data.path)
+    if ([401, 410].includes(response.status) || !titleEdit && [403, 409].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
     reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body })
   } catch {
     if (!disposed && epoch === generation && !signal.aborted && props.adapterId === 'video-iframe-v1' && data.path === `/api/tasks/${videoPage(props.route).taskId}`) emit('taskLabel', { route: props.route, label: '任务不可用' })

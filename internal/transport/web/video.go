@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,13 +14,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
+	"github.com/verdantflarehub/verdantflare-studio/internal/videotitle"
 )
 
 // The upstream and credential are server configuration, never caller-controlled.
 type VideoConfig struct{ URL, Token string }
 
 var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
-var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/result|artifacts/import)$`)
+var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 
 func videoStatic(path string) bool {
@@ -104,6 +106,15 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		req.Header.Set("X-Request-Id", principal.RequestID)
 	}
 	if c.Request.Method == "POST" {
+		if strings.HasSuffix(path, "/title") {
+			body, readErr := io.ReadAll(req.Body)
+			if readErr != nil || c.Request.URL.RawQuery != "" || !videotitle.ValidBody(body) {
+				c.Status(400)
+				return
+			}
+			req.Body = io.NopCloser(bytes.NewReader(body))
+			req.ContentLength = int64(len(body))
+		}
 		if strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {
 			c.Status(415)
 			return

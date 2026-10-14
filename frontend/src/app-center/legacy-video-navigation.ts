@@ -1,10 +1,8 @@
-/** Video's existing card title: project / shot key. No task schema extension. */
+/** Names come only from the current authorized Video task projection. */
 export function videoTaskName(task: unknown): string {
-  if (!task || typeof task !== 'object') return '未命名任务'
-  const value = task as Record<string, unknown>
-  const key = typeof value.idempotency_key === 'string' ? value.idempotency_key.trim() : ''
-  const project = typeof value.project_id === 'string' ? value.project_id.trim() : ''
-  return key ? (project ? `${project} / ${key}` : key) : '未命名任务'
+  if (!task || typeof task !== 'object') return '视频任务'
+  const value = (task as Record<string, unknown>).title
+  return typeof value === 'string' && value.trim() ? value.trim() : '视频任务'
 }
 
 export function videoPage(route: string) {

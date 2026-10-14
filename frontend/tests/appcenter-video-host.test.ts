@@ -77,14 +77,38 @@ test('old response generations cannot supply a task name or touch the new page',
 
 test('authorization failures clear a previously readable name without forwarding the request', async () => {
   let fetched = 0
-  const h = host(async () => { fetched++; return Response.json({ video_task_id: 'A', project_id: '纸船', idempotency_key: '河上漂流' }) })
+  const h = host(async () => { fetched++; return Response.json({ video_task_id: 'A', project_id: '纸船', idempotency_key: 'shot-key', title: '河上漂流的纸船' }) })
   try {
     h.load(); h.props.route = detail('A'); h.load()
     await h.receive({ type: 'request', id: 1, path: '/api/tasks/A' })
-    assert.equal(h.events.at(-1)?.[1].label, '纸船 / 河上漂流')
+    assert.equal(h.events.at(-1)?.[1].label, '河上漂流的纸船')
     h.props.authorize = async () => { throw Error('denied') }
     await h.receive({ type: 'request', id: 2, path: '/api/tasks/A' })
     assert.equal(h.events.at(-1)?.[1].label, '任务不可用')
     assert.equal(fetched, 1)
   } finally { h.dispose() }
+})
+
+test('rename conflicts and project write denial remain business errors inside the task', async () => {
+  for (const status of [409, 403]) {
+    const h = host(async () => Response.json({ error: status === 409 ? 'title_conflict' : 'permission_denied' }, { status }))
+    try {
+      h.load(); h.props.route = detail('A'); h.load()
+      await h.receive({ type: 'request', id: 1, method: 'POST', path: '/api/tasks/A/title', body: JSON.stringify({ title: '纸船', expected_title_revision: 0 }) })
+      assert.equal(h.posts.at(-1).status, status)
+      assert.ok(!h.events.some(e => e[0] === 'error'))
+    } finally { h.dispose() }
+  }
+})
+
+test('rename proxy accepts only its exact method, path and body', () => {
+  const adapter = mediaAdapter('video-iframe-v1')!
+  const body = JSON.stringify({title: '纸船', expected_title_revision: 0})
+  assert.ok(validMediaRequest(adapter, 'POST', '/api/tasks/A/title', body))
+  for (const [method, path, input] of [
+    ['GET', '/api/tasks/A/title', null], ['POST', '/api/tasks/A/title?route=x', body],
+    ['POST', '/api/tasks/A/title/other', body], ['POST', '/api/tasks/A/title', '{}'],
+    ['POST', '/api/tasks/A/title', JSON.stringify({title:'纸船', expected_title_revision:true})],
+    ['POST', '/api/tasks/A/title', JSON.stringify({title:'纸船', expected_title_revision:0, route:'other'})],
+  ]) assert.equal(validMediaRequest(adapter, method as string, path as string, input), false)
 })

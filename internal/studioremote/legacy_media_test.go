@@ -25,6 +25,7 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 		{"video-iframe-v1", "GET", "/api/dashboard?q=%E6%B5%8B%E8%AF%95&page=1&page_size=24&service=&status=&project_id=", "application/json"},
 		{"video-iframe-v1", "GET", "/api/models/model-1/instances/worker/gpus/GPU-1:0?window=1h", "application/json"},
 		{"video-iframe-v1", "POST", "/api/tasks/task_1/result", "application/json"},
+		{"video-iframe-v1", "POST", "/api/tasks/task_1/title", "application/json"},
 		{"video-iframe-v1", "GET", "/api/tasks/task_1/thumbnail", "binary"},
 		{"video-iframe-v1", "GET", "/api/tasks/task_1/content", "binary"},
 		{"video-iframe-v1", "GET", "/artifacts/artifact_1/content", "binary"},

@@ -4,18 +4,18 @@ import { videoPage, videoTaskLabel, videoTaskName, videoTasksLocation } from '..
 import { legacyTarget } from '../src/app-center/legacy.ts'
 
 const route = '/market?video=' + encodeURIComponent('/dashboard/tasks/task-A')
-const task = { video_task_id: 'task-A', project_id: '纸船', idempotency_key: '河上漂流' }
+const task = { video_task_id: 'task-A', project_id: '纸船', idempotency_key: 'shot-key', title: '河上漂流的纸船' }
 
-test('task name matches the existing list title regardless of status', () => {
+test('task name matches the persisted title regardless of status', () => {
   for (const status of ['queued', 'running', 'succeeded', 'failed', 'cancelled']) {
-    assert.equal(videoTaskName({ ...task, status }), '纸船 / 河上漂流')
+    assert.equal(videoTaskName({ ...task, status }), '河上漂流的纸船')
   }
-  assert.equal(videoTaskName({ project_id: '项目' }), '未命名任务')
-  assert.equal(videoTaskName({ idempotency_key: '镜头' }), '镜头')
+  assert.equal(videoTaskName({ project_id: '项目' }), '视频任务')
+  assert.equal(videoTaskName({ idempotency_key: '镜头' }), '视频任务')
 })
 
 test('only the current authorized task response supplies a name', () => {
-  assert.equal(videoTaskLabel(route, '/api/tasks/task-A', 200, task), '纸船 / 河上漂流')
+  assert.equal(videoTaskLabel(route, '/api/tasks/task-A', 200, task), '河上漂流的纸船')
   for (const path of ['/api/tasks/task-B', '/api/tasks/task-A/thumbnail', '/api/tasks/task-A/content', '/api/dashboard']) {
     assert.equal(videoTaskLabel(route, path, 200, task), null)
   }
