@@ -81,7 +81,7 @@ test('finite legacy bookmarks preserve explicit card context and reject mixed ro
   for (const route of ['/market?image=%2Fdashboard&video=%2Fdashboard', '/market?image=%2Fdashboard&image=%2Fdashboard',
     '/market?image=%2Fdashboard&admin=true', '/market?image=%2Fdashboard%2F..%2Fapi', '/market?blender=instances&panel=overview',
     '/market?blender=blender123&panel=invalid', '/market?blender=blender123&operation=invalid', '/market?image=%2Fdashboard%23evil',
-    '/market?image=%2Fdashboard&legacyCard=bad/path', '/market?comfyui=instances', '/market?comfyui=instances#invalid',
+    '/market?image=%2Fdashboard&legacyCard=bad/path', '/market?comfyui=instances#invalid',
     '/market?image=%2Fdashboard#invalid', '/market?image=%2Fdashboard#', '/market?image=%2Fdash\tboard']) assert.throws(() => legacyTarget(route), undefined, route)
 })
 
@@ -92,8 +92,8 @@ test('bookmark resolution never guesses among same-adapter objects or requires a
   const many = { ...view, items: [card, other] }
   assert.throws(() => selectLegacyCard(many, target), /LEGACY_ENTRY_AMBIGUOUS/)
   assert.equal(selectLegacyCard(many, { ...target, cardKey: other.cardKey }).cardKey, other.cardKey)
-  assert.throws(() => selectLegacyCard({ ...view, items: [] }, target), /LEGACY_ENTRY_UNMAPPED/)
-  assert.throws(() => selectLegacyCard(view, { ...target, adapterId: 'video-iframe-v1' }), /LEGACY_ENTRY_UNMAPPED/)
+  assert.throws(() => selectLegacyCard({ ...view, items: [] }, target), /APPCENTER_OPEN_UNAVAILABLE/)
+  assert.throws(() => selectLegacyCard(view, { ...target, adapterId: 'video-iframe-v1' }), /APPCENTER_OPEN_UNAVAILABLE/)
 })
 
 test('legacy open pins the exact input and rejects alternate adapters, routes, extra fields and stale replies', async () => {

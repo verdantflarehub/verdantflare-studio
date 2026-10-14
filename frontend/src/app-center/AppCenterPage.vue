@@ -16,6 +16,8 @@ import { dashboardLocation } from '../app-dashboard/routes'
 import AppInstallDetail from './AppInstallDetail.vue'
 import AppCommandRecovery from './AppCommandRecovery.vue'
 import LegacyWorkspace from './LegacyWorkspace.vue'
+import ComfyUIBookmarkWorkspace from './ComfyUIBookmarkWorkspace.vue'
+import { comfyuiBookmark } from './comfyui-bookmark'
 import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
 
@@ -50,8 +52,8 @@ const selectedKey = computed(() => typeof route.query.card === 'string' ? route.
 const selected = computed(() => store.state.value?.items.find(card => card.cardKey === selectedKey.value))
 const businessRoute = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
 const legacy = computed(() => {
-  try { return { target: legacyTarget(route.fullPath), error: '' } }
-  catch (error) { return { target: null, error: error instanceof Error ? error.message : 'INVALID_LEGACY_ROUTE' } }
+  try { return { target: legacyTarget(route.fullPath), comfyui: comfyuiBookmark(route.fullPath), error: '' } }
+  catch (error) { return { target: null, comfyui: null, error: error instanceof Error ? error.message : 'INVALID_LEGACY_ROUTE' } }
 })
 const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
 const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
@@ -192,7 +194,7 @@ async function perform(card: AppCenterCard, actionId: string) {
   // entry adapter. This dispatcher will gain only the finite contracted kinds.
   message.value = '此操作暂不可用，请稍后重试。'
 }
-const directoryVisible = computed(() => !selectedKey.value && !businessRoute.value && !legacy.value.target && !legacy.value.error)
+const directoryVisible = computed(() => !selectedKey.value && !businessRoute.value && !legacy.value.target && !legacy.value.comfyui && !legacy.value.error)
 watch(directoryVisible, async (visible, previous) => {
   if (!visible && previous) listScroll = window.scrollY
   await nextTick()
@@ -204,12 +206,12 @@ watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id
 watch(() => JSON.stringify(store.state.value?.scope), () => { confirmation.value = null; menuKey.value = '' })
 watch([filter, group, query, selectedKey, businessRoute], () => { menuKey.value = '' })
 watch(selectedKey, key => store.setDetail(key), { immediate: true })
-watch(() => !businessRoute.value && !legacy.value.target && !legacy.value.error, active => store.setProgressVisible(active), { immediate: true })
+watch(() => !businessRoute.value && !legacy.value.target && !legacy.value.comfyui && !legacy.value.error, active => store.setProgressVisible(active), { immediate: true })
 onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false) })
 </script>
 
 <template>
-  <main v-show="!businessRoute && !legacy.target && !legacy.error" class="main appcenter-page"><div class="workspace">
+  <main v-show="!businessRoute && !legacy.target && !legacy.comfyui && !legacy.error" class="main appcenter-page"><div class="workspace">
     <header class="heading"><div class="heading-left"><h1>{{ filter === 'installed' ? '我的应用' : '所有应用' }}</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
     <div v-if="!host.connected" class="panel appcenter-message" role="status">
       <p v-if="host.sessionStatus === 'loading'">正在恢复登录状态…</p>
@@ -251,6 +253,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
   <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
     :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation" />
   <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation" />
+  <ComfyUIBookmarkWorkspace :target="legacy.comfyui" :return-location="returnLocation" />
   <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>
 

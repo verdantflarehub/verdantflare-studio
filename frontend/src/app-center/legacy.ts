@@ -1,5 +1,6 @@
 import { AppCenterError } from './controller.ts'
 import { validStudioOrigin } from './legacy-blender.ts'
+import { comfyuiBookmark } from './comfyui-bookmark.ts'
 import type { AppCenterCard, AppCenterView } from './schema.generated'
 
 export type LegacyAdapterID = 'image-iframe-v1' | 'video-iframe-v1' | 'blender-host-v1'
@@ -16,7 +17,7 @@ export function legacyTarget(route: string): LegacyTarget | null {
   const u = new URL(route, 'https://studio.invalid')
   if (u.origin !== 'https://studio.invalid' || u.pathname !== '/market') return invalid()
   const q = u.searchParams
-  if (q.has('comfyui')) throw new AppCenterError(409, 'LEGACY_ENTRY_UNMAPPED')
+  if (comfyuiBookmark(route)) return null
   if (!['image', 'video', 'blender'].some(key => q.has(key))) return null
   if (u.hash || route.includes('#')) return invalid()
   q.forEach((_value, key) => { if (q.getAll(key).length !== 1) invalid() })
@@ -48,7 +49,7 @@ export function legacyLocation(opened: Pick<LegacyOpened, 'adapterId' | 'route'>
 export function selectLegacyCard(view: AppCenterView, target: LegacyTarget): AppCenterCard {
   const matches = view.items.filter(card => card.entry?.transport === 'legacy' && card.entry.entryId === target.adapterId
     && (!target.cardKey || target.cardKey === card.cardKey))
-  if (!matches.length) throw new AppCenterError(409, 'LEGACY_ENTRY_UNMAPPED')
+  if (!matches.length) throw new AppCenterError(409, 'APPCENTER_OPEN_UNAVAILABLE')
   if (matches.length !== 1) throw new AppCenterError(409, 'LEGACY_ENTRY_AMBIGUOUS')
   return matches[0]
 }

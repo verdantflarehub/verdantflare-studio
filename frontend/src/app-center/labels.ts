@@ -2,7 +2,7 @@ export const actionLabels: Record<string, string> = { detail: '查看详情', re
 export const statusLabels: Record<string, string> = {
   READY: '已就绪', STOPPED: '已安装 · 已停止', STARTING: '启动中', STOPPING: '停止中', DEGRADED: '服务异常', SERVICE_ABSENT: '服务未部署',
   NOT_INSTALLED: '未安装', INSTALLATION_PENDING: '安装待确认', INSTALLATION_FAILED: '安装失败', INSTALLATION_REMOVED: '已移除',
-  STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署 · 待对账', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
+  STATE_UNKNOWN: '状态未知', BINDING_CONFLICT: '安装信息冲突', OBSERVED_DEPLOYMENT: '已有部署', OPERATION_IN_PROGRESS: '应用正在变更', RECOVERY_REQUIRED: '需要恢复',
 }
 export const reasonLabels: Record<string, string> = {
   LEGACY_WORKSPACE_GONE: '应用连接已释放，请重新打开。', LEGACY_WORKSPACE_LIMIT: '当前应用连接过多，请关闭闲置页面后重试。',
@@ -21,7 +21,9 @@ export const reasonLabels: Record<string, string> = {
   CONFLICT: '请求与已有操作冲突，请检查原操作和应用状态。', RELEASE_UNVERIFIED: '此版本尚未完成发行校验。',
   INVALID_LEGACY_ROUTE: '旧入口地址无效，请从应用中心重新打开', LEGACY_ENTRY_AMBIGUOUS: '无法唯一确定此入口对应的应用，请从卡片打开',
   LEGACY_BACKEND_CHANGED: '应用部署或入口配置已变化，请刷新后重试', APPCENTER_INVALID_OPEN: '应用入口响应无法校验，请重试',
-  LEGACY_ENTRY_UNMAPPED: '此旧入口尚未完成对象对账，请返回应用中心查看当前入口',
+  LEGACY_ENTRY_UNMAPPED: '此应用入口已不可用，请从应用中心重新打开',
+  INSTANCE_NOT_FOUND: '此实例不存在或当前账号无权访问，请返回应用中心选择实例',
+  INSTANCE_UNAVAILABLE: '此实例当前不可打开，请返回应用中心查看实例状态',
   ENTRY_UNVERIFIED: '入口资料尚未完成校验', HOST_UNSUPPORTED: '当前客户端不支持此入口',
   APPCENTER_BINDING_CHANGED: '应用状态或入口已变化，请刷新后重新打开', APPCENTER_OPEN_UNAVAILABLE: '此应用当前不可打开',
   ACTION_UNSUPPORTED: '此操作暂不可用', PERMISSION_DENIED: '当前账号没有权限', OPERATION_IN_PROGRESS: '请等待当前操作结束',
