@@ -8,6 +8,7 @@ import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } fr
 import type { LegacyOpened, LegacyTarget } from './legacy'
 import type { AppCenterCard } from './schema.generated'
 import { reasonLabel } from './labels'
+import { videoPage } from './legacy-video-navigation'
 import LegacyMediaHost from './LegacyMediaHost.vue'
 import LegacyBlenderHost from './LegacyBlenderHost.vue'
 
@@ -15,11 +16,17 @@ const props = defineProps<{ returnLocation?: RouteLocationRaw; target: LegacyTar
 const router = useRouter(), host = useHostStore(), store = useAppCenterStore(), client = createLegacyClient()
 const selection = shallowRef<{ card: AppCenterCard; opened: LegacyOpened; route: string; scope: string; identity: string } | null>(null)
 const error = ref(''), loading = ref(false), retry = ref(0)
+const taskLabel = ref<{ route: string; label: string } | null>(null)
+const video = computed(() => props.target?.adapterId === 'video-iframe-v1' ? videoPage(props.target.route) : null)
+const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP' })[video.value?.section as 'tasks' | 'models' | 'mcp'] || '任务')
+const currentTaskLabel = computed(() => error.value ? '任务不可用' : taskLabel.value && taskLabel.value.route === props.target?.route ? taskLabel.value.label : '加载中')
+const videoTasksRoute = '/market?video=' + encodeURIComponent('/dashboard#tasks')
+function setTaskLabel(value: { route: string; label: string }) { if (value.route === props.target?.route) taskLabel.value = value }
 let generation = 0, pending: AbortController | undefined
 const identity = computed(() => JSON.stringify([host.connected, host.identity.user_id, host.identity.organization_id, host.identity.station_id,
   host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]))
 const active = computed(() => !!props.target || !!props.routeError)
-function clearSelection() { if (selection.value) void client.close(selection.value.opened); selection.value = null }
+function clearSelection() { taskLabel.value = null; if (selection.value) void client.close(selection.value.opened); selection.value = null }
 function fail(errorValue: unknown) { error.value = errorValue instanceof Error ? errorValue.message : 'APPCENTER_OPEN_UNAVAILABLE'; clearSelection() }
 async function authorize() {
   const selected = selection.value
@@ -54,6 +61,7 @@ async function navigate(route: string) {
   } catch (e) { fail(e) }
 }
 watch(() => [props.target?.route, props.target?.cardKey, props.routeError, identity.value, retry.value], async () => {
+  taskLabel.value = null
   const epoch = ++generation, target = props.target
   pending?.abort(); pending = new AbortController()
   const previous = selection.value
@@ -114,8 +122,21 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
     <nav class="dashboard-breadcrumb" aria-label="面包屑">
       <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
-      <span v-if="selection" class="breadcrumb-sep"> / </span>
-      <span v-if="selection" class="breadcrumb-current">{{ selection.card.display.name }}</span>
+      <template v-if="video">
+        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+        <a :href="router.resolve(videoTasksRoute).href" @click.prevent="navigate(videoTasksRoute)">{{ selection?.card.display.name || 'Video MCP' }}</a>
+        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+        <template v-if="video.taskId">
+          <a :href="router.resolve(videoTasksRoute).href" @click.prevent="navigate(videoTasksRoute)">任务</a>
+          <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+          <span class="breadcrumb-current" aria-current="page" :title="currentTaskLabel">{{ currentTaskLabel }}</span>
+        </template>
+        <span v-else class="breadcrumb-current" aria-current="page">{{ videoSection }}</span>
+      </template>
+      <template v-else-if="selection">
+        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+        <span class="breadcrumb-current" aria-current="page">{{ selection.card.display.name }}</span>
+      </template>
     </nav>
     <header class="heading">
       <div class="heading-left">
@@ -127,7 +148,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
     <div v-if="error" class="panel legacy-error" role="alert"><p>{{ reasonLabel(error) }}</p><button class="btn" @click="retry++">重试</button></div>
     <template v-if="selection">
       <LegacyBlenderHost v-if="selection.opened.adapterId === 'blender-host-v1'" :key="selection.card.bindingRevision + (selection.opened.resourceBase ?? '')" :route="selection.route" :resource-base="selection.opened.resourceBase" :mcp-origin="selection.opened.mcpOrigin" :authorize="authorize" @navigate="navigate" />
-      <LegacyMediaHost v-else :key="selection.card.bindingRevision + (selection.opened.resourceBase ?? '')" :adapter-id="selection.opened.adapterId" :resource-base="selection.opened.resourceBase" :route="selection.route" :title="selection.card.display.name" :authorize="authorize" @navigate="navigate" @error="fail" @reconnect="retry++" />
+      <LegacyMediaHost v-else :key="selection.card.bindingRevision + (selection.opened.resourceBase ?? '')" :adapter-id="selection.opened.adapterId" :resource-base="selection.opened.resourceBase" :route="selection.route" :title="selection.card.display.name" :authorize="authorize" @navigate="navigate" @task-label="setTaskLabel" @error="fail" @reconnect="retry++" />
     </template>
   </div></main>
 </template>
@@ -136,6 +157,9 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 .legacy-error { margin: 20px 0; padding: 20px; color: var(--muted); }
 .dashboard-breadcrumb {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   align-items: center;
   gap: 6px;
   font-size: 13px;

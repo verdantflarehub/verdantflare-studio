@@ -3,27 +3,53 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
 import { mediaAdapter, validMediaRequest } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
+import { videoPage, videoTaskLabel } from './legacy-video-navigation'
 
 const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: string; resourceBase?: string; authorize: () => Promise<void> }>()
-const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: [] }>()
+const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: []; taskLabel: [value: { route: string; label: string }] }>()
 const frame = ref<HTMLIFrameElement>(), src = ref(''), state = ref<'loading' | 'ready' | 'error'>('loading'), message = ref('')
 const adapter = computed(() => mediaAdapter(props.adapterId))
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
-let currentBase = ''
+let currentBase = '', currentRoute = ''
+let listScroll: number | null = null, restoreScroll: number | null = null, listRendered = false, scrollFrame = 0
+const isTaskList = (route: string) => {
+  const page = videoPage(route)
+  return props.adapterId === 'video-iframe-v1' && page.path.startsWith('/dashboard') && !page.taskId && page.section === 'tasks'
+}
+function restoreListScroll() {
+  if (restoreScroll == null || !listRendered || !isTaskList(props.route)) return
+  cancelAnimationFrame(scrollFrame)
+  const epoch = generation
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = requestAnimationFrame(() => {
+      if (disposed || epoch !== generation || restoreScroll == null || !isTaskList(props.route)) return
+      window.scrollTo({ top: Math.min(restoreScroll, Math.max(0, document.documentElement.scrollHeight - innerHeight)), behavior: 'instant' })
+      restoreScroll = null
+    })
+  })
+}
 const pending = new Set<number>()
 const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark'
 function post(value: object) { frame.value?.contentWindow?.postMessage({ channel: 'vf-studio', ...value }, '*') }
-function failed(text: string) { state.value = 'error'; message.value = text; clearTimeout(deadline) }
+function failed(text: string) { if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '任务不可用' }); state.value = 'error'; message.value = text; clearTimeout(deadline) }
 function load(force = false) {
   const a = adapter.value
   if (!a) return
   const path = new URL(props.route, location.origin).searchParams.get(a.query)!
   const [pathname, hash] = path.split('#')
   const base = props.resourceBase ?? a.prefix
+  if (props.adapterId === 'video-iframe-v1' && currentRoute !== props.route) {
+    if (isTaskList(currentRoute)) listScroll = window.scrollY
+    restoreScroll = isTaskList(props.route) ? listScroll : null
+    listRendered = false
+    if (!isTaskList(props.route)) window.scrollTo({ top: 0, behavior: 'instant' })
+    currentRoute = props.route
+  }
   if (!force && currentBase === base && currentPath === pathname && src.value && state.value === 'ready') { post({ type: 'route', hash: hash || 'tasks' }); return }
   currentBase = base
   currentPath = pathname; generation++; controller.abort(); controller = new AbortController(); pending.clear(); clearTimeout(deadline)
+  if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '加载中' })
   state.value = 'loading'; message.value = '正在加载应用…'
   src.value = base + pathname + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
   deadline = setTimeout(() => failed('应用尚未响应，请重试。'), 20000)
@@ -34,9 +60,14 @@ async function receive(event: MessageEvent) {
   if (data.type === 'ready') { clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState }); return }
   if (data.type === 'navigate' && typeof data.path === 'string' && /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(data.path)) {
     if (data.state && typeof data.state === 'object') viewState = data.state
+    const current = new URL(props.route, location.origin).searchParams.get(a.query)
+    if (props.adapterId === 'video-iframe-v1' && (data.path === current || data.path === '/dashboard#tasks' && current === '/dashboard')) {
+      if (isTaskList(props.route) && data.state) { listRendered = true; restoreListScroll() }
+      return
+    }
     emit('navigate', '/market?' + a.query + '=' + encodeURIComponent(data.path)); return
   }
-  if (data.type === 'resize' && Number.isFinite(data.height)) { if (frame.value) frame.value.style.height = Math.max(600, Math.min(100000, data.height)) + 'px'; return }
+  if (data.type === 'resize' && Number.isFinite(data.height)) { if (frame.value) frame.value.style.height = Math.max(600, Math.min(100000, data.height)) + 'px'; restoreListScroll(); return }
   if (data.type === 'wheel' && Number.isFinite(data.deltaY)) {
     if (Number.isSafeInteger(data.captureId) && data.captureId > 0) {
       post({ type: 'restore', viewport: { captureId: data.captureId, scrollY: window.scrollY } }); return
@@ -50,21 +81,37 @@ async function receive(event: MessageEvent) {
   pending.add(data.id)
   try {
     try { await props.authorize() }
-    catch { reply({ status: 503, body: new ArrayBuffer(0) }); return }
+    catch {
+      if (!disposed && epoch === generation && !signal.aborted && props.adapterId === 'video-iframe-v1' && data.path === `/api/tasks/${videoPage(props.route).taskId}`) emit('taskLabel', { route: props.route, label: '任务不可用' })
+      reply({ status: 503, body: new ArrayBuffer(0) }); return
+    }
     if (disposed || epoch !== generation || signal.aborted) return
     const options: RequestInit = { method, credentials: props.resourceBase ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error',
       headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? data.body : undefined,
       signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) }
     const response = props.resourceBase ? await fetchLegacyMedia(fetch, props.resourceBase, data.path, options) : await fetch(a.prefix + data.path, options)
+    const body = await response.arrayBuffer()
+    if (disposed || epoch !== generation || signal.aborted) return
+    if (props.adapterId === 'video-iframe-v1') {
+      let task: unknown = null
+      if (response.status === 200 && data.path === `/api/tasks/${videoPage(props.route).taskId}`) {
+        try { task = JSON.parse(new TextDecoder().decode(body)) } catch { /* Invalid payload never supplies a name. */ }
+      }
+      const label = videoTaskLabel(props.route, data.path, response.status, task)
+      if (label !== null) emit('taskLabel', { route: props.route, label })
+    }
     if ([401, 403, 409, 410].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
-    reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body: await response.arrayBuffer() })
-  } catch { reply({ status: 503, body: new ArrayBuffer(0) }) }
+    reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body })
+  } catch {
+    if (!disposed && epoch === generation && !signal.aborted && props.adapterId === 'video-iframe-v1' && data.path === `/api/tasks/${videoPage(props.route).taskId}`) emit('taskLabel', { route: props.route, label: '任务不可用' })
+    reply({ status: 503, body: new ArrayBuffer(0) })
+  }
   finally { if (epoch === generation) pending.delete(data.id) }
 }
 const observer = new MutationObserver(() => { if (!disposed) post({ type: 'theme', theme: theme() }) })
 watch(() => [props.adapterId, props.route, props.resourceBase], () => load())
 onMounted(() => { window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load() })
-onBeforeUnmount(() => { disposed = true; generation++; controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive) })
+onBeforeUnmount(() => { disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive) })
 </script>
 
 <template>
