@@ -4,7 +4,7 @@ import type { LegacyAdapterID } from './legacy'
 import { videoPath } from './legacy'
 import { mediaAdapter, validMediaRequest } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
-import { videoPage, videoTaskLabel } from './legacy-video-navigation'
+import { videoPage, videoTaskLabel, videoTaskName } from './legacy-video-navigation'
 
 const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: string; resourceBase?: string; authorize: () => Promise<void> }>()
 const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: []; taskLabel: [value: { route: string; label: string }] }>()
@@ -13,11 +13,12 @@ const adapter = computed(() => mediaAdapter(props.adapterId))
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
 let currentBase = '', currentRoute = ''
+const taskNames = new Map<string, string>()
 let previousScrollRestoration: ScrollRestoration | undefined
 let listScroll: number | null = null, restoreScroll: number | null = null, listRendered = false, scrollFrame = 0
 const isTaskList = (route: string) => {
   const page = videoPage(route)
-  return props.adapterId === 'video-iframe-v1' && page.path.startsWith('/dashboard') && !page.taskId && page.section === 'tasks'
+  return props.adapterId === 'video-iframe-v1' && page.path.startsWith('/dashboard') && !page.taskId && ['tasks', 'higgsfield'].includes(page.section)
 }
 function restoreListScroll() {
   if (restoreScroll == null || !listRendered || !isTaskList(props.route)) return
@@ -40,6 +41,8 @@ function load(force = false) {
   if (!a) return
   const path = new URL(props.route, location.origin).searchParams.get(a.query)!
   const [pathname, hash] = path.split('#')
+  const cachedName = taskNames.get(videoPage(props.route).taskId)
+  if (cachedName) emit('taskLabel', { route: props.route, label: cachedName })
   const base = props.resourceBase ?? a.prefix
   if (props.adapterId === 'video-iframe-v1' && currentRoute !== props.route) {
     if (isTaskList(currentRoute)) listScroll = window.scrollY
@@ -96,8 +99,15 @@ async function receive(event: MessageEvent) {
     if (disposed || epoch !== generation || signal.aborted) return
     if (props.adapterId === 'video-iframe-v1') {
       let task: unknown = null
-      if (response.status === 200 && [`/api/tasks/${videoPage(props.route).taskId}`, `/api/higgsfield/tasks/${videoPage(props.route).taskId}`].includes(data.path)) {
+      const requestedTask = /^\/api\/(?:higgsfield\/)?tasks\/([a-zA-Z0-9_-]+)$/.exec(data.path)?.[1]
+      if (response.status === 200 && requestedTask) {
         try { task = JSON.parse(new TextDecoder().decode(body)) } catch { /* Invalid payload never supplies a name. */ }
+        if (task && typeof task === 'object' && (task as Record<string, unknown>).video_task_id === requestedTask) {
+          if (taskNames.size >= 100) taskNames.clear()
+          taskNames.set(requestedTask, videoTaskName(task))
+        }
+      } else if (requestedTask) {
+        taskNames.delete(requestedTask)
       }
       const label = videoTaskLabel(props.route, data.path, response.status, task)
       if (label !== null) emit('taskLabel', { route: props.route, label })
