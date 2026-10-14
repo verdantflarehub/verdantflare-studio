@@ -23,7 +23,7 @@ var legacyImageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tas
 var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
 var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/result|artifacts/import)$`)
 var legacyVideoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
-var legacyBinaryPath = regexp.MustCompile(`^/(artifacts/[a-zA-Z0-9_-]+/content|api/tasks/[a-zA-Z0-9_-]+/thumbnail)$`)
+var legacyBinaryPath = regexp.MustCompile(`^/(artifacts/[a-zA-Z0-9_-]+/content|api/tasks/[a-zA-Z0-9_-]+/(thumbnail|content))$`)
 var legacyRange = regexp.MustCompile(`^bytes=([0-9]+)-([0-9]*)$|^bytes=-([0-9]+)$`)
 var legacyContentRange = regexp.MustCompile(`^bytes ([0-9]+)-([0-9]+)/([0-9]+)$`)
 

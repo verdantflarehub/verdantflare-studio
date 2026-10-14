@@ -1,7 +1,7 @@
 import { AppCenterError } from './controller.ts'
 
 const chunkBytes = 4 << 20, mediaBytes = 1 << 30
-const binaryPath = /^\/(?:artifacts\/[a-zA-Z0-9_-]+\/content|api\/tasks\/[a-zA-Z0-9_-]+\/thumbnail)$/
+const binaryPath = /^\/(?:artifacts\/[a-zA-Z0-9_-]+\/content|api\/tasks\/[a-zA-Z0-9_-]+\/(?:thumbnail|content))$/
 const mediaTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'application/octet-stream'])
 const invalid = (): never => { throw new AppCenterError(502, 'INVALID_LEGACY_RESPONSE') }
 const cancelled = (signal?: AbortSignal) => { if (signal?.aborted) throw new AppCenterError(408, 'REQUEST_CANCELLED') }

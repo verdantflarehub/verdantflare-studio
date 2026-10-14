@@ -1,6 +1,8 @@
 package web
 
 import (
+	"encoding/json"
+	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"io/fs"
 	"net/http"
@@ -8,10 +10,13 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func TestVideoIsolation(t *testing.T) {
 	role := "admin"
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	user, org := id(), id()
 	revoked := false
 	calls := 0
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,11 +34,14 @@ func TestVideoIsolation(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer core-secret" {
 			t.Error("missing core auth")
 		}
-		w.Write([]byte(`{"roles":["` + role + `"]}`))
+		_ = json.NewEncoder(w).Encode(map[string]any{"station_id": id(), "session_id": id(), "user_id": user, "organization_id": org, "organization_name": "fixture", "username": "fixture", "roles": []string{role}, "scopes": []string{"identity:read"}, "issued_at": time.Now().Add(-time.Minute), "expires_at": time.Now().Add(time.Hour), "policy_version": 1, "revocation_version": 0, "request_id": "fixture"})
 	}))
 	defer core.Close()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
+		if strings.HasPrefix(r.URL.Path, "/api/") && (r.Header.Get("X-User-Id") != user || r.Header.Get("X-Organization-Id") != org) {
+			t.Error("missing verified actor")
+		}
 		if values, ok := r.Header["Range"]; ok && (len(values) == 0 || values[0] == "") {
 			t.Error("empty Range header breaks Starlette FileResponse")
 		}
@@ -81,6 +89,9 @@ func TestVideoIsolation(t *testing.T) {
 	}
 	if call("GET", "/apps/video/api/capabilities", "", cookie).Code != 200 {
 		t.Fatal("authorized capabilities read failed")
+	}
+	if call("GET", "/apps/video/api/tasks/task_1/content", "", cookie).Code != 200 {
+		t.Fatal("content read denied")
 	}
 	before := calls
 	if call("POST", "/apps/video/api/capabilities", "https://studio.example", cookie).Code != 404 || calls != before {

@@ -26,6 +26,7 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 		{"video-iframe-v1", "GET", "/api/models/model-1/instances/worker/gpus/GPU-1:0?window=1h", "application/json"},
 		{"video-iframe-v1", "POST", "/api/tasks/task_1/result", "application/json"},
 		{"video-iframe-v1", "GET", "/api/tasks/task_1/thumbnail", "binary"},
+		{"video-iframe-v1", "GET", "/api/tasks/task_1/content", "binary"},
 		{"video-iframe-v1", "GET", "/artifacts/artifact_1/content", "binary"},
 	} {
 		t.Run(tc.target, func(t *testing.T) {
@@ -46,7 +47,9 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 	}
 	for _, tc := range []struct{ adapter, method, target string }{
 		{"blender-host-v1", "GET", "/dashboard"}, {"video-iframe-v1", "DELETE", "/api/tasks"}, {"image-iframe-v1", "GET", "/api/capabilities"},
-		{"image-iframe-v1", "GET", "/api/tasks/task/thumbnail"}, {"video-iframe-v1", "POST", "/api/models"},
+		{"image-iframe-v1", "GET", "/api/tasks/task/thumbnail"},
+		{"image-iframe-v1", "GET", "/api/tasks/task/content"},
+		{"video-iframe-v1", "POST", "/api/tasks/task/content"}, {"video-iframe-v1", "POST", "/api/models"},
 	} {
 		if _, err := legacyRoute(tc.adapter, tc.method, tc.target); err == nil {
 			t.Fatal("unregistered route accepted")

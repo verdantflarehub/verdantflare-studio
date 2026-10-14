@@ -10,13 +10,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
+	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 )
 
 // The upstream and credential are server configuration, never caller-controlled.
 type VideoConfig struct{ URL, Token string }
 
-var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/thumbnail)?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
+var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/result|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 
@@ -45,6 +47,7 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		c.Status(404)
 		return
 	}
+	var principal project.Principal
 	if !static {
 		if (c.GetHeader("Origin") != "" && c.GetHeader("Origin") != s.origin) || c.GetHeader("Sec-Fetch-Site") == "cross-site" || (c.Request.Method == "POST" && c.GetHeader("Origin") != s.origin) {
 			c.Status(403)
@@ -75,6 +78,12 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 			c.Status(403)
 			return
 		}
+		var status int
+		principal, status = s.station.Principal(c.Request.Context(), token, uuid.Must(uuid.NewV7()).String())
+		if status != 200 {
+			c.Status(status)
+			return
+		}
 	}
 	upstream, err := url.Parse(cfg.URL)
 	if err != nil || upstream.Host == "" || (upstream.Scheme != "http" && upstream.Scheme != "https") || upstream.User != nil || cfg.Token == "" {
@@ -90,6 +99,9 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 	}
 	if !static {
 		req.Header.Set("Authorization", "Bearer "+cfg.Token)
+		req.Header.Set("X-User-Id", principal.SubjectID)
+		req.Header.Set("X-Organization-Id", principal.OrganizationID)
+		req.Header.Set("X-Request-Id", principal.RequestID)
 	}
 	if c.Request.Method == "POST" {
 		if strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {
