@@ -8,7 +8,7 @@ export const mediaAdapters = {
   },
   'video-iframe-v1': {
     prefix: '/apps/video', channel: 'vf-video', query: 'video',
-    read: /^\/(api\/(dashboard|capabilities|mcp\/status|models|models\/[a-z0-9-]+\/instances(?:\/[a-zA-Z0-9._-]+(?:\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(?:\/(?:thumbnail|content))?)|artifacts\/[a-zA-Z0-9_-]+\/content)$/,
+    read: /^\/(api\/(dashboard|capabilities|model-catalog|mcp\/status|models|models\/[a-z0-9-]+\/instances(?:\/[a-zA-Z0-9._-]+(?:\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(?:\/(?:thumbnail|content))?)|artifacts\/[a-zA-Z0-9_-]+\/content)$/,
     write: /^\/api\/(tasks|tasks\/[a-zA-Z0-9_-]+\/(result|title)|artifacts\/import)$/,
   },
 } as const

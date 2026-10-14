@@ -3,7 +3,7 @@ export function mountVideo({listen, api, notice, login}) {
  const host=document.getElementById('videoHost'), frame=document.getElementById('videoFrame');
  const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
  let active=false, generation=0, pending=new Set(), viewState=null, currentUrl=null;
- const pathPattern=/^\/(api\/(dashboard|capabilities|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/content|\/result)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
+ const pathPattern=/^\/(api\/(dashboard|capabilities|model-catalog|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/content|\/result)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
  const theme=()=>document.body.dataset.theme==='light'?'light':'dark';
  function route(){
   const params=new URLSearchParams(location.hash.split('?')[1]||'');
