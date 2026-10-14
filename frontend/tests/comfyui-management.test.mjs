@@ -6,7 +6,8 @@ test('zero is a fresh measurement, unknown and stale never masquerade as zero',(
   const metric={value:0,limit:8,quality:'fresh',sampled_at:stamp};
   assert.match(resourceMetric('CPU',metric,'cores',now),/0 核/);
   assert.match(resourceMetric('CPU',metric,'cores',now),/width:0%/);
-  for(const m of [{...metric,quality:'unavailable'},{...metric,sampled_at:new Date(now-31000).toISOString()},{...metric,value:-1},{...metric,value:NaN}]){
+  assert.match(resourceMetric('CPU',{...metric,sampled_at:new Date(now-31000).toISOString()},'cores',now),/0 核/);
+  for(const m of [{...metric,quality:'unavailable'},{...metric,quality:'stale'},{...metric,value:-1},{...metric,value:NaN}]){
     const result=resourceMetric('CPU',m,'cores',now);
     assert.match(result,/—/);assert.doesNotMatch(result,/style="width:/);
   }

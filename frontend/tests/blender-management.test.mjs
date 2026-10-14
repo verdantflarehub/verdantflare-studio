@@ -9,17 +9,18 @@ const instance = (overrides = {}) => ({
   allowed_actions:['view','open'], ...overrides,
 });
 
-test('telemetry preserves zero and formats CPU and memory with sample freshness', () => {
+test('telemetry preserves zero and formats CPU and memory with backend quality and valid timestamp', () => {
   const stamp = new Date().toISOString();
   const metric = {value:0,request:2,limit:8,quality:'fresh',sampled_at:stamp};
   assert.equal(resourceValue(metric,'cores'),'0 核');
   assert.equal(formatResource(4*1024**3,'bytes'),'4 GiB');
   assert.equal(formatResource(null,'bytes'),'—');
   for (const value of [null,undefined,-1,NaN,Infinity,'0']) assert.equal(resourceValue({...metric,value},'cores'),'—');
-  const stale = {...metric,sampled_at:new Date(Date.now()-31000).toISOString()};
+  const stale = {...metric,quality:'stale'};
   assert.equal(resourceState(stale),'stale');
   assert.equal(resourceValue(stale,'cores'),'—');
-  assert.equal(resourceValue({...metric,sampled_at:new Date(Date.now()+60000).toISOString()},'cores'),'—');
+  assert.equal(resourceValue({...metric,sampled_at:new Date(Date.now()-31000).toISOString()},'cores'),'0 核');
+  assert.equal(resourceValue({...metric,sampled_at:new Date(Date.now()+60000).toISOString()},'cores'),'0 核');
   const item = instance({resources_observed_at:stamp,resources:{cpu:metric,memory:{...metric,value:1024**3,request:4*1024**3,limit:16*1024**3}}});
   assert.match(instanceCard(item),/请求 2 核 \/ 4 GiB/);
   assert.match(detail(item,'resources'),/4 GiB \/ 16 GiB/);
@@ -27,13 +28,13 @@ test('telemetry preserves zero and formats CPU and memory with sample freshness'
   assert.ok(!detail(instance({...item,resources_observed_at:null}),'resources').includes('4 GiB / 16 GiB'));
 });
 
-test('opening requires fresh observations, edit access, idle control and server capability', () => {
+test('opening requires valid observation timestamp, edit access, idle control and server capability without client clock skew gating', () => {
   assert.equal(canOpen(instance()), true);
+  assert.equal(canOpen(instance({observed_at:new Date(Date.now()-31000).toISOString()})), true);
+  assert.equal(canOpen(instance({observed_at:new Date(Date.now()+60000).toISOString()})), true);
   for (const changes of [
     {access:'read'}, {status:'unknown'}, {control:{state:'busy'}},
     {allowed_actions:['view']}, {observed_at:null},
-    {observed_at:new Date(Date.now()-31000).toISOString()},
-    {observed_at:new Date(Date.now()+60000).toISOString()},
   ]) assert.ok(!canOpen(instance(changes)), JSON.stringify(changes));
   assert.equal(isFresh(instance({observed_at:'bad'})), false);
 });

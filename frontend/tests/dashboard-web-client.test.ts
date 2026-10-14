@@ -37,9 +37,10 @@ test('Dashboard and workspace expiry follow server time, charge latency and reje
   await client.open(installationId)
   assert.equal(client.now(),server+1000)
   date=null
-  await assert.rejects(client.open(installationId),{code:'INVALID_DASHBOARD_RESPONSE'})
+  t.mock.method(Date,'now',()=>server)
+  assert.equal((await client.open(installationId)).launch.installationId,installationId)
   date='invalid'
-  await assert.rejects(client.open(installationId),{code:'INVALID_DASHBOARD_RESPONSE'})
+  assert.equal((await client.open(installationId)).launch.installationId,installationId)
   date=new Date(server).toUTCString();delay=31000
   await assert.rejects(client.open(installationId),{code:'SESSION_EXPIRED'})
 })

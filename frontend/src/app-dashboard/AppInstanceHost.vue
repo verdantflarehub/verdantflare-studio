@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { createDashboardWebClient } from './web-client'
 
 const props = defineProps<{ workspaceSessionId: string; installationId: string }>()
+const emit = defineEmits<{ (e: 'loaded', appId: string): void }>()
 const client = createDashboardWebClient(location.origin)
 const frame = ref<HTMLIFrameElement>(), entry = ref(''), message = ref('正在打开实例工作区…')
 const lifetime = new AbortController()
@@ -17,7 +18,7 @@ function initialize(event: MessageEvent) {
   port.onmessage = ({data}) => {
     if (data?.kind === 'status') {
       if (data.state === 'ready' || data.state === 'error') clearTimeout(loading)
-      message.value = data.state === 'ready' ? '' : data.state === 'error' ? '实例工作区连接中断，请保存或导出后重新打开。' : '正在处理实例工作区…'
+      message.value = data.state === 'error' ? '实例工作区连接中断，请保存或导出后重新打开。' : ''
     }
     if (data?.requestId === closeId && (data.kind === 'closed' || data.kind === 'close-error')) finishClose?.(data.kind === 'closed')
   }
@@ -46,7 +47,9 @@ onMounted(async () => {
   try {
     const launch = await client.inspectWorkspace(props.workspaceSessionId, props.installationId, lifetime.signal)
     if (lifetime.signal.aborted) return
+    emit('loaded', launch.appId)
     entry.value = launch.entryUrl
+    message.value = ''
     loading = setTimeout(() => { message.value = '实例工作区加载超时，请关闭后重试。' }, 30000)
     expiry = setTimeout(() => { lifetime.abort(); entry.value = ''; port?.close(); port = undefined; finishClose?.(false); message.value = '实例工作区会话已过期，请重新打开。' }, Math.max(0, Date.parse(launch.expiresAt)-client.now()))
   } catch { if (!lifetime.signal.aborted) message.value = '实例工作区暂不可用，请返回控制台重新打开。' }
@@ -67,6 +70,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .instance-workspace { min-width: 0; width: 100%; }
-.instance-workspace p { color: var(--muted); }
-.instance-workspace iframe { display: block; width: 100%; height: max(600px, calc(100dvh - 220px)); border: 0; }
+.instance-workspace p { margin: 0 0 8px 0; color: var(--muted); }
+.instance-workspace iframe { display: block; width: 100%; height: max(520px, calc(100dvh - 64px)); border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 </style>

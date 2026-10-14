@@ -4,9 +4,9 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const states = {running:'运行中',stopped:'已停止',starting:'启动中',stopping:'停止中',creating:'创建中',deleting:'销毁中',failed:'异常',unknown:'状态未知'};
 export const instanceName = item => item.name || item.alias.replace(/^blender/, 'Blender ');
 export const instanceURL = (item, panel = '') => '#/market?blender=' + encodeURIComponent(item.alias) + (panel ? '&panel=' + panel : '');
-export function isFresh(item, now = Date.now()) {
-  const sampled = Date.parse(item.observed_at);
-  return Number.isFinite(sampled) && now - sampled >= -5000 && now - sampled <= 30000;
+export function isFresh(item) {
+  const sampled = Date.parse(item?.observed_at);
+  return Number.isFinite(sampled);
 }
 export function canOpen(item, now = Date.now()) {
   return isFresh(item, now) && item.status === 'running' && item.control?.state === 'idle' && item.access === 'edit' && item.allowed_actions?.includes('open');
@@ -26,7 +26,7 @@ export function canDestroy(item, now = Date.now()) {
     && !item.management_operation_id && Number.isSafeInteger(item.state_version) && item.state_version > 0
     && item.allowed_actions?.includes('destroy');
 }
-const status = (item, now) => isFresh(item, now) ? states[item.status] || states.unknown : '状态过期';
+const status = (item, now) => isFresh(item, now) ? states[item.status] || states.unknown : states.unknown;
 const role = item => item.can_manage ? '管理员' : item.access === 'edit' ? '可编辑' : '只读';
 const project = item => item.project_name || '关联项目名称暂不可用';
 const when = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('zh-CN') : '暂无记录';

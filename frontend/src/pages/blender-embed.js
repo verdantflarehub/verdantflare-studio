@@ -2,14 +2,11 @@ import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summa
 import { mountBlenderCreation } from './blender-create';
 import { createBlenderStarter } from './blender-start';
 import { blenderMCPAddress } from '../app-center/legacy-blender';
-import { responseClock } from './response-clock.js';
 
 export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize, fetcher = fetch, mcpOrigin = location.origin }) {
   const $ = id => root.querySelector('#' + id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
   const lifetime = new AbortController();
-  const clocks = new WeakMap();
-  let snapshotClock = () => NaN, expiry;
-  const now = () => snapshotClock();
+  const now = () => Date.now();
   let active = false, items = [], route = null, epoch = 0, session = null, pending = null;
   let timeout, renewal, saving = false, listScroll = 0, marketScroll = 0;
   let polling, filter = 'all', refreshing = false, hasSnapshot = false, createAvailable = false, operation = null, operationError = '';
@@ -41,14 +38,12 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!keepalive && authorize) await authorize();
     const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 30000);
     try {
-      const started = performance.now();
       const response = await fetcher(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', keepalive, signal: keepalive ? controller.signal : AbortSignal.any([controller.signal, lifetime.signal]),
         headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw Object.assign(Error(messages[data.code] || '暂时无法连接，请重试。'), {code:data.code,status:response.status});
       if (path === '/studio/apps/blender/instances' && body === undefined) {
         if (data?.schema_version !== 1 || !Array.isArray(data.instances)) throw Error('实例管理服务需要更新，请联系管理员。');
-        clocks.set(data, responseClock(response.headers.get('Date'), started));
       }
       return data;
     } catch (error) {
@@ -57,20 +52,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     } finally { clearTimeout(deadline); }
   }
   function adoptSnapshot(data) {
-    snapshotClock = clocks.get(data);
     items = data.instances; hasSnapshot = true;
-    clearTimeout(expiry);
-    scheduleExpiry();
-  }
-  function scheduleExpiry() {
-    const currentTime = now();
-    const remaining = items.map(item => Date.parse(item.observed_at) + 30001 - currentTime).filter(value => value > 0);
-    if (!remaining.length) return;
-    expiry = setTimeout(() => {
-      if (!active) return;
-      if (alias() === 'instances') renderList(); else if (panel()) renderDetail();
-      scheduleExpiry();
-    }, Math.min(...remaining));
   }
   const creation = mountBlenderCreation({host:$('blenderCreateView'),request,listen,onAccepted:value=>{
     location.hash = '/market?blender='+encodeURIComponent(value.alias)+'&panel=overview&operation='+encodeURIComponent(value.operation_id);
@@ -217,7 +199,6 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       if (current !== epoch) return;
       createAvailable = false; creationAction(); operation = null; operationError = '实例状态刷新失败，操作仍在后台核对。';
       // Never leave stale open links enabled after a failed refresh.
-      snapshotClock = () => NaN; clearTimeout(expiry);
       items = items.map(item => ({...item,observed_at:null,status:'unknown',allowed_actions:['view'],resources_observed_at:null,
         resources:Object.fromEntries(Object.entries(item.resources || {}).map(([key,value]) => [key,{...value,value:null,quality:'unavailable'}]))}));
       if (alias() === 'instances') {
@@ -247,7 +228,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (route === 'instances') listScroll = window.scrollY;
     const current = ++epoch, opening = pending;
     if (!active) marketScroll = window.scrollY;
-    active = true; route = key; items = []; hasSnapshot = false; snapshotClock = () => NaN; clearTimeout(expiry); operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
+    active = true; route = key; items = []; hasSnapshot = false; operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
     host.hidden = false; host.style.display = 'flex'; if ($('marketView')) { $('marketView').hidden = true; $('marketView').style.display = 'none'; }
     main.classList.add('embed-active', 'blender-active');
     const management = target !== 'instances' && target !== 'create' && !!panel();
@@ -292,7 +273,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!active) return;
     if (route === 'instances') listScroll = window.scrollY;
     active = false; route = null; ++epoch;
-    clearTimeout(polling);clearTimeout(expiry);snapshotClock = () => NaN;creation.hide();
+    clearTimeout(polling);creation.hide();
     void release().catch(() => {}); host.hidden = true; host.style.display = 'none'; main.classList.remove('blender-active');
     if (!location.hash.includes('video=') && !location.hash.includes('image=')) {
       main.classList.remove('embed-active'); if ($('marketView')) { $('marketView').hidden = false; $('marketView').style.display = ''; }
@@ -402,7 +383,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     for (const el of $('blenderFilters').querySelectorAll('[data-status]')) el.setAttribute('aria-pressed', String(el === button));
     renderList();
   });
-  listen(document, 'visibilitychange', () => { if (active && (alias() === 'instances' || panel())) { if (!document.hidden) void refresh(); else { ++epoch; snapshotClock = () => NaN; clearTimeout(expiry); if (alias() === 'instances') renderList(); else renderDetail(); scheduleRefresh(); } } });
+  listen(document, 'visibilitychange', () => { if (active && (alias() === 'instances' || panel())) { if (!document.hidden) void refresh(); else { ++epoch; scheduleRefresh(); } } });
   listen(window, 'hashchange', () => void sync()); listen(window, 'pagehide', () => { ++epoch; void release().catch(() => {}); });
   listen(window, 'message', event => {
     if (!active || !session || event.source !== frame.contentWindow || event.origin !== location.origin || event.data?.channel !== 'vf-blender' || event.data?.session !== session.id) return;

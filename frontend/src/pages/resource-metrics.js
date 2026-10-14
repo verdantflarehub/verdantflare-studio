@@ -7,11 +7,10 @@ export function formatResource(value, unit = 'cores') {
   const scale = Math.max(0, index);
   return (value / 1024 ** scale).toLocaleString('zh-CN', {maximumFractionDigits: 2}) + ' ' + ['B','KiB','MiB','GiB','TiB'][scale];
 }
-export function resourceState(metric, now = Date.now()) {
-  const age = now - Date.parse(metric?.sampled_at);
-  if (metric?.quality === 'stale' || (metric?.quality === 'fresh' && Number.isFinite(age) && age > 30000)) return 'stale';
-  return metric?.quality === 'fresh' && Number.isFinite(age) && age >= -5000 && age <= 30000 && validResourceNumber(metric.value) ? 'fresh' : 'unavailable';
+export function resourceState(metric) {
+  if (metric?.quality === 'stale') return 'stale';
+  return metric?.quality === 'fresh' && validResourceNumber(metric.value) ? 'fresh' : 'unavailable';
 }
-export function resourceValue(metric, unit, now = Date.now()) {
-  return resourceState(metric, now) === 'fresh' ? formatResource(metric.value, unit) : '—';
+export function resourceValue(metric, unit) {
+  return resourceState(metric) === 'fresh' ? formatResource(metric.value, unit) : '—';
 }

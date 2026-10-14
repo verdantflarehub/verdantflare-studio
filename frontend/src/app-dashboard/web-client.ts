@@ -51,7 +51,7 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
   const base = new URL(origin)
   if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin) failure('INVALID_DASHBOARD_ORIGIN')
   let clock: (() => number) | undefined
-  const now = () => clock?.() ?? NaN
+  const now = () => clock?.() ?? Date.now()
 
   function sessionPath(id: string) {
     if (!uuid.test(id) || id[14] !== '4') failure('INVALID_DASHBOARD_SESSION')
@@ -88,11 +88,12 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       const data = await readJSON(response, 4 << 20)
       if (signal?.aborted) return failure('REQUEST_CANCELLED')
       if (response.ok && response.status !== 204) {
-        let observed: () => number
-        try { observed = responseClock(response.headers.get('Date'), started, monotonic) }
-        catch { return failure('INVALID_DASHBOARD_RESPONSE') }
-        // Late replies cannot move the clock backward or extend any deadline.
-        if (!clock || observed() > clock()) clock = observed
+        try {
+          const observed = responseClock(response.headers.get('Date'), started, monotonic)
+          if (!clock || observed() > clock()) clock = observed
+        } catch {
+          if (!clock) clock = () => Date.now()
+        }
       }
       return { status: response.status, data, requestId: response.headers.get('X-Request-ID') ?? '' }
     } catch (error) {

@@ -38,8 +38,13 @@ const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([ide
   identity.identity.session_id, identity.identity.policy_version, identity.identity.revocation_version,
   [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
 const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
-const title = computed(() => selection.value?.launch.installationId === props.installationId
-  ? props.titles[selection.value.context.appId] ?? selection.value.context.appId : '应用控制台')
+const workspaceAppId = ref('')
+const title = computed(() => {
+  const appId = selection.value?.launch.installationId === props.installationId
+    ? selection.value.context.appId
+    : workspaceAppId.value
+  return appId ? (props.titles[appId] ?? appId) : '应用控制台'
+})
 const confirmDiscard = async () => window.confirm('控制台有未保存的修改，确定放弃并关闭吗？')
 const messages: Record<string, string> = {
   UNAUTHENTICATED: '请先登录，再打开应用控制台。',
@@ -172,25 +177,25 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 </script>
 
 <template>
-  <main v-show="active" class="main embed-active">
+  <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
       <nav class="dashboard-breadcrumb" aria-label="面包屑">
         <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
         <span aria-hidden="true" class="breadcrumb-sep"> / </span>
-        <span class="breadcrumb-current">{{ title }}</span>
+        <a v-if="workspaceId" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
+        <span v-else class="breadcrumb-current">{{ title }}</span>
         <template v-if="workspaceId">
           <span aria-hidden="true" class="breadcrumb-sep"> / </span>
           <span class="breadcrumb-current">实例工作区</span>
         </template>
       </nav>
-      <header class="heading">
+      <header v-if="!workspaceId" class="heading">
         <div class="heading-left">
           <h1>{{ title }}</h1>
-          <p>{{ workspaceId ? '实例工作区' : '配置应用，管理运行实例。' }}</p>
+          <p>配置应用，管理运行实例。</p>
         </div>
-        <div v-if="workspaceId || state === 'ready'" class="heading-actions">
-          <button v-if="workspaceId" class="btn ghost" @click="router.push(dashboardLocation(installationId))">关闭工作区并返回控制台</button>
-          <button v-else-if="state === 'ready'" class="btn ghost" @click="close">关闭控制台</button>
+        <div v-if="state === 'ready'" class="heading-actions">
+          <button class="btn ghost" @click="close">关闭控制台</button>
         </div>
       </header>
       <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
@@ -199,12 +204,16 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
         :confirm-discard="confirmDiscard"
         @ready="ready" @error="dashboardError" @cancelled="cancelled" @retry="retry++" />
       <AppInstanceHost v-if="workspaceId && actorScope" :key="actorScope + workspaceId" ref="instanceHost"
-        :workspace-session-id="workspaceId" :installation-id="installationId" />
+        :workspace-session-id="workspaceId" :installation-id="installationId"
+        @loaded="id => { workspaceAppId = id }" />
     </div>
   </main>
 </template>
 
 <style scoped>
+.main.embed-active.workspace-active {
+  padding: 16px 24px 16px 24px;
+}
 .dashboard-breadcrumb {
   display: flex;
   align-items: center;
@@ -212,6 +221,9 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
   font-size: 13px;
   color: var(--muted);
   margin-bottom: 6px;
+}
+.workspace-active .dashboard-breadcrumb {
+  margin-bottom: 10px;
 }
 .dashboard-breadcrumb a {
   color: var(--muted);
