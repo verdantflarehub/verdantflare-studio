@@ -26,12 +26,22 @@ watch(appCenterExpanded, expanded => appcenter?.setVisible('directory-menu', exp
 const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
 const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'all', label: '所有应用' }] as const
 
-const resourcesActive = computed(() => route.path.startsWith('/resources'))
+const resourcesEntry = computed(() => navigation.entries.find(entry => entry.appId === 'resources'))
+const resourcesActive = computed(
+  () =>
+    route.path.startsWith('/resources') ||
+    (!!resourcesEntry.value && route.name === 'app-dashboard' && route.params.installationId === resourcesEntry.value.installationId)
+)
 const resourcesExpanded = ref(resourcesActive.value)
 watch(resourcesActive, active => { if (active) resourcesExpanded.value = true })
 const resourcesSubView = computed<'monitor' | 'storage' | 'tasks'>(() => {
   const v = route.query.view
-  return v === 'storage' || v === 'tasks' ? v : 'monitor'
+  if (v === 'storage' || v === 'tasks') return v
+  if (typeof route.query.path === 'string' && route.query.path.includes('?')) {
+    const pv = new URLSearchParams(route.query.path.split('?')[1] ?? '').get('view')
+    if (pv === 'storage' || pv === 'tasks') return pv
+  }
+  return 'monitor'
 })
 const resourcesCounts = ref<{ workspaces: number | null; tasks: number | null }>({ workspaces: null, tasks: null })
 function onResourcesCounts(e: Event) {
@@ -41,17 +51,21 @@ function onResourcesCounts(e: Event) {
     if (typeof d.tasks === 'number') resourcesCounts.value.tasks = d.tasks
   }
 }
+function navToResourcesView(view: 'monitor' | 'storage' | 'tasks') {
+  resourcesExpanded.value = true
+  if (!navigation.legacy && resourcesEntry.value) {
+    const subRoute = view === 'monitor' ? '/' : `/?view=${view}`
+    void openEntry({ ...resourcesEntry.value, route: subRoute })
+    return
+  }
+  void router.push({ path: '/resources', query: { view } })
+}
 function toggleResourcesMenu() {
   if (!resourcesActive.value) {
-    resourcesExpanded.value = true
-    void router.push({ path: '/resources', query: { view: 'monitor' } })
+    navToResourcesView('monitor')
   } else {
     resourcesExpanded.value = !resourcesExpanded.value
   }
-}
-function navToResourcesView(view: 'monitor' | 'storage' | 'tasks') {
-  resourcesExpanded.value = true
-  void router.push({ path: '/resources', query: { view } })
 }
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
@@ -102,14 +116,13 @@ async function openEntry(entry: NavigationEntry) {
       && item.entryId === entry.entryId && item.appVersion === entry.appVersion)
     if (!current?.cardKey || !current.bindingRevision) return
     appcenter.pinOpen(entry.installationId, current.bindingRevision)
-    const failed = await router.push(entryLocation(current))
+    const failed = await router.push(entryLocation({ ...current, route: entry.route }))
     if (failed) appcenter.takeOpenBinding(entry.installationId)
     return
   }
   await router.push(entryLocation(entry))
 }
 function entrySelected(entry: NavigationEntry) { return route.name === 'app-dashboard' && route.params.installationId === entry.installationId }
-const resourcesEntry = computed(() => navigation.entries.find(entry => entry.appId === 'resources'))
 function openResources() {
   if (navigation.legacy) void router.push('/resources')
   else if (resourcesEntry.value) void openEntry(resourcesEntry.value)
@@ -337,15 +350,65 @@ function handleHelpClick() {
     </a>
 
     <template v-if="navigation.state.value?.mode === 'preinstalled'">
-      <div v-for="entry in navigation.pinned" :key="`${entry.installationId}/${entry.entryId}`" class="app-navigation-row">
-        <a class="nav-link" :class="{ selected: entrySelected(entry) }" :href="router.resolve(entryLocation(entry)).href"
-           :aria-current="entrySelected(entry) ? 'page' : undefined" :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
-           :title="entry.availability !== 'ready' ? entryReason(entry) : undefined" @click.prevent="openEntry(entry)">
-          <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
-          <span>{{ entry.title }}</span><small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
-        </a>
-        <button type="button" class="unpin-entry" :disabled="navigation.state.saving" :aria-label="`取消固定${entry.title}`" :title="`取消固定${entry.title}`" @click="navigation.setPreference(entry, false)">×</button>
-      </div>
+      <template v-for="entry in navigation.pinned" :key="`${entry.installationId}/${entry.entryId}`">
+        <div class="app-navigation-row">
+          <button v-if="entry.appId === 'resources'"
+                  type="button"
+                  class="nav-link appcenter-parent"
+                  id="resourcesNavToggle"
+                  :class="{ selected: entrySelected(entry) }"
+                  aria-controls="resourcesSubNav"
+                  :aria-expanded="resourcesExpanded"
+                  :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
+                  :title="entry.availability !== 'ready' ? entryReason(entry) : undefined"
+                  data-nav="resources"
+                  @click="toggleResourcesMenu">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
+            <span>{{ entry.title }}</span>
+            <small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
+            <span v-else class="appcenter-chevron" id="resourcesNavChevron" aria-hidden="true">{{ resourcesExpanded ? '▾' : '▸' }}</span>
+          </button>
+          <a v-else class="nav-link" :class="{ selected: entrySelected(entry) }" :href="router.resolve(entryLocation(entry)).href"
+             :aria-current="entrySelected(entry) ? 'page' : undefined" :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
+             :title="entry.availability !== 'ready' ? entryReason(entry) : undefined" @click.prevent="openEntry(entry)">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
+            <span>{{ entry.title }}</span><small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
+          </a>
+          <button type="button" class="unpin-entry" :disabled="navigation.state.saving" :aria-label="`取消固定${entry.title}`" :title="`取消固定${entry.title}`" @click="navigation.setPreference(entry, false)">×</button>
+        </div>
+        <nav v-if="entry.appId === 'resources'"
+             v-show="resourcesExpanded"
+             id="resourcesSubNav"
+             class="nav-sub-group"
+             aria-label="资源管理子菜单">
+          <a class="group-nav"
+             :class="{ active: resourcesActive && resourcesSubView === 'monitor' }"
+             :aria-current="resourcesActive && resourcesSubView === 'monitor' ? 'page' : undefined"
+             :href="router.resolve(entryLocation({ ...entry, route: '/' })).href"
+             data-res-view="monitor"
+             @click.prevent="navToResourcesView('monitor')">
+            <span>资源监控</span>
+          </a>
+          <a class="group-nav"
+             :class="{ active: resourcesActive && resourcesSubView === 'storage' }"
+             :aria-current="resourcesActive && resourcesSubView === 'storage' ? 'page' : undefined"
+             :href="router.resolve(entryLocation({ ...entry, route: '/?view=storage' })).href"
+             data-res-view="storage"
+             @click.prevent="navToResourcesView('storage')">
+            <span>存储管理</span>
+            <span v-if="resourcesCounts.workspaces !== null" class="directory-count" id="navWsCount">{{ resourcesCounts.workspaces }}</span>
+          </a>
+          <a class="group-nav"
+             :class="{ active: resourcesActive && resourcesSubView === 'tasks' }"
+             :aria-current="resourcesActive && resourcesSubView === 'tasks' ? 'page' : undefined"
+             :href="router.resolve(entryLocation({ ...entry, route: '/?view=tasks' })).href"
+             data-res-view="tasks"
+             @click.prevent="navToResourcesView('tasks')">
+            <span>任务监控</span>
+            <span v-if="resourcesCounts.tasks !== null" class="directory-count" id="navTasksCount">{{ resourcesCounts.tasks }}</span>
+          </a>
+        </nav>
+      </template>
       <details class="menu-preferences"><summary>管理菜单</summary><AppNavigationPreferences /></details>
     </template>
     <p v-if="navigation.state.status === 'loading'" role="status" class="navigation-status">正在加载应用菜单…</p>

@@ -171,7 +171,17 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 			result(c, application.Error(400, "INVALID_DASHBOARD_REQUEST"))
 			return
 		}
-		result(c, service.Request(c.Request.Context(), token, c.Param("session_id"), input))
+		if input.Path == "/api/v1/workspaces/release" && input.Method == "POST" {
+			if blocked := s.guardComfyUIWorkspaceRelease(c.Request.Context(), token, input.Body); blocked != nil {
+				result(c, *blocked)
+				return
+			}
+		}
+		out := service.Request(c.Request.Context(), token, c.Param("session_id"), input)
+		if input.Path == "/api/v1/workspaces" && input.Method == "GET" && out.Status == 200 {
+			out.Data = s.enrichWorkspaces(c.Request.Context(), token, out.Data)
+		}
+		result(c, out)
 	})
 	r.DELETE("/studio/dashboards/:session_id", func(c *gin.Context) {
 		token, ok := gate(c)
