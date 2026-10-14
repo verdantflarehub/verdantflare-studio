@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- Sub-view 1: 资源监控 (Hardware Compute & Node Telemetry) -->
-      <div v-show="currentView === 'monitor'" id="monitorView" class="resource-dashboard">
+      <div v-if="currentView === 'monitor'" id="monitorView" class="resource-dashboard">
         <!-- 1. The 4 Hardware Resource Pillars (Top KPI Row) -->
         <section class="res-metric-grid">
           <!-- Card 1: GPU Cluster -->
@@ -795,7 +795,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Sub-view 2: 存储管理 (Local Fast-Tier Storage & Workspace Volume Pool Management) -->
-      <div v-show="currentView === 'storage'" id="storageView" class="resource-dashboard">
+      <div v-if="currentView === 'storage'" id="storageView" class="resource-dashboard">
         <!-- 4.1 节点物理存储与挂载点水位 -->
         <section class="res-section">
           <div class="res-section-title">
@@ -1003,7 +1003,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Sub-view 3: 任务监控 (Workload Quota & Active Tasks Telemetry) -->
-      <div v-show="currentView === 'tasks'" id="tasksView" class="resource-dashboard">
+      <div v-if="currentView === 'tasks'" id="tasksView" class="resource-dashboard">
         <section class="res-section" id="workloadSection">
           <div class="res-section-title">
             <div class="res-section-title-left">
@@ -1059,9 +1059,9 @@ onBeforeUnmount(() => {
                     <div class="wl-metrics-grid">
                       <div v-for="kind in (['cpu', 'memory'] as const)" :key="kind" class="wl-metric-cell">
                         <div class="wl-cell-title">{{ kind === 'cpu' ? 'CPU 使用' : '内存工作集' }}</div>
-                        <div class="wl-actual-val">{{ resourceValue(container[kind], kind === 'cpu' ? 'cores' : 'bytes', telemetryNow) }}</div>
+                        <div class="wl-actual-val">{{ resourceValue(container[kind], kind === 'cpu' ? 'cores' : 'bytes') }}</div>
                         <div class="wl-metric-footnote">请求 {{ formatResource(container[kind].request, kind === 'cpu' ? 'cores' : 'bytes') }} · 上限 {{ formatResource(container[kind].limit, kind === 'cpu' ? 'cores' : 'bytes') }}</div>
-                        <div class="wl-metric-footnote">{{ resourceState(container[kind], telemetryNow) === 'fresh' ? '采样 ' + new Date(container[kind].sampled_at!).toLocaleString('zh-CN') : resourceState(container[kind], telemetryNow) === 'stale' ? '采样已过期' : '未采集' }}</div>
+                        <div class="wl-metric-footnote">{{ resourceState(container[kind]) === 'fresh' ? '采样 ' + new Date(container[kind].sampled_at!).toLocaleString('zh-CN') : resourceState(container[kind]) === 'stale' ? '采样已过期' : '未采集' }}</div>
                       </div>
                       <div class="wl-metric-cell">
                         <div class="wl-cell-title">GPU 配置请求</div>
