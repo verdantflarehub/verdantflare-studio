@@ -177,3 +177,4 @@ func TestWorkspacesEnrichmentAndComfyUIGuard(t *testing.T) {
 		t.Fatalf("expected upstream release called once, got %d", releasedCalls)
 	}
 }
+

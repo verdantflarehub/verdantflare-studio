@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -73,26 +74,48 @@ func (s *Server) fetchBlenderInstanceNames(ctx context.Context, p project.Princi
 	return names, true
 }
 
-func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, actor dashboard.Actor, requestID string) (map[string]string, bool) {
-	u, ok := s.comfyuiOrigin()
-	if !ok {
-		return nil, false
+func (s *Server) comfyuiInstancesTarget() (string, string, bool) {
+	if regPath := os.Getenv("STUDIO_DASHBOARD_REGISTRY"); regPath != "" {
+		if raw, err := os.ReadFile(regPath); err == nil {
+			var reg struct {
+				Releases []struct {
+					AppID   string `json:"appId"`
+					Backend struct {
+						Origin   string `json:"origin"`
+						TokenEnv string `json:"tokenEnv"`
+					} `json:"backend"`
+				} `json:"releases"`
+			}
+			if json.Unmarshal(raw, &reg) == nil {
+				for _, rel := range reg.Releases {
+					if rel.AppID == "comfyui" && rel.Backend.Origin != "" {
+						token := os.Getenv(rel.Backend.TokenEnv)
+						if u, err := url.Parse(rel.Backend.Origin); err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && len(token) >= 32 && !strings.ContainsAny(token, " \t\r\n") {
+							u.Path = "/internal/dashboard/instances"
+							return u.String(), token, true
+						}
+					}
+				}
+			}
+		}
 	}
-	appToken := os.Getenv("STUDIO_APP_COMFYUI_TOKEN")
-	svcToken := os.Getenv("STUDIO_COMFYUI_SERVICE_TOKEN")
-	var token string
-	if len(appToken) >= 32 && !strings.ContainsAny(appToken, " \t\r\n") {
-		token = appToken
-		u.Path = "/internal/dashboard/instances"
-	} else if len(svcToken) >= 32 && !strings.ContainsAny(svcToken, " \t\r\n") {
-		token = svcToken
-		u.Path = "/internal/instances"
-	} else {
+	u, ok := s.comfyuiOrigin()
+	token := os.Getenv("STUDIO_COMFYUI_SERVICE_TOKEN")
+	if !ok || len(token) < 32 || strings.ContainsAny(token, " \t\r\n") {
+		return "", "", false
+	}
+	u.Path = "/internal/instances"
+	return u.String(), token, true
+}
+
+func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, actor dashboard.Actor, requestID string) (map[string]string, bool) {
+	targetURL, token, ok := s.comfyuiInstancesTarget()
+	if !ok {
 		return nil, false
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, false
 	}
