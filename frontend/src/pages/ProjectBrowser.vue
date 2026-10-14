@@ -130,7 +130,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
   <main class="main project-browser" :class="{ 'drama-browser': drama }">
     <div class="workspace">
       <nav v-if="projectID" class="breadcrumbs" aria-label="面包屑">
-        <RouterLink :to="listLink">项目</RouterLink><span>/</span>
+        <RouterLink :to="listLink">项目管理</RouterLink><span>/</span>
         <template v-if="fromProject"><RouterLink :to="link({ project: fromProject.id, revision: fromProject.revision, tab: 'cast', item: undefined, from: undefined, fromRevision: undefined, fromName: undefined })">{{ fromProject.name }}</RouterLink><span>/</span></template>
         <RouterLink :to="{ ...listLink, query: { ...listLink.query, category: project?.manifest.category || filter || undefined } }">{{ categoryName(project?.manifest.category || filter) }}</RouterLink><span>/</span>
         <template v-if="drama && query('shot')"><RouterLink :to="link({ episode: undefined, scene: undefined, shot: undefined })">{{ project?.manifest.name || '项目' }}</RouterLink><span>/</span><RouterLink :to="link({ scene: undefined, shot: undefined })">{{ dramaEpisode?.title || '分集' }}</RouterLink><span>/</span><span aria-current="page">{{ dramaShot?.title || '镜头' }}</span></template>
@@ -139,7 +139,7 @@ onBeforeUnmount(() => { alive = false; request++; listRequest++; reader.value?.d
         <span v-else aria-current="page">{{ project?.manifest.name || '项目' }}</span>
       </nav>
       <header class="heading">
-        <div class="heading-left"><div class="eyebrow">{{ drama ? 'AI 短剧制作' : 'PROJECTS' }}</div><h1>{{ projectID ? (detail?.title || project?.manifest.name || '项目') : '项目' }}</h1><p v-if="drama">{{ drama.episodes.length }} 集 · {{ drama.episodes.reduce((n, e) => n + e.scenes.reduce((n, s) => n + s.shots.length, 0), 0) }} 镜 · {{ activeTab?.label }}</p><p v-else-if="!projectID">角色、音乐、短视频与 AI 短剧创作</p></div>
+        <div class="heading-left"><div class="eyebrow">{{ drama ? 'AI 短剧制作' : 'PROJECTS' }}</div><h1>{{ projectID ? (detail?.title || project?.manifest.name || '项目') : '项目管理' }}</h1><p v-if="drama">{{ drama.episodes.length }} 集 · {{ drama.episodes.reduce((n, e) => n + e.scenes.reduce((n, s) => n + s.shots.length, 0), 0) }} 镜 · {{ activeTab?.label }}</p><p v-else-if="!projectID">角色、音乐、短视频与 AI 短剧创作</p></div>
         <button class="btn" :disabled="loading || listLoading" @click="retry">刷新</button>
       </header>
 

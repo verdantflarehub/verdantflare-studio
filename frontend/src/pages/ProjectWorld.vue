@@ -541,11 +541,11 @@ onBeforeUnmount(() => { if (workspace.value) void closeLocalWorkspace() })
       <header class="heading">
         <div class="heading-left">
           <div class="eyebrow">PROJECT / WORLD</div>
-          <h1>{{ mode === 'projects' ? '项目' : '数字世界' }}</h1>
+          <h1>{{ mode === 'projects' ? '项目管理' : '数字世界' }}</h1>
           <p>{{ mode === 'projects' ? '保存 MD 与工程 JSON，跨电脑继续同一份创作。' : '按资产类型找到可复用的固定版本，来源项目始终保留。' }}</p>
         </div>
         <div class="heading-actions">
-          <button class="btn" :class="{ primary: mode === 'projects' }" @click="selectMode('projects')">项目</button>
+          <button class="btn" :class="{ primary: mode === 'projects' }" @click="selectMode('projects')">项目管理</button>
           <button class="btn" :class="{ primary: mode === 'world' }" @click="selectMode('world')">数字世界</button>
           <button v-if="mode === 'projects'" class="btn primary" @click="showCreate = !showCreate">新建项目</button>
           <button class="icon-btn" title="刷新" aria-label="刷新" @click="mode === 'projects' ? loadProjects() : loadWorld()">↻</button>

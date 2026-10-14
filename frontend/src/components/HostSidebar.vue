@@ -116,18 +116,12 @@ function openResources() {
   else void router.push('/market')
 }
 
-const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'workbench' | 'projects' | 'world' | ''>(() => {
+const activeNav = computed<'proxies' | 'resources' | 'market' | 'projects' | 'world' | ''>(() => {
   if (route.path.startsWith('/station/proxies')) {
     return 'proxies'
   }
   if (route.path.startsWith('/resources')) {
     return 'resources'
-  }
-  if (route.path.startsWith('/models')) {
-    return 'models'
-  }
-  if (route.path.startsWith('/workbench')) {
-    return 'workbench'
   }
   if (route.path.startsWith('/projects') && route.query.mode === 'world') {
     return 'world'
@@ -144,10 +138,6 @@ const activeNav = computed<'proxies' | 'resources' | 'models' | 'market' | 'work
 function navTo(target: string) {
   if (target === 'resources') {
     router.push('/resources')
-  } else if (target === 'models') {
-    router.push('/models')
-  } else if (target === 'workbench') {
-    router.push('/workbench')
   } else if (target === 'market') {
     router.push('/market')
   } else if (target === 'proxies') {
@@ -219,20 +209,6 @@ function handleHelpClick() {
     </button>
 
     <div class="nav-label">创作空间</div>
-    <a class="nav-link"
-       :class="{ selected: activeNav === 'workbench' }"
-       href="#/workbench"
-       data-nav="workbench"
-       @click.prevent="navTo('workbench')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-      </span>
-      <span>工作台</span>
-    </a>
-
     <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'projects' }"
        href="#/projects"
@@ -243,7 +219,7 @@ function handleHelpClick() {
           <path d="M3 7h7l2 2h9v10H3zM3 7V4h8l2 2h8v3" />
         </svg>
       </span>
-      <span>项目</span>
+      <span>项目管理</span>
     </a>
 
     <a v-if="navigation.legacy" class="nav-link"
@@ -293,25 +269,6 @@ function handleHelpClick() {
     <div v-if="!appcenter" class="nav-sub-group" id="groupNav" v-show="activeNav === 'market'">
       <!-- Injected by JavaScript -->
     </div>
-
-    <a class="nav-link"
-       :class="{ selected: activeNav === 'models' }"
-       href="#/models"
-       data-nav="models"
-       @click.prevent="navTo('models')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="8"></circle>
-          <line x1="12" y1="2" x2="12" y2="6"></line>
-          <line x1="12" y1="18" x2="12" y2="22"></line>
-          <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-          <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-          <line x1="2" y1="12" x2="6" y2="12"></line>
-          <line x1="18" y1="12" x2="22" y2="12"></line>
-        </svg>
-      </span>
-      <span>模型市场</span>
-    </a>
 
     <button v-if="navigation.legacy"
             type="button"
