@@ -195,6 +195,15 @@ func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte)
 		instID, _ := ws["instance_id"].(string)
 		state, _ := ws["state"].(string)
 		if instID == "" {
+			if state == "retained" {
+				if cur, _ := ws["instance_name"].(string); cur == "" {
+					if ns == "verdantflare-blender" {
+						ws["instance_name"] = "Blender 历史实例（已销毁）"
+					} else if ns == "verdantflare-comfyui" {
+						ws["instance_name"] = "ComfyUI 实例（已销毁）"
+					}
+				}
+			}
 			continue
 		}
 		switch ns {

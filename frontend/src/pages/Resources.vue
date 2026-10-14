@@ -217,15 +217,15 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const workspaces = ref<WorkspaceVolumeItem[]>([])
 const workspacesState = ref<'loading' | 'ready' | 'error'>('loading')
-const wsFilter = ref<'all' | 'in_use' | 'bound_stopped' | 'retained' | 'available'>('all')
+const wsFilter = ref<'all' | 'in_use' | 'bound_stopped' | 'retained'>('all')
 const wsSearchQuery = ref('')
 
 const wsCounts = computed(() => {
-  const counts = { all: 0, in_use: 0, bound_stopped: 0, retained: 0, available: 0 }
+  const counts = { all: 0, in_use: 0, bound_stopped: 0, retained: 0 }
   for (const ws of workspaces.value) {
     counts.all += 1
     if (ws.state in counts) {
-      counts[ws.state] += 1
+      counts[ws.state as keyof typeof counts] += 1
     }
   }
   return counts
@@ -235,7 +235,7 @@ const filteredWorkspaces = computed(() => {
   const q = wsSearchQuery.value.trim().toLowerCase()
   return workspaces.value.filter(ws => {
     const stateMatch = wsFilter.value === 'all' || ws.state === wsFilter.value
-    const text = `${ws.pvc_name} ${ws.pv_name} ${ws.namespace} ${ws.app_display_name || ''} ${ws.app_id} ${ws.pool_name} ${ws.instance_name || ''} ${ws.instance_id || ''}`.toLowerCase()
+    const text = `${ws.pvc_name} ${ws.pv_name} ${ws.namespace} ${ws.node_name || ''} ${ws.app_display_name || ''} ${ws.app_id} ${ws.pool_name} ${ws.instance_name || ''} ${ws.instance_id || ''}`.toLowerCase()
     const textMatch = !q || text.includes(q)
     return stateMatch && textMatch
   })
@@ -287,8 +287,6 @@ function wsStateLabel(state: WorkspaceVolumeItem['state']): string {
       return '已停止绑定'
     case 'retained':
       return '待释放 · 实例已销毁'
-    case 'available':
-      return '空闲可用'
     default:
       return state
   }
@@ -382,9 +380,10 @@ async function submitReleaseWorkspace() {
       return
     }
     const releasedPvc = target.pvc_name
+    const releasedPv = target.pv_name || `pv-${target.pvc_name}`
     closeReleaseDialog()
     await fetchTelemetry()
-    showToast(`工作卷 ${releasedPvc} 已释放并归还空闲卷池`)
+    showToast(`工作卷声明 (PVC) ${releasedPvc} 与物理持久卷 (PV) ${releasedPv} 已彻底释放回收`)
   } catch {
     releaseError.value = '网络请求异常，请检查连接后重试。'
   } finally {
@@ -872,7 +871,7 @@ onBeforeUnmount(() => {
                 {{ wsCounts.retained > 0 ? `${wsCounts.retained} 个已销毁实例工作卷待释放` : '无待释放残留工作卷' }}
               </span>
             </div>
-            <span class="ws-vol-sub">实例销毁后工作卷保留数据；确认无需保留后可在此释放并归还空闲卷池。</span>
+            <span class="ws-vol-sub">实例销毁后工作卷保留数据；确认无需保留后点击释放，将清空 PV 盘面并删除 PVC 声明，记录从表中移除。</span>
           </div>
 
           <div class="ws-vol-toolbar">
@@ -905,13 +904,6 @@ onBeforeUnmount(() => {
                       @click="wsFilter = 'retained'">
                 待释放 (<span id="wsCountRetained">{{ wsCounts.retained }}</span>)
               </button>
-              <button class="workload-tab-btn"
-                      :class="{ active: wsFilter === 'available' }"
-                      type="button"
-                      data-ws-filter="available"
-                      @click="wsFilter = 'available'">
-                空闲可用 (<span id="wsCountAvailable">{{ wsCounts.available }}</span>)
-              </button>
             </div>
             <div class="workload-search">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -922,7 +914,7 @@ onBeforeUnmount(() => {
                      type="text"
                      id="wsFilterInput"
                      aria-label="过滤工作卷"
-                     placeholder="过滤工作卷 PVC、应用或实例...">
+                     placeholder="过滤 PVC 声明、PV 持久卷、应用或实例...">
             </div>
           </div>
 
@@ -930,7 +922,8 @@ onBeforeUnmount(() => {
             <table class="ws-vol-table" aria-label="应用工作卷列表">
               <thead>
                 <tr>
-                  <th>工作卷 (PVC / PV)</th>
+                  <th>工作卷声明 (PVC)</th>
+                  <th>物理持久卷 (PV)</th>
                   <th>所属应用 / 卷池</th>
                   <th>关联实例</th>
                   <th>状态</th>
@@ -940,36 +933,35 @@ onBeforeUnmount(() => {
               </thead>
               <tbody id="wsVolTableBody">
                 <tr v-if="workspacesState === 'loading'">
-                  <td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">正在读取应用工作卷池台账…</td>
+                  <td colspan="7" style="text-align: center; color: var(--muted); padding: 24px;">正在读取应用工作卷池台账…</td>
                 </tr>
                 <tr v-else-if="workspacesState === 'error'">
-                  <td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">工作卷池台账暂不可用，请点击右上角刷新重试。</td>
+                  <td colspan="7" style="text-align: center; color: var(--muted); padding: 24px;">工作卷池台账暂不可用，请点击右上角刷新重试。</td>
                 </tr>
                 <tr v-else-if="!filteredWorkspaces.length">
-                  <td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">没有符合筛选条件的工作卷记录。</td>
+                  <td colspan="7" style="text-align: center; color: var(--muted); padding: 24px;">没有符合筛选条件的工作卷记录。</td>
                 </tr>
                 <tr v-else
                     v-for="ws in filteredWorkspaces"
                     :key="ws.workspace_id"
                     :data-ws-state="ws.state"
-                    :data-pvc="ws.pvc_name">
+                    :data-pvc="ws.pvc_name"
+                    :data-pv="ws.pv_name || ('pv-' + ws.pvc_name)">
                   <td>
                     <div class="ws-cell-main ws-cell-mono">{{ ws.pvc_name }}</div>
-                    <div class="ws-cell-sub">{{ ws.pv_name }} · {{ ws.namespace }}</div>
+                    <div class="ws-cell-sub">NS: {{ ws.namespace }}</div>
+                  </td>
+                  <td>
+                    <div class="ws-cell-main ws-cell-mono">{{ ws.pv_name || ('pv-' + ws.pvc_name) }}</div>
+                    <div class="ws-cell-sub">Node: {{ ws.node_name || 'verdentflare-5090' }}</div>
                   </td>
                   <td>
                     <div class="ws-cell-main">{{ ws.app_display_name || ws.app_id }}</div>
-                    <div class="ws-cell-sub">{{ ws.pool_name }}</div>
+                    <div class="ws-cell-sub">Pool: {{ ws.pool_name }}</div>
                   </td>
                   <td class="ws-instance-cell">
-                    <template v-if="ws.instance_id">
-                      <div class="ws-cell-main">{{ wsInstanceDisplay(ws) }}</div>
-                      <div class="ws-cell-sub">{{ ws.instance_id }}</div>
-                    </template>
-                    <template v-else>
-                      <div class="ws-cell-main" style="color: var(--muted);">— 未绑定</div>
-                      <div class="ws-cell-sub">可供新实例启动自动认领</div>
-                    </template>
+                    <div class="ws-cell-main">{{ wsInstanceDisplay(ws) }}</div>
+                    <div class="ws-cell-sub">ID: {{ ws.instance_id || '—（实例已销毁）' }}</div>
                   </td>
                   <td class="ws-state-cell">
                     <span class="ws-status-pill" :class="ws.state"><i class="dot"></i>{{ wsStateLabel(ws.state) }}</span>
@@ -979,8 +971,7 @@ onBeforeUnmount(() => {
                     <div class="ws-cell-sub">{{ ws.storage_class || 'local-nvme' }} · {{ ws.access_mode === 'ReadWriteOnce' ? 'RWO' : (ws.access_mode || 'RWO') }}</div>
                   </td>
                   <td class="ws-action-cell">
-                    <span v-if="ws.state === 'available'" style="color: var(--muted); font-size: 12px;">—</span>
-                    <button v-else-if="ws.state === 'retained' && (ws.allowed_actions || []).includes('release')"
+                    <button v-if="ws.state === 'retained' && (ws.allowed_actions || []).includes('release')"
                             type="button"
                             class="ws-btn-release"
                             :data-release-pvc="ws.pvc_name"
@@ -1100,8 +1091,9 @@ onBeforeUnmount(() => {
         </div>
         <div class="ws-dialog-body">
           <p class="ws-dialog-desc">
-            释放后将清空工作卷残留数据、解除与已销毁实例的绑定关系，并将 PVC <code><span id="release-workspace-target-code">{{ pendingReleaseWs?.pvc_name || '' }}</span></code>
-            归还至空闲工作卷池，供后续新启动的实例自动认领复用。
+            释放后将清空物理持久卷 (PV) <code><span id="release-workspace-pv-code">{{ pendingReleaseWs?.pv_name || (pendingReleaseWs ? 'pv-' + pendingReleaseWs.pvc_name : '') }}</span></code>
+            的残留数据，删除工作卷声明 (PVC) <code><span id="release-workspace-target-code">{{ pendingReleaseWs?.pvc_name || '' }}</span></code>
+            并解除其与底层 PV 的绑定，使其回到空闲可用池（当前记录将从列表移除）。
           </p>
           <div class="ws-dialog-field">
             <span>请输入工作卷 PVC 名称 <code><span id="release-workspace-expected">{{ pendingReleaseWs?.pvc_name || '' }}</span></code> 以确认释放</span>
