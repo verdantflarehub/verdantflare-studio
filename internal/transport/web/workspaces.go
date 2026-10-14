@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
+	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 )
 
@@ -72,13 +73,23 @@ func (s *Server) fetchBlenderInstanceNames(ctx context.Context, p project.Princi
 	return names, true
 }
 
-func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, p project.Principal) (map[string]string, bool) {
+func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, actor dashboard.Actor, requestID string) (map[string]string, bool) {
 	u, ok := s.comfyuiOrigin()
-	token := os.Getenv("STUDIO_COMFYUI_SERVICE_TOKEN")
-	if !ok || len(token) < 32 || strings.ContainsAny(token, " \t\r\n") {
+	if !ok {
 		return nil, false
 	}
-	u.Path = "/internal/instances"
+	appToken := os.Getenv("STUDIO_APP_COMFYUI_TOKEN")
+	svcToken := os.Getenv("STUDIO_COMFYUI_SERVICE_TOKEN")
+	var token string
+	if len(appToken) >= 32 && !strings.ContainsAny(appToken, " \t\r\n") {
+		token = appToken
+		u.Path = "/internal/dashboard/instances"
+	} else if len(svcToken) >= 32 && !strings.ContainsAny(svcToken, " \t\r\n") {
+		token = svcToken
+		u.Path = "/internal/instances"
+	} else {
+		return nil, false
+	}
 	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, u.String(), nil)
@@ -86,9 +97,10 @@ func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, p project.Princi
 		return nil, false
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-User-Id", p.SubjectID)
-	req.Header.Set("X-Organization-Id", p.OrganizationID)
-	req.Header.Set("X-Request-Id", p.RequestID)
+	req.Header.Set("X-User-Id", actor.UserID)
+	req.Header.Set("X-Organization-Id", actor.OrganizationID)
+	req.Header.Set("X-Station-Id", actor.StationID)
+	req.Header.Set("X-Request-Id", requestID)
 	req.Header.Set("Accept", "application/json")
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
@@ -132,10 +144,12 @@ func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte)
 	if json.Unmarshal(raw, &payload) != nil || payload.Workspaces == nil {
 		return raw
 	}
-	p, status := s.station.Principal(ctx, token, uuid.Must(uuid.NewV7()).String())
+	reqID := uuid.Must(uuid.NewV7()).String()
+	actor, status := s.station.DashboardActor(ctx, token, reqID)
 	if status != http.StatusOK {
 		return raw
 	}
+	p := project.Principal{OrganizationID: actor.OrganizationID, SubjectID: actor.UserID, RequestID: reqID}
 	var (
 		wg           sync.WaitGroup
 		blenderNames map[string]string
@@ -149,7 +163,7 @@ func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte)
 	}()
 	go func() {
 		defer wg.Done()
-		comfyuiNames, comfyuiOK = s.fetchComfyUIInstanceNames(ctx, p)
+		comfyuiNames, comfyuiOK = s.fetchComfyUIInstanceNames(ctx, actor, reqID)
 	}()
 	wg.Wait()
 
@@ -230,12 +244,13 @@ func (s *Server) guardComfyUIWorkspaceRelease(ctx context.Context, token string,
 	if boundInstanceID == "" {
 		return nil
 	}
-	p, status := s.station.Principal(ctx, token, uuid.Must(uuid.NewV7()).String())
+	reqID := uuid.Must(uuid.NewV7()).String()
+	actor, status := s.station.DashboardActor(ctx, token, reqID)
 	if status != http.StatusOK {
 		res := application.Error(status, "SERVICE_UNAVAILABLE")
 		return &res
 	}
-	comfyuiNames, comfyuiOK := s.fetchComfyUIInstanceNames(ctx, p)
+	comfyuiNames, comfyuiOK := s.fetchComfyUIInstanceNames(ctx, actor, reqID)
 	if !comfyuiOK {
 		res := application.Error(http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE")
 		return &res
@@ -244,9 +259,9 @@ func (s *Server) guardComfyUIWorkspaceRelease(ctx context.Context, token string,
 		b, _ := json.Marshal(map[string]string{
 			"code":       "INSTANCE_NOT_DESTROYED",
 			"message":    "Instance has not been destroyed; destroy the instance in App Dashboard before releasing its workspace volume",
-			"request_id": p.RequestID,
+			"request_id": reqID,
 		})
-		return &application.Result{Status: http.StatusConflict, Data: b, RequestID: p.RequestID}
+		return &application.Result{Status: http.StatusConflict, Data: b, RequestID: reqID}
 	}
 	return nil
 }
