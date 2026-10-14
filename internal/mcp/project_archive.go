@@ -7,7 +7,7 @@ const projectArchiveToolHint = "AI short-drama stage outputs must be saved and v
 
 func archiveGuidanceDomain(domain string) bool {
 	switch domain {
-	case "project", "artifact", "world", "image", "video", "music", "blender":
+	case "project", "artifact", "world", "image", "video", "music", "blender", "speech":
 		return true
 	default:
 		return false

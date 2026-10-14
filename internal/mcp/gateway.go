@@ -157,7 +157,7 @@ func (g *Gateway) watch(ctx context.Context, revision int64) {
 }
 func Managed(name string) bool {
 	domain := strings.SplitN(name, ".", 2)[0]
-	return domain == "project" || domain == "world" || domain == "artifact"
+	return domain == "project" || domain == "world" || domain == "artifact" || domain == "speech"
 }
 func (g *Gateway) ListTools() []ToolDefinition {
 	g.mu.RLock()
@@ -194,7 +194,18 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 		return nil, 403, errors.New("verified identity required")
 	}
 	projectID := projectHeader
-	if Managed(name) {
+	if strings.HasPrefix(name, "speech.") {
+		projectID = ""
+		if name != "speech.capabilities" {
+			value, ok := args["project_id"].(string)
+			if !ok || !project.ValidID(value) || (projectHeader != "" && projectHeader != value) {
+				return nil, 400, errors.New("project scope mismatch")
+			}
+			projectID = value
+		} else if projectHeader != "" {
+			return nil, 400, errors.New("unexpected project scope")
+		}
+	} else if Managed(name) {
 		if strings.HasPrefix(name, "artifact.") {
 			projectID = ""
 			if name == "artifact.write" {
@@ -335,6 +346,9 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	return out, resp.StatusCode, nil
 }
 func (g *Gateway) resolveToken(domain string) string {
+	if domain == "speech" {
+		return strings.TrimSpace(os.Getenv("STUDIO_SPEECH_TOKEN"))
+	}
 	if domain == "project" || domain == "world" {
 		projectToken := os.Getenv("STUDIO_PROJECT_SERVICE_TOKEN")
 		switch os.Getenv("STUDIO_CONTENT_SERVICE_MODE") {
