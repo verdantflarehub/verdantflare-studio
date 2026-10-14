@@ -94,6 +94,10 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 		path = "/api/v1/resources/summary"
 	case in.Method == "GET" && in.Path == "resources/workloads":
 		path = "/api/v1/resources/workloads"
+	case in.Method == "GET" && in.Path == "resources/workspaces":
+		path = "/api/v1/resources/workspaces"
+	case in.Method == "POST" && in.Path == "resources/workspaces/release":
+		path = "/api/v1/resources/workspaces/release"
 	default:
 		return Error(404, "NOT_FOUND")
 	}
@@ -118,6 +122,10 @@ func (s *Station) Call(ctx context.Context, token string, in Request) Result {
 		probeClient := *s.client
 		probeClient.Timeout = 60 * time.Second
 		client = &probeClient
+	} else if path == "/api/v1/resources/workspaces/release" {
+		releaseClient := *s.client
+		releaseClient.Timeout = 25 * time.Second
+		client = &releaseClient
 	}
 	resp, err := client.Do(req)
 	if err != nil {

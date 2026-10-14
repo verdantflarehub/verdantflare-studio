@@ -79,9 +79,9 @@ func Allowed(method, path string) bool {
 		return method == "GET"
 	case "/studio/appcenter/v1/open", "/studio/appcenter/v1/commands/prepare", "/studio/appcenter/v1/commands":
 		return method == "POST"
-	case "/api/login", "/api/logout", "/api/commands", "/studio/dashboards", "/studio/navigation/preferences", "/studio/preinstalled/reconcile", "/mcp":
+	case "/api/login", "/api/logout", "/api/commands", "/api/resources/workspaces/release", "/studio/dashboards", "/studio/navigation/preferences", "/studio/preinstalled/reconcile", "/mcp":
 		return method == "POST"
-	case "/api/me", "/api/health", "/api/apps", "/api/installations", "/api/resources/gpu", "/api/resources/node", "/api/resources/summary", "/api/resources/workloads", "/studio/dashboard-installations", "/studio/navigation", "/studio/preinstalled":
+	case "/api/me", "/api/health", "/api/apps", "/api/installations", "/api/resources/gpu", "/api/resources/node", "/api/resources/summary", "/api/resources/workloads", "/api/resources/workspaces", "/studio/dashboard-installations", "/studio/navigation", "/studio/preinstalled":
 		return method == "GET"
 	case "/api/proxies":
 		return method == "GET" || method == "POST"

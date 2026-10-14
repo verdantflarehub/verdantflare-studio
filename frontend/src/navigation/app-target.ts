@@ -23,7 +23,11 @@ export function legacyAppTarget(path: string): AppTarget | null {
   assertAppPath(path)
   const parsed = new URL(path, 'https://studio.invalid')
   parsed.searchParams.forEach((_value, key) => { if (parsed.searchParams.getAll(key).length !== 1) throw new Error('INVALID_NAVIGATION') })
-  if (parsed.pathname === '/resources') return { appId: 'resources', path: '/' }
+  if (parsed.pathname === '/resources') {
+    const view = parsed.searchParams.get('view')
+    if (view && !['monitor', 'storage', 'tasks'].includes(view)) throw new Error('INVALID_NAVIGATION')
+    return { appId: 'resources', path: '/' + parsed.search }
+  }
   if (parsed.pathname === '/station/proxies') return { appId: 'network', path: '/' }
   if (parsed.pathname !== '/projects') return null
   const mode = parsed.searchParams.get('mode')

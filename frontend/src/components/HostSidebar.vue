@@ -26,6 +26,34 @@ watch(appCenterExpanded, expanded => appcenter?.setVisible('directory-menu', exp
 const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
 const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'all', label: '所有应用' }] as const
 
+const resourcesActive = computed(() => route.path.startsWith('/resources'))
+const resourcesExpanded = ref(resourcesActive.value)
+watch(resourcesActive, active => { if (active) resourcesExpanded.value = true })
+const resourcesSubView = computed<'monitor' | 'storage' | 'tasks'>(() => {
+  const v = route.query.view
+  return v === 'storage' || v === 'tasks' ? v : 'monitor'
+})
+const resourcesCounts = ref<{ workspaces: number | null; tasks: number | null }>({ workspaces: null, tasks: null })
+function onResourcesCounts(e: Event) {
+  const d = (e as CustomEvent).detail
+  if (d && typeof d === 'object') {
+    if (typeof d.workspaces === 'number') resourcesCounts.value.workspaces = d.workspaces
+    if (typeof d.tasks === 'number') resourcesCounts.value.tasks = d.tasks
+  }
+}
+function toggleResourcesMenu() {
+  if (!resourcesActive.value) {
+    resourcesExpanded.value = true
+    void router.push({ path: '/resources', query: { view: 'monitor' } })
+  } else {
+    resourcesExpanded.value = !resourcesExpanded.value
+  }
+}
+function navToResourcesView(view: 'monitor' | 'storage' | 'tasks') {
+  resourcesExpanded.value = true
+  void router.push({ path: '/resources', query: { view } })
+}
+
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 function refreshNavigation() { if (!document.hidden && hostStore.connected) void navigation.refresh() }
 function clearNavigation() { navigation.clear() }
@@ -40,6 +68,7 @@ onMounted(() => {
   refreshTimer = setInterval(refreshNavigation, 30000)
   window.addEventListener('focus', refreshNavigation)
   window.addEventListener('studio:logout', clearNavigation)
+  window.addEventListener('studio:resources-counts', onResourcesCounts)
   document.addEventListener('visibilitychange', refreshNavigation)
 })
 onBeforeUnmount(() => {
@@ -47,6 +76,7 @@ onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   window.removeEventListener('focus', refreshNavigation)
   window.removeEventListener('studio:logout', clearNavigation)
+  window.removeEventListener('studio:resources-counts', onResourcesCounts)
   document.removeEventListener('visibilitychange', refreshNavigation)
   clearNavigation()
 })
@@ -283,11 +313,15 @@ function handleHelpClick() {
       <span>模型市场</span>
     </a>
 
-    <a v-if="navigation.legacy" class="nav-link"
-       :class="{ selected: activeNav === 'resources' }"
-       href="#/resources"
-       data-nav="resources"
-       @click.prevent="navTo('resources')">
+    <button v-if="navigation.legacy"
+            type="button"
+            class="nav-link appcenter-parent"
+            id="resourcesNavToggle"
+            :class="{ selected: activeNav === 'resources' }"
+            aria-controls="resourcesSubNav"
+            :aria-expanded="resourcesExpanded"
+            data-nav="resources"
+            @click="toggleResourcesMenu">
       <span class="nav-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
@@ -297,7 +331,40 @@ function handleHelpClick() {
         </svg>
       </span>
       <span>资源管理</span>
-    </a>
+      <span class="appcenter-chevron" id="resourcesNavChevron" aria-hidden="true">{{ resourcesExpanded ? '▾' : '▸' }}</span>
+    </button>
+    <nav v-if="navigation.legacy"
+         v-show="resourcesExpanded"
+         id="resourcesSubNav"
+         class="nav-sub-group"
+         aria-label="资源管理子菜单">
+      <a class="group-nav"
+         :class="{ active: activeNav === 'resources' && resourcesSubView === 'monitor' }"
+         :aria-current="activeNav === 'resources' && resourcesSubView === 'monitor' ? 'page' : undefined"
+         href="#/resources?view=monitor"
+         data-res-view="monitor"
+         @click.prevent="navToResourcesView('monitor')">
+        <span>资源监控</span>
+      </a>
+      <a class="group-nav"
+         :class="{ active: activeNav === 'resources' && resourcesSubView === 'storage' }"
+         :aria-current="activeNav === 'resources' && resourcesSubView === 'storage' ? 'page' : undefined"
+         href="#/resources?view=storage"
+         data-res-view="storage"
+         @click.prevent="navToResourcesView('storage')">
+        <span>存储管理</span>
+        <span v-if="resourcesCounts.workspaces !== null" class="directory-count" id="navWsCount">{{ resourcesCounts.workspaces }}</span>
+      </a>
+      <a class="group-nav"
+         :class="{ active: activeNav === 'resources' && resourcesSubView === 'tasks' }"
+         :aria-current="activeNav === 'resources' && resourcesSubView === 'tasks' ? 'page' : undefined"
+         href="#/resources?view=tasks"
+         data-res-view="tasks"
+         @click.prevent="navToResourcesView('tasks')">
+        <span>任务监控</span>
+        <span v-if="resourcesCounts.tasks !== null" class="directory-count" id="navTasksCount">{{ resourcesCounts.tasks }}</span>
+      </a>
+    </nav>
 
     <a v-if="navigation.legacy" class="nav-link"
        :class="{ selected: activeNav === 'proxies' }"

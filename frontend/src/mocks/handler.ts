@@ -110,6 +110,14 @@ export async function handleMockRequest(input: MockRequestInput): Promise<Respon
     return jsonResponse(mockWorkloads())
   }
 
+  if (basePath === 'resources/workspaces' && method === 'GET') {
+    return jsonResponse({ workspaces: [] })
+  }
+
+  if (basePath === 'resources/workspaces/release' && method === 'POST') {
+    return jsonResponse({ status: 'released', workspace: null })
+  }
+
   // 4. Apps & Catalog
   if (basePath === 'apps' && method === 'GET') {
     return jsonResponse({ items: mockLiveApps })

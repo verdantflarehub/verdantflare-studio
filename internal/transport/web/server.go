@@ -209,7 +209,17 @@ func (s *Server) api(c *gin.Context) {
 	}
 	sid, _ := c.Cookie(cookieName)
 	token, _ := s.getSession(c.Request.Context(), sid)
+	if path == "resources/workspaces/release" && c.Request.Method == "POST" {
+		if blocked := s.guardComfyUIWorkspaceRelease(c.Request.Context(), token, body); blocked != nil {
+			c.Header("X-Request-ID", blocked.RequestID)
+			c.Data(blocked.Status, "application/json", blocked.Data)
+			return
+		}
+	}
 	out := s.station.Call(c.Request.Context(), token, application.Request{Path: path, Method: c.Request.Method, Body: body})
+	if path == "resources/workspaces" && c.Request.Method == "GET" && out.Status == 200 {
+		out.Data = s.enrichWorkspaces(c.Request.Context(), token, out.Data)
+	}
 	c.Header("X-Request-ID", out.RequestID)
 	if path == "login" && out.Status == 201 {
 		if sid != "" {
