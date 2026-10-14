@@ -1,4 +1,4 @@
 package buildinfo
 
 // Version matches the release workflow and frontend package version.
-const Version = "0.5.126"
+const Version = "0.5.130"

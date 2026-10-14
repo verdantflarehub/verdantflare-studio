@@ -117,7 +117,7 @@ onBeforeUnmount(() => { disposed = true; generation++; cancelAnimationFrame(scro
 <template>
   <section class="legacy-media-host" :aria-label="title">
     <div class="legacy-media-status"><p v-if="message" role="status">{{ message }}</p><button v-if="state === 'error'" class="btn" @click="resourceBase ? emit('reconnect') : load(true)">重新连接</button></div>
-    <iframe ref="frame" :src="src" :title="title" data-embedded="true" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" />
+    <iframe :key="adapterId === 'video-iframe-v1' ? src : adapterId" ref="frame" :src="src" :title="title" data-embedded="true" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" />
   </section>
 </template>
 
