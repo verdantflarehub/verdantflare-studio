@@ -807,6 +807,31 @@ onBeforeUnmount(() => {
             <span class="eyebrow">LOCAL FAST-TIER &amp; S3 SYNC</span>
           </div>
           <div class="res-storage-cards">
+            <!-- / Root Partition -->
+            <div class="storage-card" id="storageRootCard">
+              <div class="storage-head">
+                <div class="storage-mount-wrap">
+                  <svg class="storage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span class="storage-mount">/</span>
+                  <span class="storage-badge">宿主系统盘 · Ext4</span>
+                </div>
+                <span class="storage-val" id="storageRootVal">
+                  {{ formatDiskUsedGB(rootDisk.used_bytes) }} <small>/ {{ formatDiskTotalTB(rootDisk.total_bytes) }} ({{ Math.round(rootDisk.used_percent || 8) }}%)</small>
+                </span>
+              </div>
+              <div class="storage-bar">
+                <div class="storage-fill" id="storageRootBar" :style="{ width: Math.min(100, Math.max(2, Math.round(rootDisk.used_percent || 8))) + '%' }"></div>
+              </div>
+              <div class="storage-meta">
+                <span>承载：Containerd 容器镜像层 + Pod 临时存储</span>
+                <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：{{ formatDiskAvailTB(rootDisk) }}</span>
+              </div>
+            </div>
+
             <!-- /data Partition -->
             <div class="storage-card" id="storageDataCard">
               <div class="storage-head">
@@ -830,31 +855,6 @@ onBeforeUnmount(() => {
               <div class="storage-meta">
                 <span>承载：/data/models (模型缓存) + /data/artifacts (制品库)</span>
                 <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：{{ formatDiskAvailTB(dataDisk) }}</span>
-              </div>
-            </div>
-
-            <!-- / Root Partition -->
-            <div class="storage-card" id="storageRootCard">
-              <div class="storage-head">
-                <div class="storage-mount-wrap">
-                  <svg class="storage-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                  <span class="storage-mount">/</span>
-                  <span class="storage-badge">宿主系统盘 · Ext4</span>
-                </div>
-                <span class="storage-val" id="storageRootVal">
-                  {{ formatDiskUsedGB(rootDisk.used_bytes) }} <small>/ {{ formatDiskTotalTB(rootDisk.total_bytes) }} ({{ Math.round(rootDisk.used_percent || 8) }}%)</small>
-                </span>
-              </div>
-              <div class="storage-bar">
-                <div class="storage-fill" id="storageRootBar" :style="{ width: Math.min(100, Math.max(2, Math.round(rootDisk.used_percent || 8))) + '%' }"></div>
-              </div>
-              <div class="storage-meta">
-                <span>承载：Containerd 容器镜像层 + Pod 临时存储</span>
-                <span class="storage-status-ok"><i class="gpu-dot"></i>可用余量：{{ formatDiskAvailTB(rootDisk) }}</span>
               </div>
             </div>
           </div>
