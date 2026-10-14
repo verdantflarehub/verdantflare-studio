@@ -22,6 +22,9 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 		{"image-iframe-v1", "POST", "/api/artifacts/upload", "application/json"},
 		{"video-iframe-v1", "GET", "/dashboard/tasks/task_1", "text/html"},
 		{"video-iframe-v1", "GET", "/dashboard/frontend/studio-embed.js", "text/javascript"},
+		{"video-iframe-v1", "GET", "/dashboard/frontend/model-catalog.js", "text/javascript"},
+		{"video-iframe-v1", "GET", "/dashboard/frontend/model-catalog.css", "text/css"},
+		{"video-iframe-v1", "GET", "/api/model-catalog", "application/json"},
 		{"video-iframe-v1", "GET", "/api/dashboard?q=%E6%B5%8B%E8%AF%95&page=1&page_size=24&service=&status=&project_id=", "application/json"},
 		{"video-iframe-v1", "GET", "/api/models/model-1/instances/worker/gpus/GPU-1:0?window=1h", "application/json"},
 		{"video-iframe-v1", "POST", "/api/tasks/task_1/result", "application/json"},
@@ -38,6 +41,7 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 		})
 	}
 	for _, target := range []string{
+		"/api/model-catalog/extra", "/api/model-catalog?upstream=foreign", "/dashboard/frontend/model-catalog-secret.js",
 		"https://foreign.invalid/api/dashboard", "//foreign.invalid/api/dashboard", "/api/%64ashboard", "/api/dashboard/..", "/api//dashboard", "/api/dashboard?", "/api/dashboard#tasks",
 		"/api/dashboard?token=secret", "/api/dashboard?q=1&q=2", "/api/dashboard?q=%00", "/api/dashboard?q=%5c", "/api/dashboard?q=%", "/api/dashboard?q=one;two", "/api/dashboard?q=" + strings.Repeat("a", 513),
 		"/dashboard?upstream=https://foreign.invalid", "/api/models/arbitrary/path", "/mcp", "/dashboard/frontend/arbitrary.js", "/artifacts/a/content?token=x",
@@ -48,6 +52,7 @@ func TestLegacyMediaRoutePolicy(t *testing.T) {
 	}
 	for _, tc := range []struct{ adapter, method, target string }{
 		{"blender-host-v1", "GET", "/dashboard"}, {"video-iframe-v1", "DELETE", "/api/tasks"}, {"image-iframe-v1", "GET", "/api/capabilities"},
+		{"video-iframe-v1", "POST", "/api/model-catalog"},
 		{"image-iframe-v1", "GET", "/api/tasks/task/thumbnail"},
 		{"image-iframe-v1", "GET", "/api/tasks/task/content"},
 		{"video-iframe-v1", "POST", "/api/tasks/task/content"}, {"video-iframe-v1", "POST", "/api/models"},

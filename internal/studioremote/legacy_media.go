@@ -21,7 +21,7 @@ const legacyJSONLimit = 4 << 20
 const legacyMediaLimit = 1 << 30
 
 var legacyImageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
-var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
+var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
 var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
 var legacyVideoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 var legacyBinaryPath = regexp.MustCompile(`^/(artifacts/[a-zA-Z0-9_-]+/content|api/tasks/[a-zA-Z0-9_-]+/(thumbnail|content))$`)
@@ -79,6 +79,10 @@ func legacyRoute(adapter, method, target string) (legacyMediaRoute, error) {
 		prefix = "/studio/apps/video"
 		if method == "GET" {
 			switch u.Path {
+			case "/dashboard/static/model-catalog.css", "/dashboard/frontend/model-catalog.css":
+				kind = "text/css"
+			case "/dashboard/static/model-catalog.js", "/dashboard/frontend/model-catalog.js":
+				kind = "text/javascript"
 			case "/dashboard":
 				kind = "text/html"
 			case "/dashboard/static/dashboard.css", "/dashboard/static/studio-theme.css", "/dashboard/frontend/dashboard.css", "/dashboard/frontend/studio-theme.css":

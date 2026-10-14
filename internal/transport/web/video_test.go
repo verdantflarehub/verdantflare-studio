@@ -94,6 +94,26 @@ func TestVideoIsolation(t *testing.T) {
 		t.Fatal("content read denied")
 	}
 	before := calls
+	if call("GET", "/apps/video/api/model-catalog", "", nil).Code != 401 {
+		t.Fatal("anonymous catalog access")
+	}
+	if call("GET", "/apps/video/api/model-catalog", "", cookie).Code != 200 {
+		t.Fatal("authorized catalog read failed")
+	}
+	for _, path := range []string{"/api/model-catalog/extra", "/dashboard/frontend/model-catalog-secret.js"} {
+		if call("GET", "/apps/video"+path, "", cookie).Code != 404 {
+			t.Fatal("catalog allowlist too broad", path)
+		}
+	}
+	if call("POST", "/apps/video/api/model-catalog", "https://studio.example", cookie).Code != 404 {
+		t.Fatal("catalog write accepted")
+	}
+	for _, path := range []string{"/dashboard/frontend/model-catalog.js", "/dashboard/frontend/model-catalog.css"} {
+		if call("GET", "/apps/video"+path, "", nil).Code != 200 {
+			t.Fatal("catalog asset denied", path)
+		}
+	}
+	before = calls
 	if call("POST", "/apps/video/api/capabilities", "https://studio.example", cookie).Code != 404 || calls != before {
 		t.Fatal("capabilities must remain read only")
 	}

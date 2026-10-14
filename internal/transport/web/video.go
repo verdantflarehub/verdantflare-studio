@@ -20,7 +20,7 @@ import (
 // The upstream and credential are server configuration, never caller-controlled.
 type VideoConfig struct{ URL, Token string }
 
-var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
+var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
 var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 
@@ -29,6 +29,8 @@ func videoStatic(path string) bool {
 		return true
 	}
 	switch path {
+	case "/dashboard/static/model-catalog.js", "/dashboard/static/model-catalog.css", "/dashboard/frontend/model-catalog.js", "/dashboard/frontend/model-catalog.css":
+		return true
 	case "/dashboard/static/dashboard.css", "/dashboard/static/dashboard.js", "/dashboard/static/resources.js", "/dashboard/static/task-detail.js", "/dashboard/static/studio-embed.js", "/dashboard/static/studio-theme.css":
 		return true
 	case "/dashboard/frontend/dashboard.css", "/dashboard/frontend/dashboard.js", "/dashboard/frontend/resources.js", "/dashboard/frontend/task-detail.js", "/dashboard/frontend/studio-embed.js", "/dashboard/frontend/studio-theme.css":
