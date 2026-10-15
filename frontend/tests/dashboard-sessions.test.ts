@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DashboardSessions } from '../src/app-dashboard/sessions.ts'
-import { dashboardLocation, dashboardRoutePath } from '../src/app-dashboard/routes.ts'
+import { browserDashboardPath, canonicalAppPath, dashboardLocation, dashboardRoutePath, dashboardSdkRoute } from '../src/app-dashboard/routes.ts'
 import type { OpenedDashboard } from '../src/app-dashboard/web-client.ts'
 
 const installation = '01980000-0000-7000-8000-000000000001'
@@ -74,11 +74,17 @@ test('simultaneous view and cache disposal share one close request', async () =>
   await Promise.all([first, second])
 })
 
-test('generic dashboard route encodes one host query layer and rejects arbitrary targets', () => {
+test('generic dashboard route uses pure path segments and canonicalizes legacy query routes', () => {
   const target = dashboardLocation('music-mcp', '/instances?filter=running')
-  const query = new URLSearchParams(target.query)
-  assert.equal(dashboardRoutePath(new URLSearchParams(query.toString()).get('path')), '/instances?filter=running')
-  assert.equal(target.path, '/apps/music-mcp/')
+  assert.equal(target.path, '/apps/music-mcp/instances')
+  assert.deepEqual(target.query, { filter: 'running' })
+  assert.equal(browserDashboardPath({ params: { subpath: ['instances'] }, query: { filter: 'running' } }, 'music-mcp'), '/instances?filter=running')
+  assert.equal(browserDashboardPath({ params: {}, query: { path: '/instances?filter=running' } }, 'music-mcp'), '/instances?filter=running')
+  assert.deepEqual(dashboardLocation('project', '/projects?category=character'), { path: '/apps/project/character', query: {} })
+  assert.deepEqual(dashboardLocation('resources', '/?view=tasks'), { path: '/apps/resources/tasks', query: {} })
+  assert.equal(canonicalAppPath('project', '/projects?category=video&q=summer'), '/video?q=summer')
+  assert.equal(dashboardSdkRoute('project', '/character?q=hero'), '/projects?category=character&q=hero')
+  assert.equal(dashboardSdkRoute('resources', '/tasks'), '/?view=tasks')
   assert.equal(dashboardRoutePath(undefined), '/')
   for (const input of [['/one', '/two'], null, 'https://other.invalid', '//other.invalid', '/%2e%2e/private', '/%252fprivate']) {
     assert.throws(() => dashboardRoutePath(input))

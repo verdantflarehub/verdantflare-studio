@@ -7,17 +7,21 @@ import type { NavigationEnvelope, NavigationPreference, NavigationIdentity } fro
 const identity: NavigationIdentity = { userId: '019a00b0-0000-7000-8000-000000000001', organizationId: '019a00b0-0000-7000-8000-000000000002', stationId: '019a00b0-0000-7000-8000-000000000003' }
 test('business queries keep exactly one declared navigation child without expanding open permissions', () => {
   const children = [
-    { entryId: 'character', title: '角色设计', route: '/projects?category=character', order: 0 },
-    { entryId: 'video', title: '创意视频', route: '/projects?category=video', order: 1 },
+    { entryId: 'character', title: '角色设计', route: '/character', order: 0 },
+    { entryId: 'video', title: '创意视频', route: '/video', order: 1 },
   ]
+  assert.equal(selectedNavigationChild(children, '/video?project=one&revision=fixed&q=summer')?.entryId, 'video')
   assert.equal(selectedNavigationChild(children, '/projects?project=one&revision=fixed&category=video&q=summer')?.entryId, 'video')
   assert.equal(selectedNavigationChild(children, '/projects?category=video&category=character'), undefined)
   assert.equal(selectedNavigationChild(children, '/other?category=video'), undefined)
-  assert.equal(selectedNavigationChild([...children, { ...children[1], entryId: 'ambiguous' }], '/projects?category=video'), undefined)
-  const resources = [{ entryId: 'monitor', title: '监控', route: '/', order: 0 }, { entryId: 'storage', title: '存储', route: '/?view=storage', order: 1 }]
-  assert.equal(selectedNavigationChild(resources, '/?view=storage&q=files')?.entryId, 'storage')
+  assert.equal(selectedNavigationChild([...children, { ...children[1], entryId: 'ambiguous' }], '/video'), undefined)
+  const resources = [{ entryId: 'monitor', title: '监控', route: '/', order: 0 }, { entryId: 'storage', title: '存储', route: '/storage', order: 1 }, { entryId: 'tasks', title: '任务', route: '/tasks', order: 2 }]
+  assert.equal(selectedNavigationChild(resources, '/storage?q=files')?.entryId, 'storage')
+  assert.equal(selectedNavigationChild(resources, '/?view=tasks')?.entryId, 'tasks')
   assert.equal(selectedNavigationChild(resources, '/')?.entryId, 'monitor')
-  assert.equal(sameNavigationPath('/projects?category=video', '/projects?category=video&q=summer'), false)
+  assert.equal(sameNavigationPath('/video', '/projects?category=video'), true)
+  assert.equal(sameNavigationPath('/tasks', '/?view=tasks'), true)
+  assert.equal(sameNavigationPath('/video', '/video?q=summer'), false)
 })
 function envelope(who = identity): NavigationEnvelope {
   return { mode: 'preinstalled', preferenceRevision: '12', projection: { scope: { ...who, authorizationEpoch: 'epoch1' }, revision: `sha256:${'a'.repeat(64)}`, entries: [{

@@ -8,7 +8,7 @@ import AppInstanceHost from './AppInstanceHost.vue'
 import { createDashboardWebClient } from './web-client'
 import type { OpenedDashboard } from './web-client'
 import { DashboardSessions } from './sessions'
-import { appIdPattern, dashboardLocation, dashboardRoutePath, dashboardOwnsBreadcrumb, installationPattern, instanceWorkspaceLocation } from './routes'
+import { appIdPattern, browserDashboardPath, dashboardLocation, dashboardOwnsBreadcrumb, dashboardSdkRoute, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
 import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
@@ -27,7 +27,11 @@ const props = defineProps<{
 }>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
 const navigation = useNavigationStore()
-const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)?.children, typeof route.query.path === 'string' ? route.query.path : '/'))
+const currentAppId = computed(() => (selection.value?.launch.installationId === props.installationId || selection.value?.context.appId === props.installationId)
+  ? selection.value.context.appId
+  : (appIdPattern.test(props.installationId) && !installationPattern.test(props.installationId) ? props.installationId : undefined))
+const currentAppPath = computed(() => { try { return browserDashboardPath(route, currentAppId.value) } catch { return '/' } })
+const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)?.children, currentAppPath.value))
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
 const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()
@@ -44,7 +48,7 @@ const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([ide
   identity.identity.session_id, identity.identity.policy_version, identity.identity.revocation_version,
   [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
 const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
-const ownsBreadcrumb = computed(() => visible.value && dashboardOwnsBreadcrumb(selection.value?.context.appId, route.query.path))
+const ownsBreadcrumb = computed(() => visible.value && dashboardOwnsBreadcrumb(selection.value?.context.appId, currentAppPath.value))
 const workspaceAppId = ref(''), workspaceInstanceName = ref('')
 const title = computed(() => {
   const appId = (selection.value?.launch.installationId === props.installationId || selection.value?.context.appId === props.installationId)
@@ -137,7 +141,7 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
   }
 }
 
-watch([() => props.active, () => props.installationId, () => route.query.path, workspaceId, actorScope, retry], async () => {
+watch([() => props.active, () => props.installationId, () => route.fullPath, workspaceId, actorScope, retry], async () => {
   const current = ++revision
   pending?.abort()
   if (scope !== actorScope.value) {
@@ -158,15 +162,19 @@ watch([() => props.active, () => props.installationId, () => route.query.path, w
   try {
     if (!sessions) throw new Error('DESKTOP_DASHBOARD_UNAVAILABLE')
     if (!installationPattern.test(props.installationId) && !appIdPattern.test(props.installationId)) throw new Error('INVALID_PATH')
-    const appRoute = dashboardRoutePath(route.query.path)
+    const initialPath = browserDashboardPath(route, currentAppId.value)
     const resolvedId = (await props.authorizeDashboard?.(props.installationId, controller.signal)) || props.installationId
     if (current !== revision || controller.signal.aborted) return
     if (!installationPattern.test(resolvedId)) throw new Error('INVALID_PATH')
     const opened = await sessions.select(resolvedId, controller.signal)
     if (current !== revision || controller.signal.aborted) return
+    const appRoute = dashboardSdkRoute(opened.context.appId, browserDashboardPath(route, opened.context.appId) || initialPath)
     selection.value = { ...opened, authorizationEpoch: opened.context.contextRevision, route: appRoute,
       adapters: adapters(opened), releaseSession: () => sessions.release(opened.launch.installationId, opened.launch.dashboardSessionId) }
     state.value = 'resolved'
+    if (route.name === 'app-dashboard-legacy' || route.query.path !== undefined) {
+      void router.replace(dashboardLocation(opened.context.appId, appRoute))
+    }
   } catch (cause) {
     if (current !== revision || controller.signal.aborted) return
     if (cause instanceof Error && ['DASHBOARD_DENIED', 'DASHBOARD_SESSION_EXPIRED', 'SESSION_EXPIRED', 'UNAUTHENTICATED'].includes(cause.message)) {

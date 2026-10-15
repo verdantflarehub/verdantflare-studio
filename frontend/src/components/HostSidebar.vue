@@ -5,7 +5,7 @@ import vfLogo from '../assets/verdantflare-logo.png'
 import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
-import { dashboardLocation } from '../app-dashboard/routes'
+import { browserDashboardPath, dashboardLocation } from '../app-dashboard/routes'
 import { selectedNavigationChild } from '../navigation/controller'
 import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
@@ -28,7 +28,8 @@ function toggleBranch(key: string) { const next = new Set(expanded.value); next.
 const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'all', label: '所有应用' }] as const
 const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
 watch(() => expanded.value.has('directory'), value => appcenter?.setVisible('directory-menu', value), { immediate: true })
-const appPath = computed(() => typeof route.query.path === 'string' ? route.query.path : '/')
+const currentAppId = computed(() => typeof route.params.appId === 'string' ? route.params.appId : navigation.entries.find(e => e.installationId === route.params.installationId)?.appId)
+const appPath = computed(() => { try { return browserDashboardPath(route, currentAppId.value) } catch { return '/' } })
 const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-dashboard-legacy', 'app-instance'].includes(String(route.name)) && (route.params.appId === entry.appId || route.params.installationId === entry.installationId)
 const childSelected = (entry: NavigationEntry, path: string) => ['app-dashboard', 'app-dashboard-legacy'].includes(String(route.name)) && entrySelected(entry) && selectedNavigationChild(entry.children, appPath.value)?.route === path
 let expandedForRoute = ''

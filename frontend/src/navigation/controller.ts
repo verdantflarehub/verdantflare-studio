@@ -40,20 +40,50 @@ export function validChildRoute(value: unknown): value is string {
     seen.add(key); return true
   })
 }
+function normalizeChildUrl(u: URL): URL {
+  if (u.pathname === '/projects') {
+    const cat = u.searchParams.get('category')
+    if (cat && ['character', 'music', 'video', 'ai_short_drama'].includes(cat)) {
+      u.pathname = '/' + cat
+      u.searchParams.delete('category')
+    }
+  } else if (u.pathname === '/') {
+    const view = u.searchParams.get('view')
+    if (view === 'storage' || view === 'tasks') {
+      u.pathname = '/' + view
+      u.searchParams.delete('view')
+    } else if (view === 'monitor') {
+      u.searchParams.delete('view')
+    }
+  } else if (u.pathname === '/monitor') {
+    u.pathname = '/'
+  }
+  return u
+}
 export function sameNavigationPath(left: string, right: string): boolean {
-  const normalize = (value: string) => { const [path, query] = value.split('?'); return path + (query ? '?' + query.split('&').sort().join('&') : '') }
+  const normalize = (value: string) => {
+    try {
+      const u = normalizeChildUrl(new URL(value, 'https://app.invalid'))
+      u.searchParams.sort()
+      return u.pathname + u.search
+    } catch {
+      const [path, query] = value.split('?')
+      return path + (query ? '?' + query.split('&').sort().join('&') : '')
+    }
+  }
   return normalize(left) === normalize(right)
 }
 /** Selection only: extra business parameters do not erase the declared category. */
 export function selectedNavigationChild(children: NavigationChild[] | undefined, path: string): NavigationChild | undefined {
   if (!children?.length || !path.startsWith('/') || path.startsWith('//') || /[#\\\r\n]/.test(path)) return
-  const current = new URL(path, 'https://app.invalid')
-  if (current.origin !== 'https://app.invalid') return
+  const rawCurrent = new URL(path, 'https://app.invalid')
+  if (rawCurrent.origin !== 'https://app.invalid') return
   let duplicate = false
-  current.searchParams.forEach((_value, key) => { if (current.searchParams.getAll(key).length !== 1) duplicate = true })
+  rawCurrent.searchParams.forEach((_value, key) => { if (rawCurrent.searchParams.getAll(key).length !== 1) duplicate = true })
   if (duplicate) return
+  const current = normalizeChildUrl(rawCurrent)
   const candidates = children.flatMap(child => {
-    const declared = new URL(child.route, 'https://app.invalid')
+    const declared = normalizeChildUrl(new URL(child.route, 'https://app.invalid'))
     if (declared.pathname !== current.pathname) return []
     const keys: string[] = []
     declared.searchParams.forEach((_value, key) => keys.push(key))
