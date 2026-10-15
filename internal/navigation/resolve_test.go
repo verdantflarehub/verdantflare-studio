@@ -111,3 +111,82 @@ func TestProjectionUsesCurrentAuthorizationAndStableRevision(t *testing.T) {
 		t.Fatal("revoked scope leaked")
 	}
 }
+
+func childFixture(t *testing.T) Input {
+	in := fixture(t)
+	in.Rules["restricted"] = AccessRule{Scopes: []string{"app:write"}}
+	editDeclaration(t, &in, func(d *Declaration) {
+		d.SchemaVersion = 2
+		d.Entry.Children = []DeclarationChild{
+			{EntryID: "storage", Title: "存储管理", Route: "/?view=storage", AccessRuleRef: "app-reader", Order: 20},
+			{EntryID: "monitor", Title: "资源监控", Route: "/", AccessRuleRef: "app-reader", Order: 10},
+			{EntryID: "private", Title: "管理", Route: "/admin", AccessRuleRef: "restricted", Order: 30},
+		}
+	})
+	return in
+}
+func TestChildrenProjectTogetherWithParentPermissionsAndPreference(t *testing.T) {
+	in := childFixture(t)
+	in.Preferences.Entries = []Preference{{AppID: "sample", EntryID: "main", Pinned: false, Order: 3}}
+	in.Bindings[0].Availability = "offline"
+	p, err := Resolve(in)
+	if err != nil || len(p.Entries) != 1 {
+		t.Fatal("missing parent", err)
+	}
+	e := p.Entries[0]
+	if e.Pinned || e.Availability != "offline" || len(e.Children) != 2 || e.Children[0].EntryID != "monitor" || e.Children[1].Route != "/?view=storage" {
+		t.Fatal("incorrect child projection", e)
+	}
+	in.Scopes = append(in.Scopes, "app:write")
+	next, err := Resolve(in)
+	if err != nil || len(next.Entries[0].Children) != 3 || next.Revision == p.Revision {
+		t.Fatal("child permission did not change revision", err)
+	}
+	in.Roles = nil
+	denied, err := Resolve(in)
+	if err != nil || len(denied.Entries) != 0 {
+		t.Fatal("parent authorization bypassed", err)
+	}
+}
+func TestChildrenFilterEmptyContainersButKeepDirectParents(t *testing.T) {
+	in := childFixture(t)
+	editDeclaration(t, &in, func(d *Declaration) { d.Entry.Children = d.Entry.Children[2:] })
+	p, err := Resolve(in)
+	if err != nil || len(p.Entries) != 1 || len(p.Entries[0].Children) != 0 {
+		t.Fatal("direct parent lost", err)
+	}
+	editDeclaration(t, &in, func(d *Declaration) { d.Entry.Route = "" })
+	p, err = Resolve(in)
+	if err != nil || len(p.Entries) != 0 {
+		t.Fatal("empty container leaked", err)
+	}
+}
+func TestChildDeclarationBoundaries(t *testing.T) {
+	for name, mutate := range map[string]func(*Declaration){
+		"old version":      func(d *Declaration) { d.SchemaVersion = 1 },
+		"duplicate":        func(d *Declaration) { d.Entry.Children[1].EntryID = "storage" },
+		"parent collision": func(d *Declaration) { d.Entry.Children[0].EntryID = "main" },
+		"unknown rule":     func(d *Declaration) { d.Entry.Children[0].AccessRuleRef = "unknown" },
+		"external":         func(d *Declaration) { d.Entry.Children[0].Route = "//outside.example" },
+		"encoded":          func(d *Declaration) { d.Entry.Children[0].Route = "/?view=%2Fadmin" },
+		"duplicate query":  func(d *Declaration) { d.Entry.Children[0].Route = "/?view=a&view=b" },
+		"fragment":         func(d *Declaration) { d.Entry.Children[0].Route = "/#tasks" },
+		"order":            func(d *Declaration) { d.Entry.Children[0].Order = -1 },
+		"capacity":         func(d *Declaration) { d.Entry.Children = make([]DeclarationChild, 33) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			in := childFixture(t)
+			editDeclaration(t, &in, mutate)
+			if _, err := Resolve(in); err == nil {
+				t.Fatal("invalid child declaration accepted")
+			}
+		})
+	}
+	in := fixture(t)
+	raw := strings.Replace(string(in.Bindings[0].Declaration), `"entry":{`, `"entry":{"children":[],`, 1)
+	in.Bindings[0].Declaration = []byte(raw)
+	in.Bindings[0].DeclarationDigest = sum([]byte(raw))
+	if _, err := Resolve(in); err == nil {
+		t.Fatal("v1 accepted the v2 field")
+	}
+}

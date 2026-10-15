@@ -11,3 +11,9 @@ import HostLoginDialog from './components/HostLoginDialog.vue'
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
 </template>
+
+<style>
+.studio-layout { display:grid; grid-template-columns:var(--sidebar-width) minmax(0,1fr); min-height:100dvh; }
+.studio-layout > .main { margin-left:0; }
+@media(max-width:700px) { :root { --sidebar-width:64px; } }
+</style>

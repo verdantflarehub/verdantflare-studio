@@ -11,7 +11,8 @@ import { DashboardSessions } from './sessions'
 import { dashboardLocation, dashboardRoutePath, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
 import { createNavigationTransport } from '../navigation/transport'
-import { decodeNavigation } from '../navigation/controller'
+import { decodeNavigation, sameNavigationPath } from '../navigation/controller'
+import { useNavigationStore } from '../platform/navigationStore'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { createFileAccess } from './files'
 
@@ -22,6 +23,8 @@ const props = defineProps<{
   authorizeDashboard?: (installationId: string, signal: AbortSignal) => Promise<void>;
 }>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
+const navigation = useNavigationStore()
+const navigationChild = computed(() => navigation.entries.find(entry => entry.installationId === props.installationId)?.children?.find(child => sameNavigationPath(child.route, typeof route.query.path === 'string' ? route.query.path : '/')))
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
 const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()
@@ -183,10 +186,9 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
       <nav class="dashboard-breadcrumb" aria-label="面包屑">
-        <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
-        <span aria-hidden="true" class="breadcrumb-sep"> / </span>
-        <a v-if="workspaceId" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
+        <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
+        <template v-if="!workspaceId && navigationChild"><span aria-hidden="true" class="breadcrumb-sep"> / </span><span class="breadcrumb-current" aria-current="page">{{ navigationChild.title }}</span></template>
         <template v-if="workspaceId && workspaceInstanceName">
           <span aria-hidden="true" class="breadcrumb-sep"> / </span>
           <span class="breadcrumb-current">{{ workspaceInstanceName }}</span>

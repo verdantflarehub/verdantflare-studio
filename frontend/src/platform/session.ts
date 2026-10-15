@@ -4,6 +4,7 @@ export interface HostIdentity {
   organization_id?: string
   organization_name?: string
   station_id?: string
+  station_name?: string
   session_id?: string
   policy_version?: number
   revocation_version?: number

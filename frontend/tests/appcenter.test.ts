@@ -172,11 +172,11 @@ test('menus use the shared snapshot while preserving title, pin and order', () =
   assert.equal(entry.pinned, false)
   assert.equal(entry.bindingRevision, v.items[0].bindingRevision)
   assert.equal(entry.entryId, 'main', 'navigation entry is not the Dashboard entry')
-  for (const scenario of ['expired', 'failed', 'stale', 'scope', 'version', 'reinstalled', 'blocked', 'wrong-entry', 'wrong-transport', 'removed']) {
+  assert.equal(appCenterNavigationEntries(navigation, state, now + 86400000)[0].availability, 'ready', 'local clock does not invalidate server-authorized entries')
+  for (const scenario of ['failed', 'stale', 'scope', 'version', 'reinstalled', 'blocked', 'wrong-entry', 'wrong-transport', 'removed']) {
     const next = structuredClone(state), nav = structuredClone(navigation)
     let at = now
     switch (scenario) {
-      case 'expired': at += 15001; break
       case 'failed': next.stale = true; next.error = 'SOURCE_UNAVAILABLE'; break
       case 'stale': next.stale = true; break
       case 'scope': next.value.scope.authorizationEpoch = 'changed'; break

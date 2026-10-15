@@ -32,11 +32,25 @@ type Declaration struct {
 	Entry          DeclarationEntry `json:"entry"`
 }
 type DeclarationEntry struct {
+	Children      []DeclarationChild `json:"children,omitempty"`
+	EntryID       string             `json:"entryId"`
+	Title         string             `json:"title"`
+	IconRef       string             `json:"iconRef"`
+	Route         string             `json:"route"`
+	AccessRuleRef string             `json:"accessRuleRef"`
+}
+type DeclarationChild struct {
 	EntryID       string `json:"entryId"`
 	Title         string `json:"title"`
-	IconRef       string `json:"iconRef"`
 	Route         string `json:"route"`
 	AccessRuleRef string `json:"accessRuleRef"`
+	Order         int    `json:"order"`
+}
+type Child struct {
+	EntryID string `json:"entryId"`
+	Title   string `json:"title"`
+	Route   string `json:"route"`
+	Order   int    `json:"order"`
 }
 type Scope struct {
 	UserID             string `json:"userId"`
@@ -76,18 +90,19 @@ type Input struct {
 	Preferences   Preferences
 }
 type Entry struct {
-	InstallationID string `json:"installationId"`
-	AppID          string `json:"appId"`
-	AppVersion     string `json:"appVersion"`
-	EntryID        string `json:"entryId"`
-	Title          string `json:"title"`
-	IconRef        string `json:"iconRef"`
-	Route          string `json:"route"`
-	Group          string `json:"group"`
-	Order          int    `json:"order"`
-	Pinned         bool   `json:"pinned"`
-	PinSource      string `json:"pinSource"`
-	Availability   string `json:"availability"`
+	Children       []Child `json:"children,omitempty"`
+	InstallationID string  `json:"installationId"`
+	AppID          string  `json:"appId"`
+	AppVersion     string  `json:"appVersion"`
+	EntryID        string  `json:"entryId"`
+	Title          string  `json:"title"`
+	IconRef        string  `json:"iconRef"`
+	Route          string  `json:"route"`
+	Group          string  `json:"group"`
+	Order          int     `json:"order"`
+	Pinned         bool    `json:"pinned"`
+	PinSource      string  `json:"pinSource"`
+	Availability   string  `json:"availability"`
 }
 type Projection struct {
 	Scope    Scope   `json:"scope"`
@@ -124,6 +139,36 @@ func validRoute(path string) bool {
 	}
 	return true
 }
+
+var queryPart = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*=[a-zA-Z0-9._-]+$`)
+
+func validChildRoute(route string) bool {
+	if len(route) > 2048 {
+		return false
+	}
+	p, q, found := strings.Cut(route, "?")
+	if !validRoute(p) {
+		return false
+	}
+	if !found {
+		return true
+	}
+	seen := map[string]bool{}
+	for _, part := range strings.Split(q, "&") {
+		if !queryPart.MatchString(part) {
+			return false
+		}
+		k, _, _ := strings.Cut(part, "=")
+		if seen[k] {
+			return false
+		}
+		seen[k] = true
+	}
+	return true
+}
+func validTitle(title string) bool {
+	return strings.TrimSpace(title) == title && utf8.RuneCountInString(title) > 0 && utf8.RuneCountInString(title) <= 48 && !strings.ContainsAny(title, "<>") && strings.IndexFunc(title, unicode.IsControl) < 0
+}
 func decode(b Binding) (Declaration, error) {
 	var d Declaration
 	if !b.Trusted || !digest.MatchString(b.DeclarationDigest) || sum(b.Declaration) != b.DeclarationDigest ||
@@ -131,12 +176,32 @@ func decode(b Binding) (Declaration, error) {
 		return d, ErrInvalid
 	}
 	e := d.Entry
-	if d.SchemaVersion != 1 || d.AppID != b.AppID || d.AppVersion != b.AppVersion || d.ArtifactDigest != b.ArtifactDigest ||
+	if (d.SchemaVersion != 1 && d.SchemaVersion != 2) || d.AppID != b.AppID || d.AppVersion != b.AppVersion || d.ArtifactDigest != b.ArtifactDigest ||
 		!ident.MatchString(d.AppID) || !version.MatchString(d.AppVersion) || !digest.MatchString(d.ArtifactDigest) ||
-		!ident.MatchString(e.EntryID) || !ident.MatchString(e.IconRef) || !ident.MatchString(e.AccessRuleRef) || !validRoute(e.Route) ||
-		strings.TrimSpace(e.Title) != e.Title || utf8.RuneCountInString(e.Title) == 0 || utf8.RuneCountInString(e.Title) > 48 ||
-		strings.ContainsAny(e.Title, "<>") || strings.IndexFunc(e.Title, unicode.IsControl) >= 0 {
+		!ident.MatchString(e.EntryID) || !ident.MatchString(e.IconRef) || !ident.MatchString(e.AccessRuleRef) ||
+		(!validRoute(e.Route) && !(d.SchemaVersion == 2 && e.Route == "" && len(e.Children) > 0)) || !validTitle(e.Title) {
 		return d, ErrInvalid
+	}
+	if d.SchemaVersion == 1 {
+		var raw struct {
+			Entry map[string]json.RawMessage `json:"entry"`
+		}
+		if json.Unmarshal(b.Declaration, &raw) != nil {
+			return d, ErrInvalid
+		}
+		if _, present := raw.Entry["children"]; present {
+			return d, ErrInvalid
+		}
+	}
+	if len(e.Children) > 32 {
+		return d, ErrInvalid
+	}
+	seen := map[string]bool{e.EntryID: true}
+	for _, child := range e.Children {
+		if !ident.MatchString(child.EntryID) || seen[child.EntryID] || !validTitle(child.Title) || !ident.MatchString(child.AccessRuleRef) || !validChildRoute(child.Route) || !orderValid(child.Order) {
+			return d, ErrInvalid
+		}
+		seen[child.EntryID] = true
 	}
 	return d, nil
 }
@@ -186,6 +251,12 @@ func Resolve(in Input) (Projection, error) {
 		if !exists || (len(rule.Roles) == 0 && len(rule.Scopes) == 0) {
 			return out, ErrInvalid
 		}
+		for _, child := range d.Entry.Children {
+			r, ok := in.Rules[child.AccessRuleRef]
+			if !ok || (len(r.Roles) == 0 && len(r.Scopes) == 0) {
+				return out, ErrInvalid
+			}
+		}
 		if !all(rule.Roles, in.Roles) || !all(rule.Scopes, in.Scopes) {
 			continue
 		}
@@ -194,6 +265,21 @@ func Resolve(in Input) (Projection, error) {
 		}
 		e := Entry{InstallationID: b.InstallationID, AppID: b.AppID, AppVersion: b.AppVersion, EntryID: d.Entry.EntryID,
 			Title: d.Entry.Title, IconRef: d.Entry.IconRef, Route: d.Entry.Route, Group: "applications", Order: 1000000, PinSource: "none", Availability: b.Availability}
+		for _, child := range d.Entry.Children {
+			r := in.Rules[child.AccessRuleRef]
+			if all(r.Roles, in.Roles) && all(r.Scopes, in.Scopes) {
+				e.Children = append(e.Children, Child{EntryID: child.EntryID, Title: child.Title, Route: child.Route, Order: child.Order})
+			}
+		}
+		sort.Slice(e.Children, func(i, j int) bool {
+			if e.Children[i].Order != e.Children[j].Order {
+				return e.Children[i].Order < e.Children[j].Order
+			}
+			return e.Children[i].EntryID < e.Children[j].EntryID
+		})
+		if e.Route == "" && len(e.Children) == 0 {
+			continue
+		}
 		k := key(e.AppID, e.EntryID)
 		if value, exists := defaults[k]; exists {
 			e.Pinned, e.Group, e.Order, e.PinSource = value.Pinned, value.Group, value.Order, "default"

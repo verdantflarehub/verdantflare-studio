@@ -2,13 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { request } from './client'
 import { readHostSession } from './session'
+import { stationHealth } from './stationHealth'
 import type { HostIdentity } from './session'
 export type { HostIdentity } from './session'
 
 export const useHostStore = defineStore('host', () => {
   const connected = ref(false)
   const identity = ref<HostIdentity>({})
-  const clusterName = ref('Station')
+  const clusterName = ref('名称待确认')
+  const healthLoading = ref(false)
+  let healthRequest = 0
   const clusterHost = computed(() => identity.value.station_id || '未连接')
   const coreStatus = ref<string | null>(null)
   const loginOpen = ref(false)
@@ -16,7 +19,7 @@ export const useHostStore = defineStore('host', () => {
   let identityEpoch = 0
 
   const displayName = computed(() => {
-    return identity.value.username || identity.value.user_id || '等待连接'
+    return identity.value.username || (connected.value ? '当前用户' : sessionStatus.value === 'loading' ? '读取中' : sessionStatus.value === 'error' ? '身份读取失败' : '未登录')
   })
 
   const teamName = computed(() => {
@@ -41,6 +44,8 @@ export const useHostStore = defineStore('host', () => {
     sessionStatus.value = connected.value ? 'authenticated' : 'anonymous'
     if (connected.value) loginOpen.value = false
     coreStatus.value = null
+    clusterName.value = nextIdentity.station_name?.trim() || '名称待确认'
+    healthRequest++; healthLoading.value = false
   }
 
   async function fetchSession() {
@@ -56,14 +61,19 @@ export const useHostStore = defineStore('host', () => {
 
   async function fetchCluster() {
     const epoch = identityEpoch, stationId = identity.value.station_id
-    if (!connected.value || !stationId) return
+    if (!connected.value || !stationId || healthLoading.value) return
+    const current = ++healthRequest
+    healthLoading.value = true
+    const abort = new AbortController(), timeout = setTimeout(() => abort.abort(), 10000)
     try {
-      const res = await request({ path: 'health', method: 'GET' }, { realOnly: true })
+      const res = await request({ path: 'health', method: 'GET' }, { realOnly: true, signal: abort.signal })
       const data = res.status === 200 ? await res.json() : null
-      if (epoch !== identityEpoch) return
-      coreStatus.value = data?.station_id === stationId && data?.components?.core === 'Ready' ? '就绪'
-        : data?.station_id === stationId && data?.components?.core === 'NotReady' ? '未就绪' : null
-    } catch { if (epoch === identityEpoch) coreStatus.value = null }
+      if (epoch !== identityEpoch || current !== healthRequest) return
+      const health = stationHealth(data, stationId)
+      if (health.name) clusterName.value = health.name
+      coreStatus.value = health.status
+    } catch { if (epoch === identityEpoch && current === healthRequest) coreStatus.value = null }
+    finally { clearTimeout(timeout); if (current === healthRequest) healthLoading.value = false }
   }
 
   async function init() {
@@ -79,6 +89,7 @@ export const useHostStore = defineStore('host', () => {
     clusterName,
     clusterHost,
     coreStatus,
+    healthLoading,
     loginOpen,
     sessionStatus,
     displayName,

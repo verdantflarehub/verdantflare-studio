@@ -1,5 +1,7 @@
 export interface NavigationScope { userId: string; organizationId: string; stationId: string; authorizationEpoch: string }
+export interface NavigationChild { entryId: string; title: string; route: string; order: number }
 export interface NavigationEntry {
+  children?: NavigationChild[]
   installationId: string; appId: string; appVersion: string; entryId: string; title: string; iconRef: string
   route: string; group: string; order: number; pinned: boolean; pinSource: 'none' | 'default' | 'user'
   availability: 'ready' | 'offline' | 'unknown'
@@ -24,6 +26,25 @@ const matches = (v: unknown, pattern: RegExp): v is string => typeof v === 'stri
 const invalid = (): never => { throw new Error('INVALID_NAVIGATION_RESPONSE') }
 const validOrder = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= 1000000
 const validRoute = (v: unknown): v is string => typeof v === 'string' && v.length <= 2048 && (v === '/' || /^\/(?:[a-zA-Z0-9_-][a-zA-Z0-9._-]*)(?:\/[a-zA-Z0-9_-][a-zA-Z0-9._-]*)*$/.test(v))
+const validTitle = (v: unknown): v is string => typeof v === 'string' && v.trim() === v && Array.from(v).length > 0 && Array.from(v).length <= 48 && !/[<>\u0000-\u001f\u007f-\u009f]/.test(v)
+export function validChildRoute(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false
+  const [path, query, extra] = value.split('?')
+  if (!validRoute(path) || extra !== undefined) return false
+  if (query === undefined) return true
+  const seen = new Set<string>()
+  return query.split('&').every(part => {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*=[a-zA-Z0-9._-]+$/.test(part)) return false
+    const key = part.split('=')[0]
+    if (seen.has(key)) return false
+    seen.add(key); return true
+  })
+}
+export function sameNavigationPath(left: string, right: string): boolean {
+  const normalize = (value: string) => { const [path, query] = value.split('?'); return path + (query ? '?' + query.split('&').sort().join('&') : '') }
+  return normalize(left) === normalize(right)
+}
+const denied = (error: unknown) => error instanceof Error && ['NAVIGATION_DENIED', 'INVALID_NAVIGATION_RESPONSE'].includes(error.message)
 
 export function decodeNavigation(value: unknown, expected: NavigationIdentity): NavigationEnvelope {
   if (!record(value) || !['legacy', 'preinstalled'].includes(String(value.mode)) || !record(value.projection) || !matches(value.preferenceRevision, /^(0|[1-9][0-9]*)$/)) return invalid()
@@ -35,10 +56,19 @@ export function decodeNavigation(value: unknown, expected: NavigationIdentity): 
   for (const e of p.entries) {
     if (!record(e) || !matches(e.installationId, installation) || !matches(e.appId, id) || !matches(e.appVersion, version) || !matches(e.entryId, id)
       || typeof e.title !== 'string' || e.title.trim() !== e.title || Array.from(e.title).length < 1 || Array.from(e.title).length > 48 || /[<>\u0000-\u001f\u007f]/.test(e.title)
-      || !matches(e.iconRef, id) || !validRoute(e.route) || !matches(e.group, id) || !validOrder(e.order) || typeof e.pinned !== 'boolean'
+      || !matches(e.iconRef, id) || !(validRoute(e.route) || e.route === '' && Array.isArray(e.children) && e.children.length > 0) || !matches(e.group, id) || !validOrder(e.order) || typeof e.pinned !== 'boolean'
       || !['none', 'default', 'user'].includes(String(e.pinSource)) || !['ready', 'offline', 'unknown'].includes(String(e.availability))) return invalid()
     if (seen.has(e.appId) || installs.has(e.installationId)) return invalid()
     seen.add(e.appId); installs.add(e.installationId)
+    if (e.children !== undefined) {
+      if (!Array.isArray(e.children) || e.children.length > 32) return invalid()
+      const children = new Set([e.entryId])
+      for (const child of e.children) {
+        if (!record(child) || !matches(child.entryId, id) || children.has(child.entryId) || !validTitle(child.title) || !validChildRoute(child.route) || !validOrder(child.order)
+          || Object.keys(child).some(key => !['entryId', 'title', 'route', 'order'].includes(key))) return invalid()
+        children.add(child.entryId)
+      }
+    }
   }
   return structuredClone(value) as unknown as NavigationEnvelope
 }
@@ -66,8 +96,8 @@ export function createNavigationController(transport: NavigationTransport) {
       if (revision !== generation) return
       if (controller.signal.aborted) throw new Error('NAVIGATION_TIMEOUT')
       publish({ status: 'ready', value, saving: false, error: '' })
-    } catch {
-      if (revision === generation) publish({ status: 'error', value: null, saving: false, error: '应用菜单暂时无法加载，请重试。' })
+    } catch (error) {
+      if (revision === generation) publish({ status: 'error', value: denied(error) ? null : state.value, saving: false, error: '应用菜单暂时无法加载，请重试。' })
     } finally { clearTimeout(timer); if (pending === controller) pending = null }
   }
   async function setPreference(entry: NavigationEntry, pinned: boolean, order = entry.order): Promise<void> {
@@ -88,7 +118,7 @@ export function createNavigationController(transport: NavigationTransport) {
     } catch (error) {
       if (revision !== generation) return
       const conflict = error instanceof Error && error.message === 'NAVIGATION_PREFERENCE_CONFLICT'
-      publish({ status: 'error', value: null, saving: false, error: '' })
+      publish({ status: 'error', value: denied(error) ? null : state.value, saving: false, error: '' })
       await refresh()
       if (revision + 1 !== generation) return
       publish({ ...state, error: conflict ? '菜单偏好已在其他窗口更改，已刷新，请重新操作。' : '菜单偏好未能确认保存，请检查当前状态后重试。' })

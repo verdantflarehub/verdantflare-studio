@@ -59,7 +59,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clear() })
 
 <template>
   <main v-if="target" class="main embed-active comfyui-bookmark"><div class="workspace">
-    <nav class="dashboard-breadcrumb" aria-label="面包屑"><a :href="router.resolve(returnLocation).href" @click.prevent="router.push(returnLocation)">应用中心</a><span> / ComfyUI</span><span v-if="instance"> / {{ instance.name }}</span></nav>
+    <nav class="dashboard-breadcrumb" aria-label="面包屑"><span>ComfyUI</span><span v-if="instance"> / {{ instance.name }}</span></nav>
     <header class="heading"><div class="heading-left"><h1>{{ instance?.name || 'ComfyUI' }}</h1></div><div class="heading-actions"><button v-if="instance" class="btn" @click="async () => { if (await prepareLeave()) retry++ }">重新连接</button><button class="btn" @click="router.push(returnLocation)">返回应用中心</button></div></header>
     <p v-if="host.sessionStatus === 'loading' || loading" role="status">正在打开 ComfyUI…</p>
     <div v-else-if="!host.connected" class="panel bookmark-message"><p>请登录以打开应用。</p><button class="btn" @click="host.loginOpen = true">登录 Station</button></div>

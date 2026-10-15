@@ -13,7 +13,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   watch(() => state.value.value?.mode, mode => appcenter?.setVisible('navigation', mode === 'preinstalled'))
   onScopeDispose(() => appcenter?.setVisible('navigation', false))
   const entries = computed(() => {
-    const value = state.value.status === 'ready' ? state.value.value : null
+    const value = state.value.value
     if (!value) return []
     const projected = appcenter && value.mode === 'preinstalled' ? appCenterNavigationEntries(value, appcenter.state, appcenter.currentTime()) : value.projection.entries
     // Keep older Project declarations consistent with the current module name.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createNavigationController, decodeNavigation } from '../src/navigation/controller.ts'
+import { createNavigationController, decodeNavigation, sameNavigationPath } from '../src/navigation/controller.ts'
 import { createNavigationTransport } from '../src/navigation/transport.ts'
 import type { NavigationEnvelope, NavigationPreference, NavigationIdentity } from '../src/navigation/controller.ts'
 
@@ -37,12 +37,36 @@ test('a late response from an old Station cannot restore its entries', async () 
   controller.clear(); assert.equal(controller.state.value, null)
 })
 
-test('permission or transport failure clears a prior projection without legacy fallback', async () => {
-  let fail = false
-  const controller = createNavigationController({ read: async () => { if (fail) throw new Error('denied'); return envelope() }, write: async () => { throw new Error('unexpected') } })
+test('ordinary refresh failure retains the same scope but denial clears it', async () => {
+  let failure = ''
+  const controller = createNavigationController({ read: async () => { if (failure) throw new Error(failure); return envelope() }, write: async () => { throw new Error('unexpected') } })
   controller.clear(identity); await controller.refresh(); assert.equal(controller.state.status, 'ready')
-  fail = true; await controller.refresh()
+  failure = 'NAVIGATION_UNAVAILABLE'; await controller.refresh()
+  assert.equal(controller.state.status, 'error'); assert.equal(controller.state.value?.projection.entries.length, 1)
+  failure = 'NAVIGATION_DENIED'; await controller.refresh()
   assert.equal(controller.state.status, 'error'); assert.equal(controller.state.value, null)
+})
+
+test('dynamic child responses validate paths, stable identifiers and finite depth', () => {
+  const value = envelope(), parent = value.projection.entries[0]
+  parent.children = [{ entryId: 'storage', title: '存储管理', route: '/?view=storage', order: 20 }]
+  assert.equal(decodeNavigation(value, identity).projection.entries[0].children?.[0].route, '/?view=storage')
+  assert.equal(sameNavigationPath('/?view=tasks&page=1', '/?page=1&view=tasks'), true)
+  assert.equal(sameNavigationPath('/?view=tasks', '/?view=storage'), false)
+  for (const route of ['//outside', '/?view=a&view=b', '/?view=%2f', '/?view=', '/?view=a#b', '/?view=a?b', '/a/../b']) {
+    parent.children[0].route = route; assert.throws(() => decodeNavigation(value, identity))
+  }
+  parent.children[0].route = '/'
+  parent.children[0].entryId = 'main'; assert.throws(() => decodeNavigation(value, identity))
+  parent.children[0].entryId = 'storage'
+  Object.assign(parent.children[0], { children: [] }); assert.throws(() => decodeNavigation(value, identity))
+})
+
+test('authentication denial is recognized before parsing an error body', async () => {
+  for (const status of [401, 403]) {
+    const transport = createNavigationTransport(async () => new Response('denied', { status }))
+    await assert.rejects(transport.read(new AbortController().signal), /NAVIGATION_DENIED/)
+  }
 })
 
 test('unpin uses server preference revision and a conflict refreshes without replaying the write', async () => {

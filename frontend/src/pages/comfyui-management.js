@@ -131,7 +131,6 @@ export function mountComfyUI({listen}) {
     finally { $('comfyuiRefresh').disabled = false; }
   });
   listen($('comfyuiRows'),'click',event=>{const button=event.target.closest('[data-open-comfyui-instance]');if(button&&!button.disabled)location.hash='/market?comfyui='+encodeURIComponent(button.dataset.openComfyuiInstance);});
-  listen($('comfyuiTheme'),'click',() => $('theme').click());
   listen(window,'hashchange',sync);
   listen(document,'visibilitychange',() => { if (!active || selected) return; if (document.hidden) clearTimeout(poll); else void refresh(); });
   return {sync,open:()=>{location.hash='/market?comfyui=instances';},dispose:close};

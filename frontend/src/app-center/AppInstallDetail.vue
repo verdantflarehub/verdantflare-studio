@@ -6,7 +6,11 @@ import { actionLabels, statusLabels, factLabel, reasonLabel } from './labels'
 import { publisherLabel, observedTime, resourceLabel, serviceReasonLabel } from './presentation'
 import AppOperationStatus from './AppOperationStatus.vue'
 import type { OperationProgress } from './operation-progress'
-defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string; operationProgress: OperationProgress }>()
+import { computed } from 'vue'
+import { useNavigationStore } from '../platform/navigationStore'
+const props = defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string; operationProgress: OperationProgress }>()
+const navigation = useNavigationStore()
+const hasNavigation = computed(() => props.card.installation?.state === 'installed' && navigation.entries.some(entry => entry.installationId === props.card.installation?.installationId && entry.appId === props.card.appId))
 const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string]; refreshOperation: [] }>()
 const origins: Record<string, string> = { installation: '安装记录', observation: '现场部署 · 待对账', catalog: '应用目录' }
 </script>
@@ -50,7 +54,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
         <button v-if="card.operation.canRead && card.operation.protocol === 'lifecycle'" class="btn operation-refresh" :disabled="operationProgress.busy" @click="emit('refreshOperation')">{{ operationProgress.busy ? '正在读取…' : '刷新进度' }}</button>
       </section>
     </div>
-    <section class="panel detail-section"><h3>导航偏好</h3><AppNavigationPreferences :app-id="card.appId" show-state /></section>
+    <section v-if="hasNavigation" class="panel detail-section"><h3>侧栏显示</h3><AppNavigationPreferences :app-id="card.appId" show-state /></section>
     <button class="btn ghost detail-back" @click="emit('back')">返回应用中心</button>
   </section>
 </template>

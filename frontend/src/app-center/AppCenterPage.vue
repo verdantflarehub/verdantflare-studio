@@ -42,12 +42,6 @@ async function confirmCommand() {
   finally { submitting.value = false; confirmation.value = null }
 }
 async function refreshPage() { if (!host.connected) await host.init(); else await store.refresh(true) }
-const theme = ref(document.body.dataset.theme === 'dark' ? 'dark' : 'light')
-try { theme.value = localStorage.getItem('vf_studio_theme') === 'dark' ? 'dark' : 'light' } catch { /* use current theme */ }
-watch(theme, value => {
-  document.body.dataset.theme = value; document.documentElement.dataset.theme = value
-  try { localStorage.setItem('vf_studio_theme', value) } catch { /* theme still works without storage */ }
-}, { immediate: true })
 const selectedKey = computed(() => typeof route.query.card === 'string' ? route.query.card : '')
 const selected = computed(() => store.state.value?.items.find(card => card.cardKey === selectedKey.value))
 const businessRoute = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
@@ -212,7 +206,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 
 <template>
   <main v-show="!businessRoute && !legacy.target && !legacy.comfyui && !legacy.error" class="main appcenter-page"><div class="workspace">
-    <header class="heading"><div class="heading-left"><h1>{{ filter === 'installed' ? '我的应用' : '所有应用' }}</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn ghost" aria-label="切换浅色或深色主题" @click="theme = theme === 'dark' ? 'light' : 'dark'">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</button><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
+    <header class="heading"><div class="heading-left"><h1>{{ filter === 'installed' ? '我的应用' : '所有应用' }}</h1><p>管理 Station 应用、安装与运行状态。</p></div><div class="heading-actions"><button class="btn" :disabled="store.state.refreshing || host.sessionStatus === 'loading'" @click="refreshPage">{{ store.state.refreshing || host.sessionStatus === 'loading' ? '刷新中…' : '刷新' }}</button></div></header>
     <div v-if="!host.connected" class="panel appcenter-message" role="status">
       <p v-if="host.sessionStatus === 'loading'">正在恢复登录状态…</p>
       <template v-else-if="host.sessionStatus === 'error'"><p>暂时无法连接 Station，请重试。</p><button class="btn" @click="host.init()">重试连接</button></template>

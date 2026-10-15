@@ -5,478 +5,313 @@ import vfLogo from '../assets/verdantflare-logo.png'
 import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
-import AppNavigationPreferences from './AppNavigationPreferences.vue'
 import { dashboardLocation } from '../app-dashboard/routes'
+import { sameNavigationPath } from '../navigation/controller'
 import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
 import { appCenterNavigationEntries } from '../app-center/navigation'
 import { reasonLabel } from '../app-center/labels'
 import { directoryLocation, directoryView } from '../app-center/directory-route'
 import { selectCards } from '../app-center/controller'
+import { hostTheme } from '../theme/hostTheme'
+import { themeLabels } from '../theme/preference'
+import type { ThemeMode } from '../theme/preference'
+import NavigationIcon from './NavigationIcon.vue'
 
-const hostStore = useHostStore()
-const navigation = useNavigationStore()
+const host = useHostStore(), navigation = useNavigationStore(), router = useRouter(), route = useRoute()
 const appcenter = import.meta.env.VITE_APPCENTER_MODE === 'unified' ? useAppCenterStore() : null
-const router = useRouter()
-const route = useRoute()
-const appCenterActive = computed(() => route.path === '/market' || route.name === 'app-dashboard' || route.name === 'app-instance')
-const appCenterExpanded = ref(appCenterActive.value)
-watch(appCenterActive, active => { if (active) appCenterExpanded.value = true })
-watch(appCenterExpanded, expanded => appcenter?.setVisible('directory-menu', expanded), { immediate: true })
-const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
+// /market also hosts legacy application routes; directory ancestry stops at the directory.
+const appCenterActive = computed(() => route.path === '/market' && !['video', 'image', 'music', 'speech', 'blender', 'comfyui'].some(key => route.query[key] !== undefined))
+const expanded = ref(new Set<string>(['directory']))
+const branchKey = (entry: NavigationEntry) => entry.installationId + '/' + entry.entryId
+function toggleBranch(key: string) { const next = new Set(expanded.value); next.has(key) ? next.delete(key) : next.add(key); expanded.value = next }
 const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'all', label: '所有应用' }] as const
-
-const resourcesEntry = computed(() => navigation.entries.find(entry => entry.appId === 'resources'))
-const resourcesActive = computed(
-  () =>
-    route.path.startsWith('/resources') ||
-    (!!resourcesEntry.value && route.name === 'app-dashboard' && route.params.installationId === resourcesEntry.value.installationId)
-)
-const resourcesExpanded = ref(resourcesActive.value)
-watch(resourcesActive, active => { if (active) resourcesExpanded.value = true })
-const resourcesSubView = computed<'monitor' | 'storage' | 'tasks'>(() => {
-  const v = route.query.view
-  if (v === 'storage' || v === 'tasks') return v
-  if (typeof route.query.path === 'string' && route.query.path.includes('?')) {
-    const pv = new URLSearchParams(route.query.path.split('?')[1] ?? '').get('view')
-    if (pv === 'storage' || pv === 'tasks') return pv
-  }
-  return 'monitor'
-})
-const resourcesCounts = ref<{ workspaces: number | null; tasks: number | null }>({ workspaces: null, tasks: null })
-function onResourcesCounts(e: Event) {
-  const d = (e as CustomEvent).detail
-  if (d && typeof d === 'object') {
-    if (typeof d.workspaces === 'number') resourcesCounts.value.workspaces = d.workspaces
-    if (typeof d.tasks === 'number') resourcesCounts.value.tasks = d.tasks
-  }
+const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
+watch(() => expanded.value.has('directory'), value => appcenter?.setVisible('directory-menu', value), { immediate: true })
+const appPath = computed(() => typeof route.query.path === 'string' ? route.query.path : '/')
+const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-instance'].includes(String(route.name)) && route.params.installationId === entry.installationId
+const childSelected = (entry: NavigationEntry, path: string) => route.name === 'app-dashboard' && entrySelected(entry) && sameNavigationPath(appPath.value, path)
+let expandedForRoute = ''
+watch(() => [route.fullPath, navigation.pinned] as const, () => {
+  const keys = new Set(['directory', ...navigation.pinned.map(branchKey)])
+  const next = new Set([...expanded.value].filter(key => keys.has(key)))
+  const active = appCenterActive.value ? 'directory' : navigation.pinned.find(entry => entrySelected(entry) && entry.children?.length)
+  const key = typeof active === 'string' ? active : active ? branchKey(active) : ''
+  const signature = route.fullPath + '/' + key
+  if (key && signature !== expandedForRoute) next.add(key)
+  expandedForRoute = signature
+  expanded.value = next
+}, { immediate: true })
+const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.installationId, path)
+function entryReason(entry: NavigationEntry) { return appcenter ? reasonLabel('openReason' in entry ? entry.openReason as string : null) : entry.availability === 'offline' ? '应用离线' : '应用状态待确认' }
+const feedback = ref('')
+async function openEntry(entry: NavigationEntry, target = entry.route) {
+  feedback.value = ''
+  if (!target || !(target === entry.route || entry.children?.some(child => child.route === target))) return
+  try {
+    if (appcenter) {
+      const value = navigation.state.value
+      if (!value) return
+      const current = appCenterNavigationEntries(value, appcenter.state).find(item => item.installationId === entry.installationId && item.entryId === entry.entryId && item.appVersion === entry.appVersion)
+      if (!current?.cardKey || !current.bindingRevision) { feedback.value = entryReason(entry); return }
+      if (!(target === current.route || current.children?.some(child => child.route === target))) return
+      appcenter.pinOpen(entry.installationId, current.bindingRevision)
+      const failed = await router.push(entryLocation(current, target))
+      if (failed) appcenter.takeOpenBinding(entry.installationId)
+    } else await router.push(entryLocation(entry, target))
+  } catch { feedback.value = '应用暂时无法打开，请刷新后重试。' }
 }
-function navToResourcesView(view: 'monitor' | 'storage' | 'tasks') {
-  resourcesExpanded.value = true
-  if (!navigation.legacy && resourcesEntry.value) {
-    const subRoute = view === 'monitor' ? '/' : `/?view=${view}`
-    void openEntry({ ...resourcesEntry.value, route: subRoute })
-    return
-  }
-  void router.push({ path: '/resources', query: { view } })
-}
-function toggleResourcesMenu() {
-  if (!resourcesActive.value) {
-    navToResourcesView('monitor')
-  } else {
-    resourcesExpanded.value = !resourcesExpanded.value
-  }
-}
+// Explicit legacy mode alone retains the old direct entry compatibility.
+const legacyEntries = [
+  { title: '项目管理', icon: 'folder', path: '/projects', query: {} },
+  { title: '数字世界', icon: 'globe', path: '/projects', query: { mode: 'world' } },
+  { title: '资源管理', icon: 'server', path: '/resources', query: {} },
+  { title: '网络出口', icon: 'network', path: '/station/proxies', query: {} },
+]
+function legacySelected(item: typeof legacyEntries[number]) { return route.path === item.path && (route.query.mode === 'world') === (item.query.mode === 'world') }
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
-function refreshNavigation() { if (!document.hidden && hostStore.connected) void navigation.refresh() }
-function clearNavigation() { navigation.clear() }
-watch(() => JSON.stringify([hostStore.identity.user_id, hostStore.identity.organization_id, hostStore.identity.station_id, hostStore.identity.session_id, hostStore.identity.policy_version, hostStore.identity.revocation_version, hostStore.identity.roles, hostStore.identity.scopes]), () => {
-  const identity = hostStore.identity
-  navigation.clear(identity.user_id && identity.organization_id && identity.station_id
-    ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
+function refreshNavigation() { if (!document.hidden && host.connected) { void navigation.refresh(); void host.fetchCluster() } }
+function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
+watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
+  const identity = host.identity
+  navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
+  expanded.value = new Set(['directory']); feedback.value = ''
   refreshNavigation()
 }, { immediate: true })
+
+const sidebar = ref<HTMLElement>(), sticky = ref(false)
+let resizeObserver: ResizeObserver | undefined
+function measureSidebar() { sticky.value = !!sidebar.value && sidebar.value.scrollHeight <= window.innerHeight }
+const loginStatus = computed(() => host.connected ? '已登录' : host.sessionStatus === 'loading' ? '读取中' : host.sessionStatus === 'error' ? '读取失败' : '未登录')
+const stationStatus = computed(() => !host.connected ? '未连接' : host.coreStatus === '就绪' ? '已就绪' : host.coreStatus === '未就绪' ? '未就绪' : host.healthLoading ? '检查中' : '待确认')
+const dialog = ref<HTMLDialogElement>()
+const dialogKind = ref<'account' | 'help' | 'station' | 'logout'>('help')
+const dialogTitle = computed(() => ({ account: '账号详情', help: '帮助', station: 'Station 状态', logout: '退出登录？' })[dialogKind.value])
+const logoutBusy = ref(false), logoutError = ref('')
+function showDialog(kind: typeof dialogKind.value) { dialogKind.value = kind; logoutError.value = ''; dialog.value?.showModal() }
+async function account() {
+  if (host.connected) showDialog('account')
+  else if (host.sessionStatus === 'error') await host.init()
+  else host.loginOpen = true
+}
+function station() {
+  const entry = navigation.entries.find(item => item.appId === 'resources')
+  if (host.connected && entry) void openEntry(entry, entry.route || entry.children?.[0]?.route)
+  else if (host.connected && navigation.legacy) void router.push('/resources')
+  else showDialog('station')
+}
+async function logout() {
+  if (logoutBusy.value) return
+  logoutBusy.value = true; logoutError.value = ''
+  try {
+    const result = await request({ path: 'logout', method: 'POST' }, { realOnly: true })
+    if (!result.ok && result.status !== 401) throw new Error('logout')
+    host.setIdentity({}); try { sessionStorage.removeItem('studio.operations') } catch { /* optional browser cache */ }
+    window.dispatchEvent(new CustomEvent('studio:logout'))
+    dialog.value?.close(); host.loginOpen = true
+  } catch { logoutError.value = '退出未能确认，请重试。' }
+  finally { logoutBusy.value = false }
+}
+
+const themeButton = ref<HTMLButtonElement>(), themeMenu = ref<HTMLElement>(), themeExpanded = ref(false)
+const modes: ThemeMode[] = ['light', 'dark', 'system']
+function positionTheme() {
+  const menu = themeMenu.value, button = themeButton.value
+  if (!menu || !button || !menu.matches(':popover-open')) return
+  const rect = button.getBoundingClientRect()
+  menu.style.width = Math.min(220, innerWidth - 16) + 'px'
+  menu.style.left = Math.max(8, Math.min(rect.left, innerWidth - menu.offsetWidth - 8)) + 'px'
+  menu.style.top = Math.max(8, rect.top - menu.offsetHeight - 8 >= 8 ? rect.top - menu.offsetHeight - 8 : Math.min(rect.bottom + 8, innerHeight - menu.offsetHeight - 8)) + 'px'
+}
+function toggleTheme() {
+  const menu = themeMenu.value
+  if (!menu) return
+  if (menu.matches(':popover-open')) menu.hidePopover()
+  else { menu.showPopover(); positionTheme(); menu.querySelector<HTMLElement>('[aria-checked="true"]')?.focus() }
+}
+function themeToggled(event: Event) {
+  themeExpanded.value = (event as ToggleEvent).newState === 'open'
+  if (!themeExpanded.value) themeButton.value?.focus()
+}
+function chooseTheme(mode: ThemeMode) { hostTheme.select(mode); themeMenu.value?.hidePopover() }
+function themeKeys(event: KeyboardEvent) {
+  const items = Array.from(themeMenu.value?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
+  const index = items.indexOf(document.activeElement as HTMLButtonElement)
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault()
+    items[event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowDown' ? 1 : 2)) % 3]?.focus()
+  }
+  if (event.key === 'Escape') { event.preventDefault(); themeMenu.value?.hidePopover() }
+}
+function resized() { measureSidebar(); positionTheme() }
 onMounted(() => {
-  void hostStore.init()
+  void host.init()
   refreshTimer = setInterval(refreshNavigation, 30000)
   window.addEventListener('focus', refreshNavigation)
   window.addEventListener('studio:logout', clearNavigation)
-  window.addEventListener('studio:resources-counts', onResourcesCounts)
   document.addEventListener('visibilitychange', refreshNavigation)
+  window.addEventListener('resize', resized)
+  window.addEventListener('scroll', positionTheme, { passive: true })
+  resizeObserver = new ResizeObserver(measureSidebar)
+  if (sidebar.value) resizeObserver.observe(sidebar.value)
+  measureSidebar()
 })
 onBeforeUnmount(() => {
-  appcenter?.setVisible('directory-menu', false)
-  clearInterval(refreshTimer)
-  window.removeEventListener('focus', refreshNavigation)
-  window.removeEventListener('studio:logout', clearNavigation)
-  window.removeEventListener('studio:resources-counts', onResourcesCounts)
-  document.removeEventListener('visibilitychange', refreshNavigation)
-  clearNavigation()
+  appcenter?.setVisible('directory-menu', false); clearInterval(refreshTimer); resizeObserver?.disconnect()
+  window.removeEventListener('focus', refreshNavigation); window.removeEventListener('studio:logout', clearNavigation)
+  document.removeEventListener('visibilitychange', refreshNavigation); window.removeEventListener('resize', resized)
+  window.removeEventListener('scroll', positionTheme); clearNavigation()
 })
-
-const icons: Record<string, string> = {
-  folder: 'M3 7h7l2 2h9v10H3zM3 7V4h8l2 2h8v3',
-  globe: 'M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
-  network: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-  resources: 'M3 3h18v7H3zM3 14h18v7H3zM6 6h1M6 17h1',
-  server: 'M3 3h18v7H3zM3 14h18v7H3zM6 6h1M6 17h1',
-  app: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
-}
-function entryLocation(entry: NavigationEntry) { return dashboardLocation(entry.installationId, entry.route) }
-function entryReason(entry: NavigationEntry) {
-  if (!appcenter) return entry.availability === 'offline' ? '离线' : ''
-  return reasonLabel('openReason' in entry ? entry.openReason as string : null)
-}
-async function openEntry(entry: NavigationEntry) {
-  if (appcenter) {
-    const value = navigation.state.value
-    if (!value) return
-    const current = appCenterNavigationEntries(value, appcenter.state, appcenter.currentTime()).find(item => item.installationId === entry.installationId
-      && item.entryId === entry.entryId && item.appVersion === entry.appVersion)
-    if (!current?.cardKey || !current.bindingRevision) return
-    appcenter.pinOpen(entry.installationId, current.bindingRevision)
-    const failed = await router.push(entryLocation({ ...current, route: entry.route }))
-    if (failed) appcenter.takeOpenBinding(entry.installationId)
-    return
-  }
-  await router.push(entryLocation(entry))
-}
-function entrySelected(entry: NavigationEntry) { return route.name === 'app-dashboard' && route.params.installationId === entry.installationId }
-function openResources() {
-  if (navigation.legacy) void router.push('/resources')
-  else if (resourcesEntry.value) void openEntry(resourcesEntry.value)
-  else void router.push('/market')
-}
-
-const activeNav = computed<'proxies' | 'resources' | 'market' | 'projects' | 'world' | ''>(() => {
-  if (route.path.startsWith('/station/proxies')) {
-    return 'proxies'
-  }
-  if (route.path.startsWith('/resources')) {
-    return 'resources'
-  }
-  if (route.path.startsWith('/projects') && route.query.mode === 'world') {
-    return 'world'
-  }
-  if (route.path.startsWith('/projects')) {
-    return 'projects'
-  }
-  if (route.path.startsWith('/market')) {
-    return 'market'
-  }
-  return ''
-})
-
-function navTo(target: string) {
-  if (target === 'resources') {
-    router.push('/resources')
-  } else if (target === 'market') {
-    router.push('/market')
-  } else if (target === 'proxies') {
-    router.push('/station/proxies')
-  } else if (target === 'projects') {
-    router.push('/projects')
-  } else if (target === 'world') {
-    router.push({ path: '/projects', query: { mode: 'world' } })
-  }
-}
-
-async function handleUserClick() {
-  if (!hostStore.connected) {
-    hostStore.loginOpen = true
-    return
-  }
-  if (confirm(`当前操作员：${hostStore.displayName}\n是否退出当前登录状态？`)) {
-    try {
-      await request({ path: 'logout', method: 'POST' })
-    } catch {}
-    hostStore.setIdentity({})
-    sessionStorage.removeItem('studio.operations')
-    window.dispatchEvent(new CustomEvent('studio:logout'))
-    hostStore.loginOpen = true
-  }
-}
-
-function handleHelpClick() {
-  const toast = document.getElementById('toast')
-  if (toast) {
-    toast.textContent = '帮助与设计说明正在完善中'
-    toast.classList.add('show')
-    setTimeout(() => toast.classList.remove('show'), 3000)
-  }
-}
 </script>
 
 <template>
-  <aside class="side" aria-label="Studio 主菜单">
-    <a class="side-brand" href="#/market" @click.prevent="navTo('market')">
-      <img id="vfSideLogo"
-           :src="vfLogo"
-           alt="VerdantFlare"
-           width="26"
-           height="26">
-      <div class="brand-text">
-        <span>青焰 · VerdantFlare</span>
-        <small>STUDIO OS</small>
-      </div>
+  <aside ref="sidebar" class="host-sidebar" :class="{ sticky }" aria-label="Studio 全局导航">
+    <a class="brand" :href="router.resolve(directoryLocation('installed')).href" aria-label="青焰 VerdantFlare Studio，回到我的应用" @click.prevent="router.push(directoryLocation('installed'))">
+      <img :src="vfLogo" alt="" width="30" height="37"><span class="brand-copy"><span class="brand-name">青焰 · VerdantFlare</span><small>STUDIO OS</small></span>
     </a>
-
-    <button class="side-create-btn"
-            id="newTask"
-            aria-label="新建创作任务"
-            disabled
-            title="创作任务开发中">
-      <svg width="15"
-           height="15"
-           viewBox="0 0 24 24"
-           fill="none"
-           stroke="currentColor"
-           stroke-width="2.2"
-           stroke-linecap="round"
-           stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-      <span>新建创作任务</span>
-    </button>
-
-    <div class="nav-label">创作空间</div>
-    <a v-if="navigation.legacy" class="nav-link"
-       :class="{ selected: activeNav === 'projects' }"
-       href="#/projects"
-       data-nav="projects"
-       @click.prevent="navTo('projects')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 7h7l2 2h9v10H3zM3 7V4h8l2 2h8v3" />
-        </svg>
-      </span>
-      <span>项目管理</span>
-    </a>
-
-    <a v-if="navigation.legacy" class="nav-link"
-       :class="{ selected: activeNav === 'world' }"
-       href="#/projects?mode=world"
-       data-nav="world"
-       @click.prevent="navTo('world')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18" />
-        </svg>
-      </span>
-      <span>数字世界</span>
-    </a>
-
-    <button v-if="appcenter" class="nav-link appcenter-parent" :class="{ selected: appCenterActive }"
-       aria-controls="appcenter-directory-nav" :aria-expanded="appCenterExpanded" @click="appCenterExpanded = !appCenterExpanded">
-      <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path :d="icons.app" /></svg></span>
-      <span>应用中心</span><span class="appcenter-chevron" aria-hidden="true">{{ appCenterExpanded ? '▾' : '▸' }}</span>
-    </button>
-    <nav v-if="appcenter" v-show="appCenterExpanded" id="appcenter-directory-nav" class="nav-sub-group" aria-label="应用中心">
-      <a v-for="item in directoryMenus" :key="item.view" class="group-nav"
-         :class="{ active: route.path === '/market' && directoryView(route.query.view) === item.view }"
-         :aria-current="route.path === '/market' && directoryView(route.query.view) === item.view ? 'page' : undefined"
-         :href="router.resolve(directoryLocation(item.view)).href" @click.prevent="router.push(directoryLocation(item.view))">
-        <span>{{ item.label }}</span><span class="directory-count">{{ directoryCounts[item.view] ?? '—' }}</span>
-      </a>
-    </nav>
-
-    <a v-else class="nav-link"
-       :class="{ selected: activeNav === 'market' }"
-       href="#/market"
-       data-nav="market"
-       @click.prevent="navTo('market')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-      </span>
-      <span>应用中心</span>
-    </a>
-
-    <div v-if="!appcenter" class="nav-sub-group" id="groupNav" v-show="activeNav === 'market'">
-      <!-- Injected by JavaScript -->
-    </div>
-
-    <button v-if="navigation.legacy"
-            type="button"
-            class="nav-link appcenter-parent"
-            id="resourcesNavToggle"
-            :class="{ selected: activeNav === 'resources' }"
-            aria-controls="resourcesSubNav"
-            :aria-expanded="resourcesExpanded"
-            data-nav="resources"
-            @click="toggleResourcesMenu">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-          <line x1="6" y1="6" x2="6.01" y2="6"></line>
-          <line x1="6" y1="18" x2="6.01" y2="18"></line>
-        </svg>
-      </span>
-      <span>资源管理</span>
-      <span class="appcenter-chevron" id="resourcesNavChevron" aria-hidden="true">{{ resourcesExpanded ? '▾' : '▸' }}</span>
-    </button>
-    <nav v-if="navigation.legacy"
-         v-show="resourcesExpanded"
-         id="resourcesSubNav"
-         class="nav-sub-group"
-         aria-label="资源管理子菜单">
-      <a class="group-nav"
-         :class="{ active: activeNav === 'resources' && resourcesSubView === 'monitor' }"
-         :aria-current="activeNav === 'resources' && resourcesSubView === 'monitor' ? 'page' : undefined"
-         href="#/resources?view=monitor"
-         data-res-view="monitor"
-         @click.prevent="navToResourcesView('monitor')">
-        <span>资源监控</span>
-      </a>
-      <a class="group-nav"
-         :class="{ active: activeNav === 'resources' && resourcesSubView === 'storage' }"
-         :aria-current="activeNav === 'resources' && resourcesSubView === 'storage' ? 'page' : undefined"
-         href="#/resources?view=storage"
-         data-res-view="storage"
-         @click.prevent="navToResourcesView('storage')">
-        <span>存储管理</span>
-        <span v-if="resourcesCounts.workspaces !== null" class="directory-count" id="navWsCount">{{ resourcesCounts.workspaces }}</span>
-      </a>
-      <a class="group-nav"
-         :class="{ active: activeNav === 'resources' && resourcesSubView === 'tasks' }"
-         :aria-current="activeNav === 'resources' && resourcesSubView === 'tasks' ? 'page' : undefined"
-         href="#/resources?view=tasks"
-         data-res-view="tasks"
-         @click.prevent="navToResourcesView('tasks')">
-        <span>任务监控</span>
-        <span v-if="resourcesCounts.tasks !== null" class="directory-count" id="navTasksCount">{{ resourcesCounts.tasks }}</span>
-      </a>
-    </nav>
-
-    <a v-if="navigation.legacy" class="nav-link"
-       :class="{ selected: activeNav === 'proxies' }"
-       href="#/station/proxies"
-       data-nav="proxies"
-       @click.prevent="navTo('proxies')">
-      <span class="nav-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-        </svg>
-      </span>
-      <span>网络出口</span>
-    </a>
-
-    <template v-if="navigation.state.value?.mode === 'preinstalled'">
-      <template v-for="entry in navigation.pinned" :key="`${entry.installationId}/${entry.entryId}`">
-        <div class="app-navigation-row">
-          <button v-if="entry.appId === 'resources'"
-                  type="button"
-                  class="nav-link appcenter-parent"
-                  id="resourcesNavToggle"
-                  :class="{ selected: entrySelected(entry) }"
-                  aria-controls="resourcesSubNav"
-                  :aria-expanded="resourcesExpanded"
-                  :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
-                  :title="entry.availability !== 'ready' ? entryReason(entry) : undefined"
-                  data-nav="resources"
-                  @click="toggleResourcesMenu">
-            <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
-            <span>{{ entry.title }}</span>
-            <small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
-            <span v-else class="appcenter-chevron" id="resourcesNavChevron" aria-hidden="true">{{ resourcesExpanded ? '▾' : '▸' }}</span>
-          </button>
-          <a v-else class="nav-link" :class="{ selected: entrySelected(entry) }" :href="router.resolve(entryLocation(entry)).href"
-             :aria-current="entrySelected(entry) ? 'page' : undefined" :aria-disabled="appcenter && entry.availability !== 'ready' ? 'true' : undefined"
-             :title="entry.availability !== 'ready' ? entryReason(entry) : undefined" @click.prevent="openEntry(entry)">
-            <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="icons[entry.iconRef] || icons.app" /></svg></span>
-            <span>{{ entry.title }}</span><small v-if="entry.availability !== 'ready'">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</small>
-          </a>
-          <button type="button" class="unpin-entry" :disabled="navigation.state.saving" :aria-label="`取消固定${entry.title}`" :title="`取消固定${entry.title}`" @click="navigation.setPreference(entry, false)">×</button>
-        </div>
-        <nav v-if="entry.appId === 'resources'"
-             v-show="resourcesExpanded"
-             id="resourcesSubNav"
-             class="nav-sub-group"
-             aria-label="资源管理子菜单">
-          <a class="group-nav"
-             :class="{ active: resourcesActive && resourcesSubView === 'monitor' }"
-             :aria-current="resourcesActive && resourcesSubView === 'monitor' ? 'page' : undefined"
-             :href="router.resolve(entryLocation({ ...entry, route: '/' })).href"
-             data-res-view="monitor"
-             @click.prevent="navToResourcesView('monitor')">
-            <span>资源监控</span>
-          </a>
-          <a class="group-nav"
-             :class="{ active: resourcesActive && resourcesSubView === 'storage' }"
-             :aria-current="resourcesActive && resourcesSubView === 'storage' ? 'page' : undefined"
-             :href="router.resolve(entryLocation({ ...entry, route: '/?view=storage' })).href"
-             data-res-view="storage"
-             @click.prevent="navToResourcesView('storage')">
-            <span>存储管理</span>
-            <span v-if="resourcesCounts.workspaces !== null" class="directory-count" id="navWsCount">{{ resourcesCounts.workspaces }}</span>
-          </a>
-          <a class="group-nav"
-             :class="{ active: resourcesActive && resourcesSubView === 'tasks' }"
-             :aria-current="resourcesActive && resourcesSubView === 'tasks' ? 'page' : undefined"
-             :href="router.resolve(entryLocation({ ...entry, route: '/?view=tasks' })).href"
-             data-res-view="tasks"
-             @click.prevent="navToResourcesView('tasks')">
-            <span>任务监控</span>
-            <span v-if="resourcesCounts.tasks !== null" class="directory-count" id="navTasksCount">{{ resourcesCounts.tasks }}</span>
-          </a>
-        </nav>
-      </template>
-      <details class="menu-preferences"><summary>管理菜单</summary><AppNavigationPreferences /></details>
-    </template>
-    <p v-if="navigation.state.status === 'loading'" role="status" class="navigation-status">正在加载应用菜单…</p>
-    <div v-if="navigation.state.error" role="status" class="navigation-status">
-      <span>{{ navigation.state.error }}</span><button type="button" @click="navigation.refresh()">重试</button>
-    </div>
-
-    <div class="side-bottom">
-      <!-- Host health does not require the Resources application to be mounted. -->
-      <button type="button"
-              class="side-cluster-card"
-              id="sideClusterCard"
-              @click="openResources"
-              :title="`${hostStore.clusterName} · ${navigation.legacy || resourcesEntry ? '查看资源管理' : '打开应用中心'}`">
-        <div class="side-cluster-row">
-          <div class="side-cluster-lead">
-            <i class="dot" :class="{ on: hostStore.connected }"></i>
-            <span class="side-cluster-name">{{ hostStore.clusterName }}</span>
-          </div>
-          <span class="side-cluster-pill">{{ hostStore.connected ? '已登录' : '未连接' }}</span>
-        </div>
-        <div class="side-cluster-meta">{{ hostStore.clusterMeta }}</div>
+    <nav aria-label="业务导航">
+      <button class="nav-row" :class="{ 'parent-current': appCenterActive }" aria-label="应用中心" title="应用中心" :aria-expanded="expanded.has('directory')" aria-controls="directory-children" @click="toggleBranch('directory')">
+        <NavigationIcon name="app" /><span class="label">应用中心</span><NavigationIcon name="chevron" />
       </button>
-
-      <!-- 2. User Login Card -->
-      <div class="side-user-card"
-           id="sideUserCard"
-           role="button" tabindex="0"
-           @click="handleUserClick"
-           @keydown.enter="handleUserClick" @keydown.space.prevent="handleUserClick"
-           style="cursor: pointer;"
-           :title="hostStore.connected ? `当前操作员：${hostStore.displayName} · ${hostStore.teamName} (点击退出)` : '登录 Station'">
-        <div class="avatar">{{ hostStore.avatar }}</div>
-        <div class="side-user-info">
-          <span class="side-user-name">{{ hostStore.connected ? hostStore.displayName : '登录 Station' }}</span>
-          <span class="side-user-team">{{ hostStore.connected ? hostStore.teamName : '点击连接你的工作区' }}</span>
-        </div>
+      <div v-show="expanded.has('directory')" id="directory-children" class="children">
+        <a v-for="item in directoryMenus" :key="item.view" class="nav-row" :href="router.resolve(directoryLocation(item.view)).href"
+           :aria-current="appCenterActive && directoryView(route.query.view) === item.view ? 'page' : undefined" @click.prevent="router.push(directoryLocation(item.view))">
+          <span class="label">{{ item.label }}</span><span class="count">{{ directoryCounts[item.view] ?? '—' }}</span>
+        </a>
       </div>
-
-      <a class="nav-link side-help-link"
-         href="#/market"
-         data-placeholder="true"
-         @click.prevent="handleHelpClick"
-         title="帮助与设计说明">
-        <span class="nav-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M9.8 9a2.4 2.4 0 1 1 3.2 2.3c-.7.3-1 1-1 1.7v.3M12 17h.01"></path>
-          </svg>
-        </span>
-        <span>帮助与设计说明</span>
-      </a>
+      <div class="dynamic-menu">
+        <template v-if="navigation.legacy">
+          <a v-for="item in legacyEntries" :key="item.title" class="nav-row" :title="item.title" :aria-label="item.title" :aria-current="legacySelected(item) ? 'page' : undefined"
+             :href="router.resolve(item).href" @click.prevent="router.push(item)"><NavigationIcon :name="item.icon" /><span class="label">{{ item.title }}</span></a>
+        </template>
+        <template v-else v-for="entry in navigation.pinned" :key="branchKey(entry)">
+          <button v-if="entry.children?.length" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
+                  :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))">
+            <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span><NavigationIcon name="chevron" />
+          </button>
+          <a v-else class="nav-row" :href="router.resolve(entryLocation(entry)).href" :title="entry.title" :aria-label="entry.title"
+             :aria-current="entrySelected(entry) ? 'page' : undefined" @click.prevent="openEntry(entry)">
+            <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span>
+          </a>
+          <div v-if="entry.children?.length" v-show="expanded.has(branchKey(entry))" :id="'children-' + entry.installationId" class="children">
+            <a v-for="child in entry.children" :key="child.entryId" class="nav-row" :href="router.resolve(entryLocation(entry, child.route)).href"
+               :aria-current="childSelected(entry, child.route) ? 'page' : undefined" @click.prevent="openEntry(entry, child.route)"><span class="label">{{ child.title }}</span></a>
+          </div>
+        </template>
+        <div v-if="navigation.state.status === 'loading'" class="nav-state" role="status" aria-busy="true">正在加载应用菜单…</div>
+        <div v-else-if="navigation.state.value?.mode === 'preinstalled' && !navigation.pinned.length && !navigation.state.error" class="nav-state">暂无可显示的应用菜单</div>
+        <div v-if="navigation.state.error" role="status" class="nav-state"><p>{{ navigation.state.error }}</p><button class="small-button" @click="navigation.refresh()">重试</button></div>
+        <p v-if="feedback" class="nav-state" role="status">{{ feedback }}</p>
+      </div>
+    </nav>
+    <div class="side-spacer"></div>
+    <div class="utilities">
+      <button class="utility account" :title="host.displayName + '，' + loginStatus" :aria-label="host.displayName + '，' + loginStatus + '，查看账号详情'" aria-haspopup="dialog" @click="account">
+        <span class="avatar">{{ host.avatar }}</span><span class="utility-label username">{{ host.displayName }}</span><span class="status-text">{{ loginStatus }}</span><NavigationIcon name="chevron" />
+      </button>
+      <button class="utility station" :title="host.clusterName + '，' + stationStatus" :aria-label="host.clusterName + '，' + stationStatus + '，查看状态'" @click="station">
+        <NavigationIcon name="server" /><span class="utility-label station-name">{{ host.clusterName }}</span><span class="status-text">{{ stationStatus }}</span><i class="status-dot" :class="{ ready: stationStatus === '已就绪' }" aria-hidden="true"></i>
+      </button>
+      <button ref="themeButton" class="utility theme-row" :title="'主题：' + themeLabels[hostTheme.mode.value]" :aria-label="'主题：' + themeLabels[hostTheme.mode.value] + '，更改主题'"
+              aria-haspopup="menu" :aria-expanded="themeExpanded" aria-controls="theme-menu" @click="toggleTheme">
+        <NavigationIcon name="theme" /><span class="utility-label">主题</span><span class="status-text">{{ themeLabels[hostTheme.mode.value] }}</span><NavigationIcon name="chevron" />
+      </button>
+      <p v-if="hostTheme.mode.value === 'system'" class="system-hint">当前{{ themeLabels[hostTheme.actual.value] }}</p>
+      <p v-if="hostTheme.warning.value" class="nav-state" role="status">{{ hostTheme.warning.value }}</p>
+      <button class="utility help" aria-label="帮助" title="帮助" @click="showDialog('help')"><NavigationIcon name="help" /><span class="utility-label">帮助</span></button>
     </div>
   </aside>
+  <Teleport to="body">
+    <div ref="themeMenu" id="theme-menu" class="theme-popover" popover role="menu" aria-label="主题" @toggle="themeToggled" @keydown="themeKeys">
+      <p>主题</p><button v-for="mode in modes" :key="mode" role="menuitemradio" :aria-checked="hostTheme.mode.value === mode" @click="chooseTheme(mode)">{{ themeLabels[mode] }}<span v-if="hostTheme.mode.value === mode" aria-hidden="true">✓</span></button>
+    </div>
+    <dialog ref="dialog" class="navigation-dialog" aria-labelledby="navigation-dialog-title" @cancel="logoutBusy && $event.preventDefault()">
+      <div class="dialog-head"><h2 id="navigation-dialog-title">{{ dialogTitle }}</h2><button class="small-button" :disabled="logoutBusy" aria-label="关闭" @click="dialog?.close()">关闭</button></div>
+      <template v-if="dialogKind === 'account'">
+        <p>用户：{{ host.displayName }}</p><p>组织：{{ host.identity.organization_name || '未配置组织' }}</p><p>登录状态：{{ loginStatus }}</p>
+        <div class="dialog-actions"><button class="small-button" @click="dialogKind = 'logout'">退出登录</button></div>
+      </template>
+      <template v-else-if="dialogKind === 'logout'">
+        <p>确认退出当前账号？</p><p v-if="logoutError" role="alert">{{ logoutError }}</p>
+        <div class="dialog-actions"><button class="small-button" :disabled="logoutBusy" @click="dialogKind = 'account'">取消</button><button class="small-button" :disabled="logoutBusy" @click="logout">{{ logoutBusy ? '正在退出…' : '确认退出' }}</button></div>
+      </template>
+      <template v-else-if="dialogKind === 'station'">
+        <p>{{ host.clusterName }}：{{ stationStatus }}</p><p>{{ host.connected ? '资源管理入口当前不可用，请在应用中心检查安装与访问权限。' : '请登录后查看 Station 的当前状态。' }}</p>
+        <div class="dialog-actions"><button class="small-button" @click="refreshNavigation">重新检查</button></div>
+      </template>
+      <template v-else>
+        <h3>找到你的工作</h3><p>应用中心提供“我的应用”和“所有应用”。侧栏应用可直接打开，有子菜单时点击箭头展开或收起。</p>
+        <h3>管理侧栏</h3><p>在已安装应用的详情中使用“在侧栏显示”。隐藏入口不会停止应用。</p>
+        <h3>了解当前状态</h3><p>“已就绪”表示 Station 健康检查通过；“已登录”表示账号会话有效。</p>
+        <h3>调整外观</h3><p>使用侧栏主题入口选择浅色、深色或跟随系统。业务页面统一跟随。</p>
+        <h3>键盘操作</h3><p>Tab 移动焦点，Enter 打开入口。主题选项可用方向键选择，Escape 关闭浮层。</p>
+      </template>
+    </dialog>
+  </Teleport>
 </template>
 
 <style scoped>
-.appcenter-parent { background: transparent; border: 0; cursor: pointer; }
-.appcenter-chevron, .directory-count { margin-left: auto; color: var(--muted); }
-.directory-count { font-size: 11px; }
-.app-navigation-row { display: flex; align-items: center; }
-.app-navigation-row .nav-link { flex: 1; min-width: 0; }
-.app-navigation-row .nav-link > span:not(.nav-icon) { overflow-wrap: anywhere; }
-.app-navigation-row small { color: var(--muted); margin-left: auto; }
-.unpin-entry { color: var(--muted); padding: 8px; border-radius: 6px; }
-.unpin-entry:hover { color: var(--accent); background: var(--shell-button); }
-.menu-preferences { margin: 4px 12px 12px; font-size: 12px; color: var(--muted); }
-.menu-preferences summary { cursor: pointer; padding: 6px 0; }
-.navigation-status { padding: 8px 12px; font-size: 12px; color: var(--muted); }
-.navigation-status button { display: block; padding: 4px 0; color: var(--accent); }
+.host-sidebar { align-self:start; min-height:100dvh; padding:30px 14px 17px; background:var(--aside); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+.host-sidebar.sticky { position:sticky; top:0; }
+.brand { display:grid; grid-template-columns:30px minmax(0,1fr); align-items:center; gap:6px; padding:0 12px 0 6px; margin-bottom:38px; }
+.brand img { width:30px; height:37px; object-fit:contain; justify-self:center; }
+.brand-name { display:block; font-weight:650; white-space:nowrap; font-size:14px; letter-spacing:-.35px; }
+.brand small { display:block; font-size:9px; letter-spacing:2.5px; color:var(--muted); margin-top:3px; }
+.nav-row,.utility { display:grid; grid-template-columns:30px minmax(0,1fr) auto; align-items:center; column-gap:6px; width:100%; min-height:40px; padding:9px 12px 9px 6px; border-radius:7px; text-align:left; color:var(--muted); line-height:22px; }
+.nav-row:hover,.utility:hover { background:var(--shell-button); color:var(--ink); }
+.nav-row>.icon,.utility>.icon,.avatar { justify-self:center; }
+.nav-row.parent-current { color:var(--ink); font-weight:600; }
+.nav-row[aria-current=page] { background:var(--shell-button); color:var(--ink); font-weight:600; }
+.nav-row[aria-current=page]>.icon { color:var(--accent); }
+.nav-row:has(.offline-badge):has(.chevron) { grid-template-columns:30px minmax(0,1fr) auto 14px; }
+.nav-row[aria-expanded=true]>.chevron { transform:rotate(180deg); }
+.label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.children { padding:2px 0 7px; }
+.children .nav-row { display:flex; justify-content:space-between; min-height:35px; padding:6px 12px 6px 42px; font-size:13px; position:relative; }
+.children .nav-row[aria-current=page]:before { content:""; position:absolute; width:4px; height:4px; left:24px; border-radius:50%; background:var(--accent); }
+.count,.offline-badge { color:var(--muted); font-size:11px; font-weight:400; font-variant-numeric:tabular-nums; }
+.dynamic-menu { margin-top:6px; }
+.side-spacer { flex:1; min-height:38px; }
+.utilities { border-top:1px solid var(--line); padding-top:13px; }
+.utility { min-height:36px; font-size:12px; grid-template-columns:30px minmax(0,1fr) 44px 14px; }
+.utility>.icon { width:17px; height:17px; }
+.utility>.chevron { width:14px; height:14px; }
+.utility-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.username,.station-name { color:var(--ink); }
+.account { margin:4px 0 10px; }
+.avatar { width:30px; height:30px; border-radius:50%; background:var(--shell-button); display:grid; place-items:center; color:var(--ink); font-size:12px; }
+.status-text { font-size:11px; text-align:left; line-height:16px; }
+.status-dot { justify-self:center; width:5px; height:5px; border-radius:50%; background:var(--muted); }
+.status-dot.ready { background:var(--accent); }
+.system-hint { font-size:10px; color:var(--muted); padding:0 12px 5px 42px; }
+.nav-state { font-size:12px; color:var(--muted); padding:14px 12px; }
+.nav-state p { margin-bottom:8px; }
+.small-button { border:1px solid var(--line); border-radius:5px; padding:5px 10px; font-size:12px; background:var(--shell-button); color:var(--ink); }
+.theme-popover { position:fixed; inset:auto; margin:0; padding:6px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); }
+.theme-popover p { padding:7px 11px; font-size:10px; color:var(--muted); }
+.theme-popover button { width:100%; display:flex; justify-content:space-between; padding:9px 11px; border-radius:5px; font-size:12px; }
+.theme-popover button:hover,.theme-popover button:focus { background:var(--shell-button); }
+.theme-popover button span { color:var(--accent); }
+.navigation-dialog { width:min(480px,calc(100vw - 32px)); padding:28px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:var(--ink); margin:auto; box-shadow:var(--shadow); }
+.navigation-dialog::backdrop { background:var(--shell-button); backdrop-filter:blur(2px); }
+.dialog-head { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:22px; }
+.dialog-head h2 { font-size:20px; font-weight:600; }
+.navigation-dialog p { font-size:13px; margin:10px 0; color:var(--muted); }
+.navigation-dialog h3 { font-size:13px; margin:20px 0 5px; }
+.dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
+@media(max-width:700px) {
+ .host-sidebar { padding:22px 7px 12px; }
+ .brand { display:flex; padding:0; justify-content:center; margin-bottom:28px; }
+ .brand img { width:28px; height:34px; }
+ .brand-copy,.nav-row .label,.count,.nav-row .chevron,.utility-label,.status-text,.utility>.chevron,.status-dot,.system-hint,.offline-badge { display:none; }
+ .host-sidebar .nav-row,.utility { display:flex; justify-content:center; padding:10px 8px; }
+ .children .nav-row { padding:8px 3px; min-height:34px; font-size:10px; line-height:15px; text-align:center; }
+ .children .nav-row .label { display:block; white-space:normal; }
+ .children .nav-row[aria-current=page]:before { display:none; }
+ .side-spacer { min-height:28px; }
+ .nav-state { font-size:10px; padding:10px 2px; overflow-wrap:anywhere; }
+ .nav-state .small-button { padding:3px; }
+}
+@media(prefers-reduced-motion:reduce) { * { transition:none!important; } }
 </style>

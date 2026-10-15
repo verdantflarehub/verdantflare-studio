@@ -486,22 +486,6 @@ export function mountMarket(options = {}) {
   });
 
   if ($('reset')) $('reset').onclick = refresh;
-  if ($('theme')) {
-    const savedTheme = localStorage.getItem('vf_studio_theme') || 'light';
-    document.body.dataset.theme = savedTheme;
-    document.documentElement.dataset.theme = savedTheme;
-    $('theme').textContent = savedTheme === 'dark' ? '浅色主题' : '深色主题';
-
-    $('theme').onclick = () => {
-      const isDark = document.body.dataset.theme === 'dark';
-      const nextTheme = isDark ? 'light' : 'dark';
-      document.body.dataset.theme = nextTheme;
-      document.documentElement.dataset.theme = nextTheme;
-      localStorage.setItem('vf_studio_theme', nextTheme);
-      $('theme').textContent = nextTheme === 'dark' ? '浅色主题' : '深色主题';
-    };
-  }
-
   if ($('vfSideLogo')) {
     const vfSrc = brandMarks.vf.match(/src="([^"]+)"/);
     if (vfSrc) $('vfSideLogo').src = vfSrc[1];

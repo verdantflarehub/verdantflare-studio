@@ -212,7 +212,6 @@ let telemetryPending = false
 const currentFilter = ref<'all' | 'gpu' | 'infra'>('all')
 const searchQuery = ref('')
 const isRefreshing = ref(false)
-const themeText = ref('深色主题')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const workspaces = ref<WorkspaceVolumeItem[]>([])
@@ -400,22 +399,6 @@ function showToast(msg: string) {
   }
 }
 
-function toggleTheme() {
-  const current = document.body.dataset.theme === 'dark' ? 'dark' : 'light'
-  const next = current === 'dark' ? 'light' : 'dark'
-  document.body.dataset.theme = next
-  document.documentElement.dataset.theme = next
-  localStorage.setItem('vf_studio_theme', next)
-  themeText.value = next === 'dark' ? '浅色主题' : '深色主题'
-}
-
-function initTheme() {
-  const saved = localStorage.getItem('vf_studio_theme') || 'light'
-  document.body.dataset.theme = saved
-  document.documentElement.dataset.theme = saved
-  themeText.value = saved === 'dark' ? '浅色主题' : '深色主题'
-}
-
 async function fetchTelemetry() {
   if (telemetryPending || document.hidden) return
   telemetryPending = true
@@ -500,7 +483,6 @@ function onVisibilityChange() {
 }
 
 onMounted(() => {
-  initTheme()
   void fetchTelemetry()
   pollTimer = setInterval(fetchTelemetry, 4000)
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -525,7 +507,6 @@ onBeforeUnmount(() => {
           <p id="pageSubtitle">{{ viewMeta[currentView].subtitle }}</p>
         </div>
         <div class="heading-actions">
-          <button class="btn ghost" id="themeToggle" @click="toggleTheme">{{ themeText }}</button>
           <button class="btn ghost"
                   id="refreshBtn"
                   :title="viewMeta[currentView].refreshLabel"

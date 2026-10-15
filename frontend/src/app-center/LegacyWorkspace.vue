@@ -132,9 +132,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 <template>
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
     <nav class="dashboard-breadcrumb" aria-label="面包屑">
-      <a :href="router.resolve(props.returnLocation ?? '/market').href" @click.prevent="router.push(props.returnLocation ?? '/market')">应用中心</a>
       <template v-if="video">
-        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
         <a :href="router.resolve(videoTasksRoute).href" @click.prevent="navigate(videoTasksRoute)">{{ selection?.card.display.name || 'Video MCP' }}</a>
         <span class="breadcrumb-sep" aria-hidden="true"> / </span>
         <template v-if="video.taskId">
@@ -145,7 +143,6 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
         <span v-else class="breadcrumb-current" aria-current="page">{{ videoSection }}</span>
       </template>
       <template v-else-if="selection">
-        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
         <span class="breadcrumb-current" aria-current="page">{{ selection.card.display.name }}</span>
       </template>
     </nav>

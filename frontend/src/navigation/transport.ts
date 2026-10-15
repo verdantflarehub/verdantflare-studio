@@ -5,6 +5,7 @@ export function createNavigationTransport(fetcher: typeof fetch = fetch): Naviga
   async function call(path: string, body: NavigationPreference | undefined, signal: AbortSignal) {
     const response = await fetcher(path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
       headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+    if (response.status === 401 || response.status === 403) { await response.body?.cancel(); throw new Error('NAVIGATION_DENIED') }
     if (!response.body || response.headers.get('Content-Type')?.split(';')[0].trim() !== 'application/json') throw new Error('NAVIGATION_UNAVAILABLE')
     const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true })
     let length = 0, text = ''
