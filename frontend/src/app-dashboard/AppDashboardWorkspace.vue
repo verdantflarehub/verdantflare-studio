@@ -255,4 +255,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
   color: var(--muted);
 }
 .dashboard-error { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+@media(max-width:700px) {
+  .main.embed-active:not(.workspace-active) { padding:24px 18px 36px; }
+}
 </style>
