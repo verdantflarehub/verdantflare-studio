@@ -166,11 +166,6 @@ async function cancelled() {
 }
 function ready() { previousSelection = selection.value; state.value = 'ready' }
 function dashboardError(code: string) { if (!workspaceId.value) showError(code) }
-async function close() {
-  if (!await host.value?.closeActive()) return
-  previousSelection = null
-  await router.push(props.returnLocation ?? '/market')
-}
 async function prepareNavigation(to: RouteLocationNormalized) {
   const staysInAppCenter = to.path === '/market' || to.name === 'app-dashboard' || to.name === 'app-instance'
   if (!staysInAppCenter && !await (host.value?.prepareLeave() ?? true)) return false
@@ -193,11 +188,10 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
           <span aria-hidden="true" class="breadcrumb-sep"> / </span>
           <span class="breadcrumb-current">{{ workspaceInstanceName }}</span>
         </template>
-      </nav><button v-if="!workspaceId && state === 'ready'" class="btn ghost dashboard-close" @click="close">关闭控制台</button></div>
-      <header v-if="!workspaceId && state !== 'ready'" class="heading">
+      </nav></div>
+      <header v-if="!workspaceId && !visible" class="heading">
         <div class="heading-left">
-          <h1>{{ title }}</h1>
-          <p>配置应用，管理运行实例。</p>
+          <h1>{{ navigationChild?.title ?? title }}</h1>
         </div>
       </header>
       <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
@@ -213,7 +207,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 </template>
 
 <style scoped>
-.dashboard-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.dashboard-context .dashboard-breadcrumb{margin:0}.dashboard-close{font-size:12px;padding:4px 0;background:none;border:0;color:var(--muted)}
+.dashboard-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:6px}.dashboard-context .dashboard-breadcrumb{margin:0}
 .main.embed-active.workspace-active {
   padding: 16px 24px 16px 24px;
 }
