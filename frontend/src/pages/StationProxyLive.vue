@@ -155,19 +155,25 @@ function openImport() {
   modal.value = "import";
 }
 let listScroll = 0;
+let listFocus = "";
 function openDetail(id: string) {
   listScroll = window.scrollY;
+  listFocus = id;
   menuID.value = "";
   drawerID.value = id;
-  void nextTick(() =>
-    document.querySelector<HTMLElement>(".detail-heading h1")?.focus(),
-  );
+  void nextTick(() => {
+    document.querySelector<HTMLElement>(".detail-heading h1")?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  });
 }
 function returnToList() {
   drawerID.value = "";
   void nextTick(() => {
-    window.scrollTo(0, listScroll);
-    document.querySelector<HTMLElement>(".proxy-name")?.focus();
+    const index = visibleRows.value.findIndex(row => row.proxy_id === listFocus);
+    document.querySelectorAll<HTMLElement>(".proxy-name")[Math.max(index, 0)]?.focus({ preventScroll: true });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!drawerID.value) window.scrollTo(0, listScroll);
+    }));
   });
 }
 
