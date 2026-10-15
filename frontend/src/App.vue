@@ -15,5 +15,5 @@ import HostLoginDialog from './components/HostLoginDialog.vue'
 <style>
 .studio-layout { display:grid; grid-template-columns:var(--sidebar-width) minmax(0,1fr); min-height:100dvh; }
 .studio-layout > .main { margin-left:0; }
-@media(max-width:700px) { :root { --sidebar-width:64px; } }
+@media(max-width:700px) { .studio-layout { --sidebar-width:64px; } }
 </style>
