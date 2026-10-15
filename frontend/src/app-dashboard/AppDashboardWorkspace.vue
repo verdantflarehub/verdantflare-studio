@@ -149,7 +149,10 @@ watch([() => props.active, () => props.installationId, () => route.query.path, w
   if (!scope) { showError(new Error('UNAUTHENTICATED')); return }
   if (workspaceId.value) { state.value = 'idle'; error.value = ''; return }
   workspaceInstanceName.value = ''
-  state.value = 'resolving'; error.value = ''
+  // Rechecking a route in the same authorized session must not hide its surface:
+  // hiding clamps the outer scroll and makes the app save that zero as its return position.
+  if (selection.value?.launch.installationId !== props.installationId || !['ready', 'resolved'].includes(state.value)) state.value = 'resolving'
+  error.value = ''
   const controller = new AbortController(); pending = controller
   try {
     if (!sessions) throw new Error('DESKTOP_DASHBOARD_UNAVAILABLE')

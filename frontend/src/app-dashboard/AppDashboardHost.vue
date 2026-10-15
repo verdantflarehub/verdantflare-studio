@@ -42,9 +42,9 @@ watch([() => props.selection, surface, () => props.visible], async ([selection, 
     if (current !== revision) return
     if (!selection) { state.value = 'empty'; return }
     if (visible === false) { await cache.hideActive(); return }
-    state.value = 'loading'
     const launch = validateLaunch(selection.launch, selection.policy)
     const key = dashboardCacheKey(launch, selection.context, selection.authorizationEpoch)
+    if (activeKey !== key || state.value !== 'ready') state.value = 'loading'
     await cache.activate(key, async signal => {
       const session = createAppSDK(launch, selection.context, selection.adapters)
       session.setRoute({ path: selection.route ?? '/', revision: current })
