@@ -16,3 +16,10 @@ export function dashboardRoutePath(value: unknown): string {
   assertAppPath(value)
   return value
 }
+
+/** Project owns its complete category → object trail on the browser route. */
+export function dashboardOwnsBreadcrumb(appId: string | undefined, value: unknown): boolean {
+  if (appId !== 'project') return false
+  try { return new URL(dashboardRoutePath(value), 'https://app.invalid').pathname === '/projects' }
+  catch { return false }
+}
