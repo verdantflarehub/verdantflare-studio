@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createNavigationController, decodeNavigation, sameNavigationPath } from '../src/navigation/controller.ts'
+import { createNavigationController, decodeNavigation, sameNavigationPath, selectedNavigationChild } from '../src/navigation/controller.ts'
 import { createNavigationTransport } from '../src/navigation/transport.ts'
 import type { NavigationEnvelope, NavigationPreference, NavigationIdentity } from '../src/navigation/controller.ts'
 
 const identity: NavigationIdentity = { userId: '019a00b0-0000-7000-8000-000000000001', organizationId: '019a00b0-0000-7000-8000-000000000002', stationId: '019a00b0-0000-7000-8000-000000000003' }
+test('business queries keep exactly one declared navigation child without expanding open permissions', () => {
+  const children = [
+    { entryId: 'character', title: '角色设计', route: '/projects?category=character', order: 0 },
+    { entryId: 'video', title: '创意视频', route: '/projects?category=video', order: 1 },
+  ]
+  assert.equal(selectedNavigationChild(children, '/projects?project=one&revision=fixed&category=video&q=summer')?.entryId, 'video')
+  assert.equal(selectedNavigationChild(children, '/projects?category=video&category=character'), undefined)
+  assert.equal(selectedNavigationChild(children, '/other?category=video'), undefined)
+  assert.equal(selectedNavigationChild([...children, { ...children[1], entryId: 'ambiguous' }], '/projects?category=video'), undefined)
+  const resources = [{ entryId: 'monitor', title: '监控', route: '/', order: 0 }, { entryId: 'storage', title: '存储', route: '/?view=storage', order: 1 }]
+  assert.equal(selectedNavigationChild(resources, '/?view=storage&q=files')?.entryId, 'storage')
+  assert.equal(selectedNavigationChild(resources, '/')?.entryId, 'monitor')
+  assert.equal(sameNavigationPath('/projects?category=video', '/projects?category=video&q=summer'), false)
+})
 function envelope(who = identity): NavigationEnvelope {
   return { mode: 'preinstalled', preferenceRevision: '12', projection: { scope: { ...who, authorizationEpoch: 'epoch1' }, revision: `sha256:${'a'.repeat(64)}`, entries: [{
     installationId: '019a00b0-0000-7000-8000-000000000004', appId: 'project', appVersion: '0.1.0', entryId: 'main', title: '项目', iconRef: 'folder', route: '/', group: 'applications', order: 10, pinned: true, pinSource: 'default', availability: 'unknown',

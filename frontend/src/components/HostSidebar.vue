@@ -6,7 +6,7 @@ import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
 import { dashboardLocation } from '../app-dashboard/routes'
-import { sameNavigationPath } from '../navigation/controller'
+import { selectedNavigationChild } from '../navigation/controller'
 import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
 import { appCenterNavigationEntries } from '../app-center/navigation'
@@ -30,7 +30,7 @@ const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? nul
 watch(() => expanded.value.has('directory'), value => appcenter?.setVisible('directory-menu', value), { immediate: true })
 const appPath = computed(() => typeof route.query.path === 'string' ? route.query.path : '/')
 const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-instance'].includes(String(route.name)) && route.params.installationId === entry.installationId
-const childSelected = (entry: NavigationEntry, path: string) => route.name === 'app-dashboard' && entrySelected(entry) && sameNavigationPath(appPath.value, path)
+const childSelected = (entry: NavigationEntry, path: string) => route.name === 'app-dashboard' && entrySelected(entry) && selectedNavigationChild(entry.children, appPath.value)?.route === path
 let expandedForRoute = ''
 watch(() => [route.fullPath, navigation.pinned] as const, () => {
   const keys = new Set(['directory', ...navigation.pinned.map(branchKey)])

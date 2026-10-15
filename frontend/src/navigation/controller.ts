@@ -44,6 +44,24 @@ export function sameNavigationPath(left: string, right: string): boolean {
   const normalize = (value: string) => { const [path, query] = value.split('?'); return path + (query ? '?' + query.split('&').sort().join('&') : '') }
   return normalize(left) === normalize(right)
 }
+/** Selection only: extra business parameters do not erase the declared category. */
+export function selectedNavigationChild(children: NavigationChild[] | undefined, path: string): NavigationChild | undefined {
+  if (!children?.length || !path.startsWith('/') || path.startsWith('//') || /[#\\\r\n]/.test(path)) return
+  const current = new URL(path, 'https://app.invalid')
+  if (current.origin !== 'https://app.invalid') return
+  let duplicate = false
+  current.searchParams.forEach((_value, key) => { if (current.searchParams.getAll(key).length !== 1) duplicate = true })
+  if (duplicate) return
+  const candidates = children.flatMap(child => {
+    const declared = new URL(child.route, 'https://app.invalid')
+    if (declared.pathname !== current.pathname) return []
+    const keys: string[] = []
+    declared.searchParams.forEach((_value, key) => keys.push(key))
+    if (!keys.every(key => declared.searchParams.get(key) === current.searchParams.get(key))) return []
+    return [{ child, score: keys.length }]
+  }).sort((a, b) => b.score - a.score)
+  return candidates[0] && (!candidates[1] || candidates[0].score > candidates[1].score) ? candidates[0].child : undefined
+}
 const denied = (error: unknown) => error instanceof Error && ['NAVIGATION_DENIED', 'INVALID_NAVIGATION_RESPONSE'].includes(error.message)
 
 export function decodeNavigation(value: unknown, expected: NavigationIdentity): NavigationEnvelope {

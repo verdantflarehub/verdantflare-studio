@@ -11,7 +11,7 @@ import { DashboardSessions } from './sessions'
 import { dashboardLocation, dashboardRoutePath, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
 import { createNavigationTransport } from '../navigation/transport'
-import { decodeNavigation, sameNavigationPath } from '../navigation/controller'
+import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
 import { useNavigationStore } from '../platform/navigationStore'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { createFileAccess } from './files'
@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
 const navigation = useNavigationStore()
-const navigationChild = computed(() => navigation.entries.find(entry => entry.installationId === props.installationId)?.children?.find(child => sameNavigationPath(child.route, typeof route.query.path === 'string' ? route.query.path : '/')))
+const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId)?.children, typeof route.query.path === 'string' ? route.query.path : '/'))
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
 const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()
