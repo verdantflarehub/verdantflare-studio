@@ -180,7 +180,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 <template>
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
-      <div class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
+      <div v-if="workspaceId || navigationChild" class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
         <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
         <template v-if="!workspaceId && navigationChild"><span aria-hidden="true" class="breadcrumb-sep"> / </span><span class="breadcrumb-current" aria-current="page">{{ navigationChild.title }}</span></template>
