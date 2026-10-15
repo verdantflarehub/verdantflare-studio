@@ -185,7 +185,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 <template>
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
-      <nav class="dashboard-breadcrumb" aria-label="面包屑">
+      <div class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
         <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
         <template v-if="!workspaceId && navigationChild"><span aria-hidden="true" class="breadcrumb-sep"> / </span><span class="breadcrumb-current" aria-current="page">{{ navigationChild.title }}</span></template>
@@ -193,14 +193,11 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
           <span aria-hidden="true" class="breadcrumb-sep"> / </span>
           <span class="breadcrumb-current">{{ workspaceInstanceName }}</span>
         </template>
-      </nav>
-      <header v-if="!workspaceId" class="heading">
+      </nav><button v-if="!workspaceId && state === 'ready'" class="btn ghost dashboard-close" @click="close">关闭控制台</button></div>
+      <header v-if="!workspaceId && state !== 'ready'" class="heading">
         <div class="heading-left">
           <h1>{{ title }}</h1>
           <p>配置应用，管理运行实例。</p>
-        </div>
-        <div v-if="state === 'ready'" class="heading-actions">
-          <button class="btn ghost" @click="close">关闭控制台</button>
         </div>
       </header>
       <p v-if="state === 'resolving'" role="status">正在确认应用版本与访问权限…</p>
@@ -216,6 +213,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 </template>
 
 <style scoped>
+.dashboard-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.dashboard-context .dashboard-breadcrumb{margin:0}.dashboard-close{font-size:12px;padding:4px 0;background:none;border:0;color:var(--muted)}
 .main.embed-active.workspace-active {
   padding: 16px 24px 16px 24px;
 }
