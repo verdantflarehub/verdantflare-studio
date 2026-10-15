@@ -2,6 +2,7 @@ import type { AppSDKSession } from './sdk'
 import type { AppContext, AppRoute, DashboardLaunch } from './types'
 import type { CachedDashboard } from './cache'
 import { installDashboardRuntime } from './runtime'
+import { createDashboardScrollBridge } from './scroll'
 
 export interface DashboardMountOptions {
   container: HTMLElement
@@ -33,7 +34,14 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
   container.append(element)
   const controller = new AbortController()
   let disposed = false, dirty = true, ready = false
-  let visible = false
+  const scroll = createDashboardScrollBridge({
+    read: () => window.scrollY,
+    write: top => window.scrollTo(0, top),
+    rendered: () => element.getClientRects().length > 0,
+    subscribe(listener) { window.addEventListener('scroll', listener, { passive: true }); return () => window.removeEventListener('scroll', listener) },
+    schedule: listener => requestAnimationFrame(listener),
+    cancel: handle => cancelAnimationFrame(handle),
+  })
   let cleanup: Promise<void> | undefined
   let clearRuntime = () => {}
   let settleReady!: () => void
@@ -53,6 +61,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     if (cleanup) return cleanup
     if (disposed) return Promise.resolve()
     disposed = true
+    scroll.dispose()
     clearTimeout(timer)
     signal.removeEventListener('abort', cancel)
     unsubscribe()
@@ -90,10 +99,8 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
         element.style.height = `${height}px`
       }
     },
-    getScroll() { return !disposed && visible ? window.scrollY : 0 },
-    restoreScroll(top: number) {
-      if (!disposed && visible && Number.isFinite(top) && top >= 0 && top <= 1_000_000) window.scrollTo(0, top)
-    },
+    getScroll() { return scroll.get() },
+    restoreScroll(top: number) { scroll.restore(top) },
   })
   const fetchAssets: typeof fetch = async (input, init) => {
     const response = await fetch(input, { ...init, credentials: 'same-origin', signal: controller.signal })
@@ -123,8 +130,8 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     throw error
   }
   return {
-    show() { if (disposed) throw new Error('DASHBOARD_DISPOSED'); visible = true; element.hidden = false; session.setVisibility(true) },
-    hide() { if (!disposed) { visible = false; session.setVisibility(false); element.hidden = true } },
+    show() { if (disposed) throw new Error('DASHBOARD_DISPOSED'); element.hidden = false; scroll.show(); session.setVisibility(true) },
+    hide() { if (!disposed) { scroll.hide(); session.setVisibility(false); element.hidden = true } },
     async prepareClose() { return !dirty || await options.confirmDiscard() },
     async updateContext(context: AppContext) {
       const previous = session.sdk.context.get()
