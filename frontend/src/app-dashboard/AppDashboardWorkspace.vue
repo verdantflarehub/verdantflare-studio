@@ -8,7 +8,7 @@ import AppInstanceHost from './AppInstanceHost.vue'
 import { createDashboardWebClient } from './web-client'
 import type { OpenedDashboard } from './web-client'
 import { DashboardSessions } from './sessions'
-import { dashboardLocation, dashboardRoutePath, dashboardOwnsBreadcrumb, installationPattern, instanceWorkspaceLocation } from './routes'
+import { appIdPattern, dashboardLocation, dashboardRoutePath, dashboardOwnsBreadcrumb, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
 import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
@@ -23,11 +23,11 @@ const props = defineProps<{
   returnLocation?: RouteLocationRaw;
   active: boolean; installationId: string; titles: Record<string, string>;
   openDashboard?: (installationId: string, signal?: AbortSignal) => Promise<OpenedDashboard>;
-  authorizeDashboard?: (installationId: string, signal: AbortSignal) => Promise<void>;
+  authorizeDashboard?: (installationId: string, signal: AbortSignal) => Promise<string | void>;
 }>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
 const navigation = useNavigationStore()
-const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId)?.children, typeof route.query.path === 'string' ? route.query.path : '/'))
+const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)?.children, typeof route.query.path === 'string' ? route.query.path : '/'))
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
 const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()
@@ -47,9 +47,9 @@ const visible = computed(() => props.active && !workspaceId.value && ['resolved'
 const ownsBreadcrumb = computed(() => visible.value && dashboardOwnsBreadcrumb(selection.value?.context.appId, route.query.path))
 const workspaceAppId = ref(''), workspaceInstanceName = ref('')
 const title = computed(() => {
-  const appId = selection.value?.launch.installationId === props.installationId
+  const appId = (selection.value?.launch.installationId === props.installationId || selection.value?.context.appId === props.installationId)
     ? selection.value.context.appId
-    : workspaceAppId.value
+    : workspaceAppId.value || (appIdPattern.test(props.installationId) && !installationPattern.test(props.installationId) ? props.installationId : '')
   return appId ? (props.titles[appId] ?? appId) : '应用控制台'
 })
 const confirmDiscard = async () => window.confirm('控制台有未保存的修改，确定放弃并关闭吗？')
@@ -88,7 +88,7 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       if (input.target === 'appcenter') {
         if (input.path !== '/') throw new Error('INVALID_PATH')
         await router.push(props.returnLocation ?? '/market')
-      } else await router.push(dashboardLocation(opened.launch.installationId, input.path))
+      } else await router.push(dashboardLocation(opened.context.appId, input.path))
     },
     requestApp: (input, signal) => client!.request(id, input, signal),
     async callCapability(name, input, signal) {
@@ -152,16 +152,17 @@ watch([() => props.active, () => props.installationId, () => route.query.path, w
   workspaceInstanceName.value = ''
   // Rechecking a route in the same authorized session must not hide its surface:
   // hiding clamps the outer scroll and makes the app save that zero as its return position.
-  if (selection.value?.launch.installationId !== props.installationId || !['ready', 'resolved'].includes(state.value)) state.value = 'resolving'
+  if ((selection.value?.launch.installationId !== props.installationId && selection.value?.context.appId !== props.installationId) || !['ready', 'resolved'].includes(state.value)) state.value = 'resolving'
   error.value = ''
   const controller = new AbortController(); pending = controller
   try {
     if (!sessions) throw new Error('DESKTOP_DASHBOARD_UNAVAILABLE')
-    if (!installationPattern.test(props.installationId)) throw new Error('INVALID_PATH')
+    if (!installationPattern.test(props.installationId) && !appIdPattern.test(props.installationId)) throw new Error('INVALID_PATH')
     const appRoute = dashboardRoutePath(route.query.path)
-    await props.authorizeDashboard?.(props.installationId, controller.signal)
+    const resolvedId = (await props.authorizeDashboard?.(props.installationId, controller.signal)) || props.installationId
     if (current !== revision || controller.signal.aborted) return
-    const opened = await sessions.select(props.installationId, controller.signal)
+    if (!installationPattern.test(resolvedId)) throw new Error('INVALID_PATH')
+    const opened = await sessions.select(resolvedId, controller.signal)
     if (current !== revision || controller.signal.aborted) return
     selection.value = { ...opened, authorizationEpoch: opened.context.contextRevision, route: appRoute,
       adapters: adapters(opened), releaseSession: () => sessions.release(opened.launch.installationId, opened.launch.dashboardSessionId) }
@@ -181,12 +182,12 @@ async function cancelled() {
   const unused = selection.value
   selection.value = previousSelection
   if (unused && unused.launch.dashboardSessionId !== previousSelection?.launch.dashboardSessionId) await unused.releaseSession()
-  await router.replace(previousSelection ? dashboardLocation(previousSelection.launch.installationId, previousSelection.route) : props.returnLocation ?? '/market')
+  await router.replace(previousSelection ? dashboardLocation(previousSelection.context.appId, previousSelection.route) : props.returnLocation ?? '/market')
 }
 function ready() { previousSelection = selection.value; state.value = 'ready' }
 function dashboardError(code: string) { if (!workspaceId.value) showError(code) }
 async function prepareNavigation(to: RouteLocationNormalized) {
-  const staysInAppCenter = to.path === '/market' || to.name === 'app-dashboard' || to.name === 'app-instance'
+  const staysInAppCenter = to.path === '/market' || to.name === 'app-dashboard' || to.name === 'app-dashboard-legacy' || to.name === 'app-instance'
   if (!staysInAppCenter && !await (host.value?.prepareLeave() ?? true)) return false
   if (workspaceId.value && to.params.workspaceSessionId !== workspaceId.value) return await instanceHost.value?.prepareClose() ?? true
   return true
@@ -200,7 +201,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
       <div v-if="workspaceId || (navigationChild && !ownsBreadcrumb)" class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
-        <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(installationId)).href" @click.prevent="router.push(dashboardLocation(installationId))">{{ title }}</a>
+        <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(selection?.context.appId || workspaceAppId || installationId)).href" @click.prevent="router.push(dashboardLocation(selection?.context.appId || workspaceAppId || installationId))">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
         <template v-if="!workspaceId && navigationChild"><span aria-hidden="true" class="breadcrumb-sep"> / </span><span class="breadcrumb-current" aria-current="page">{{ navigationChild.title }}</span></template>
         <template v-if="workspaceId && workspaceInstanceName">

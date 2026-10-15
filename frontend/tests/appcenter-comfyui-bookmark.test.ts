@@ -30,10 +30,10 @@ test('historical management and exact instance bookmarks remain separate from le
 
 test('management bookmark uses current authorized installation and its existing Dashboard', () => {
   assert.equal(comfyuiManagementCard(view), card)
-  assert.deepEqual(comfyuiManagementLocation(card), { path: `/apps/${installationId}/dashboard`, query: {} })
+  assert.deepEqual(comfyuiManagementLocation(card), { path: '/apps/comfyui/', query: {} })
   const newId = '01980000-0000-7000-8000-000000000002'
   const current = { ...card, installation: { ...card.installation!, installationId: newId } }
-  assert.equal(comfyuiManagementLocation(comfyuiManagementCard({ ...view, items: [current] })).path, `/apps/${newId}/dashboard`)
+  assert.equal(comfyuiManagementLocation(comfyuiManagementCard({ ...view, items: [current] })).path, '/apps/comfyui/')
   assert.throws(() => comfyuiManagementCard({ ...view, items: [card, current] }), /LEGACY_ENTRY_AMBIGUOUS/)
   assert.throws(() => comfyuiManagementCard({ ...view, items: [] }), /APPCENTER_OPEN_UNAVAILABLE/)
   for (const change of [{ installation: null }, { installation: { ...card.installation!, state: 'removed' } },

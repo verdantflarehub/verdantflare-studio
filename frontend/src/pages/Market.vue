@@ -14,8 +14,8 @@ import '../theme/comfyui-management.css'
 
 let dispose: (() => void) | undefined
 const route = useRoute(), router = useRouter()
-const dashboardActive = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
-const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
+const dashboardActive = computed(() => route.name === 'app-dashboard' || route.name === 'app-dashboard-legacy' || route.name === 'app-instance')
+const installationId = computed(() => typeof route.params.appId === 'string' ? route.params.appId : typeof route.params.installationId === 'string' ? route.params.installationId : '')
 const titles = ref<Record<string, string>>({})
 const detailAppId = ref('')
 const navigation = useNavigationStore()

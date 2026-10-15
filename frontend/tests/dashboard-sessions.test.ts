@@ -75,15 +75,15 @@ test('simultaneous view and cache disposal share one close request', async () =>
 })
 
 test('generic dashboard route encodes one host query layer and rejects arbitrary targets', () => {
-  const target = dashboardLocation(installation, '/instances?filter=running')
+  const target = dashboardLocation('music-mcp', '/instances?filter=running')
   const query = new URLSearchParams(target.query)
   assert.equal(dashboardRoutePath(new URLSearchParams(query.toString()).get('path')), '/instances?filter=running')
-  assert.equal(target.path, `/apps/${installation}/dashboard`)
+  assert.equal(target.path, '/apps/music-mcp/')
   assert.equal(dashboardRoutePath(undefined), '/')
   for (const input of [['/one', '/two'], null, 'https://other.invalid', '//other.invalid', '/%2e%2e/private', '/%252fprivate']) {
     assert.throws(() => dashboardRoutePath(input))
   }
-  assert.throws(() => dashboardLocation('comfyui'))
+  assert.throws(() => dashboardLocation('Invalid_App'))
 })
 
 test('a late inspection cannot restore a closed session', async () => {

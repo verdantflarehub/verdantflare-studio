@@ -18,7 +18,7 @@ import AppCommandRecovery from './AppCommandRecovery.vue'
 import LegacyWorkspace from './LegacyWorkspace.vue'
 import ComfyUIBookmarkWorkspace from './ComfyUIBookmarkWorkspace.vue'
 import { comfyuiBookmark } from './comfyui-bookmark'
-import { createLegacyClient, legacyLocation, legacyTarget } from './legacy'
+import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
@@ -44,28 +44,33 @@ async function confirmCommand() {
 async function refreshPage() { if (!host.connected) await host.init(); else await store.refresh(true) }
 const selectedKey = computed(() => typeof route.query.card === 'string' ? route.query.card : '')
 const selected = computed(() => store.state.value?.items.find(card => card.cardKey === selectedKey.value))
-const businessRoute = computed(() => route.name === 'app-dashboard' || route.name === 'app-instance')
 const legacy = computed(() => {
   try { return { target: legacyTarget(route.fullPath), comfyui: comfyuiBookmark(route.fullPath), error: '' } }
   catch (error) { return { target: null, comfyui: null, error: error instanceof Error ? error.message : 'INVALID_LEGACY_ROUTE' } }
 })
-const installationId = computed(() => typeof route.params.installationId === 'string' ? route.params.installationId : '')
+const businessRoute = computed(() => ['app-dashboard', 'app-dashboard-legacy', 'app-instance'].includes(String(route.name)) && !legacy.value.target && !legacy.value.error)
+const installationId = computed(() => typeof route.params.appId === 'string' ? route.params.appId : typeof route.params.installationId === 'string' ? route.params.installationId : '')
 const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
 const dashboardClient = createDashboardWebClient(location.origin)
 const legacyClient = createLegacyClient()
-async function authorizeDashboard(id: string, signal: AbortSignal) {
+async function authorizeDashboard(target: string, signal: AbortSignal): Promise<string> {
   await store.refresh()
   if (signal.aborted) throw new Error('REQUEST_CANCELLED')
-  const card = store.state.value?.items.find(item => item.installation?.installationId === id)
+  const matches = (store.state.value?.items ?? []).filter(item =>
+    item.installation?.installationId === target || (item.appId === target && item.installation?.state === 'installed')
+  )
+  if (matches.length !== 1) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  const card = matches[0]
   const action = card?.actions.find(item => item.kind === 'open')
-  if (!card || !action || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  if (!card?.installation || !action || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  return card.installation.installationId
 }
 async function openDashboard(id: string, signal?: AbortSignal) {
-  const view = store.state.value, card = view?.items.find(item => item.installation?.installationId === id)
+  const view = store.state.value, card = view?.items.find(item => item.installation?.installationId === id || (item.appId === id && item.installation?.state === 'installed'))
   const action = card?.actions.find(item => item.kind === 'open')
-  if (!view || !card || !action?.entryId || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
+  if (!view || !card?.installation || !action?.entryId || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
   const opened = await dashboardClient.openAppCenter({ schemaVersion: 1, cardKey: card.cardKey, entryId: action.entryId,
-    expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }, id, signal)
+    expectedViewRevision: view.revision, expectedBindingRevision: card.bindingRevision }, card.installation.installationId, signal)
   const current = store.state.value
   if (signal?.aborted || !current || JSON.stringify(current.scope) !== JSON.stringify(view.scope)
     || opened.context.contextRevision !== view.scope.authorizationEpoch || opened.context.userId !== view.scope.userId
@@ -161,7 +166,7 @@ async function perform(card: AppCenterCard, actionId: string) {
   }
   if (action.kind === 'open' && card.entry?.transport === 'dashboard' && card.installation) {
     store.pinOpen(card.installation.installationId, card.bindingRevision)
-    const failed = await router.push(dashboardLocation(card.installation.installationId))
+    const failed = await router.push(dashboardLocation(card.appId))
     if (failed) store.takeOpenBinding(card.installation.installationId)
     return
   }
@@ -173,8 +178,9 @@ async function perform(card: AppCenterCard, actionId: string) {
       const result = await legacyClient.open(view, card, AbortSignal.timeout(30000))
       opened = result
       if (!store.state.value || JSON.stringify(store.state.value.scope) !== JSON.stringify(view.scope) || !store.canExecute(card.cardKey, action.id, card.bindingRevision)) throw new Error('APPCENTER_BINDING_CHANGED')
-      store.pinOpen(card.cardKey, card.bindingRevision, opened)
-      const failed = await router.push(legacyLocation(opened, card.cardKey))
+      store.pinOpen(card.cardKey, card.bindingRevision, result)
+      const sameAdapterCount = view.items.filter(c => c.entry?.transport === 'legacy' && c.entry.entryId === result.adapterId).length
+      const failed = await router.push(legacyAppLocation(result, sameAdapterCount > 1 ? card.cardKey : undefined))
       if (failed) store.takeOpenBinding(card.cardKey)
       else adopted = true
     } catch (error) {

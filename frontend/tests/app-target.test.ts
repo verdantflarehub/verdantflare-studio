@@ -6,7 +6,7 @@ import type { NavigationEnvelope } from '../src/navigation/controller'
 test('cross-app navigation accepts product and path only and resolves an unpinned authorized install', () => {
   const target = decodeAppTarget({ appId: 'project', path: '/projects?revision=fixed' })
   const navigation = { mode: 'preinstalled', projection: { entries: [{ appId: 'project', installationId: '01980000-0000-7000-8000-000000000001', pinned: false }] } } as NavigationEnvelope
-  assert.deepEqual(appTargetLocation(target, navigation), { path: '/apps/01980000-0000-7000-8000-000000000001/dashboard', query: { path: target.path } })
+  assert.deepEqual(appTargetLocation(target, navigation), { path: '/apps/project/', query: { path: target.path } })
   for (const value of [{ appId: 'project', path: '//evil.invalid' }, { appId: 'project', path: '/', installationId: 'spoof' }, { appId: 'project', path: '/%2e%2e/other' }]) assert.throws(() => decodeAppTarget(value))
   assert.throws(() => appTargetLocation({ appId: 'missing', path: '/' }, navigation))
   assert.throws(() => appTargetLocation(target, { ...navigation, mode: 'legacy' }))

@@ -76,6 +76,10 @@ test('finite legacy bookmarks preserve explicit card context and reject mixed ro
     assert.equal(legacyTarget(withCard)?.cardKey, key)
     assert.equal(legacyTarget(withCard)?.route, route)
   }
+  assert.equal(legacyTarget('/apps/image-mcp/')?.adapterId, 'image-iframe-v1')
+  assert.equal(legacyTarget('/apps/video-mcp/?video=%2Fdashboard%2Ftasks%2Fsample')?.adapterId, 'video-iframe-v1')
+  assert.equal(legacyTarget('/apps/blender/?blender=blender123&panel=overview')?.adapterId, 'blender-host-v1')
+  assert.equal(legacyTarget('/apps/music-mcp/'), null)
   assert.equal(legacyTarget('/apps/installation/dashboard?path=/'), null)
   assert.equal(legacyTarget('/market?card=sample'), null)
   for (const route of ['/market?image=%2Fdashboard&video=%2Fdashboard', '/market?image=%2Fdashboard&image=%2Fdashboard',

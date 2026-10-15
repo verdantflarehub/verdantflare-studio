@@ -11,9 +11,36 @@ const mediaPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|m
 export const videoPath = /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp|create|higgsfield|higgsfield-task-[a-zA-Z0-9_-]+))?$/
 const invalid = (): never => { throw new AppCenterError(400, 'INVALID_LEGACY_ROUTE') }
 
-/** Historical query names live only in this finite compatibility adapter. */
+const legacyAppRoutes: Record<string, { key: 'image' | 'video' | 'blender'; defaultValue: string }> = {
+  'image-mcp': { key: 'image', defaultValue: '/dashboard#tasks' },
+  'image-mcp-server': { key: 'image', defaultValue: '/dashboard#tasks' },
+  'video-mcp': { key: 'video', defaultValue: '/dashboard#tasks' },
+  'video-mcp-server': { key: 'video', defaultValue: '/dashboard#tasks' },
+  'blender': { key: 'blender', defaultValue: 'instances' },
+}
+
+/** Historical query names and unified /apps/:appId/ routes live in this finite compatibility adapter. */
 export function legacyTarget(route: string): LegacyTarget | null {
-  if (route.split(/[?#]/)[0] !== '/market') return null
+  const rawPath = route.split(/[?#]/)[0]
+  const appMatch = /^\/apps\/([a-z0-9][a-z0-9-]{0,63})\/?$/.exec(rawPath)
+  if (appMatch) {
+    const legacyApp = legacyAppRoutes[appMatch[1]]
+    if (!legacyApp) return null
+    if (route.length > 2048 || /[\\\u0000-\u001f\u007f]/.test(route) || route.includes('#')) return invalid()
+    const u = new URL(route, 'https://studio.invalid')
+    if (u.origin !== 'https://studio.invalid') return invalid()
+    const q = u.searchParams
+    if (!q.has(legacyApp.key)) {
+      const pathParam = q.get('path')
+      if (pathParam !== null && (legacyApp.key === 'image' || legacyApp.key === 'video')) {
+        q.delete('path')
+        q.set(legacyApp.key, pathParam)
+      } else {
+        q.set(legacyApp.key, legacyApp.defaultValue)
+      }
+    }
+    route = '/market?' + q.toString()
+  } else if (rawPath !== '/market') return null
   if (route.length > 2048 || /[\\\u0000-\u001f\u007f]/.test(route)) return invalid()
   const u = new URL(route, 'https://studio.invalid')
   if (u.origin !== 'https://studio.invalid' || u.pathname !== '/market') return invalid()
@@ -45,6 +72,20 @@ export function legacyLocation(opened: Pick<LegacyOpened, 'adapterId' | 'route'>
   const target = legacyTarget(opened.route)
   if (!target || target.adapterId !== opened.adapterId || !id.test(cardKey)) return invalid()
   return target.route + '&legacyCard=' + encodeURIComponent(cardKey)
+}
+
+export function legacyAppLocation(opened: Pick<LegacyOpened, 'adapterId' | 'route'>, cardKey?: string): string {
+  const target = legacyTarget(opened.route)
+  if (!target || target.adapterId !== opened.adapterId || (cardKey !== undefined && !id.test(cardKey))) return invalid()
+  const u = new URL(target.route, 'https://studio.invalid')
+  const q = u.searchParams
+  const appSlug = opened.adapterId === 'image-iframe-v1' ? 'image-mcp' : opened.adapterId === 'video-iframe-v1' ? 'video-mcp' : 'blender'
+  if (opened.adapterId === 'image-iframe-v1' && q.get('image') === '/dashboard#tasks') q.delete('image')
+  else if (opened.adapterId === 'video-iframe-v1' && q.get('video') === '/dashboard#tasks') q.delete('video')
+  else if (opened.adapterId === 'blender-host-v1' && q.get('blender') === 'instances' && q.size === 1) q.delete('blender')
+  if (cardKey) q.set('legacyCard', cardKey)
+  const qs = q.toString()
+  return `/apps/${appSlug}/` + (qs ? '?' + qs : '')
 }
 
 export function selectLegacyCard(view: AppCenterView, target: LegacyTarget): AppCenterCard {

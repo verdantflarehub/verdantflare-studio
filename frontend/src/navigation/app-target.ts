@@ -15,7 +15,7 @@ export function appTargetLocation(target: AppTarget, navigation: NavigationEnvel
   if (navigation.mode !== 'preinstalled') throw new Error('APP_NAVIGATION_UNAVAILABLE')
   const entries = navigation.projection.entries.filter(entry => entry.appId === target.appId)
   if (entries.length !== 1) throw new Error('APP_NAVIGATION_UNAVAILABLE')
-  return dashboardLocation(entries[0].installationId, target.path)
+  return dashboardLocation(entries[0].appId, target.path)
 }
 
 /** Only compatibility bookmarks are product-specific; Dashboard loading stays generic. */

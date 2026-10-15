@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import type { RouteLocationRaw } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
 import { useAppCenterStore } from './store'
-import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } from './legacy'
+import { createLegacyClient, legacyAppLocation, legacyTarget, selectLegacyCard } from './legacy'
 import type { LegacyOpened, LegacyTarget } from './legacy'
 import type { AppCenterCard } from './schema.generated'
 import { reasonLabel } from './labels'
@@ -22,12 +22,12 @@ const video = computed(() => props.target?.adapterId === 'video-iframe-v1' ? vid
 const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP', create: '新建视频', higgsfield: 'Higgsfield 任务' })[video.value?.section as 'tasks' | 'models' | 'mcp' | 'create' | 'higgsfield'] || '任务')
 const higgsfieldLocation = computed(() => {
   const card = store.state.value?.items.find(item => item.appId === 'higgsfield')
-  return video.value && card?.installation?.installationId ? dashboardLocation(card.installation.installationId) : null
+  return video.value && card?.installation?.installationId ? dashboardLocation(card.appId) : null
 })
 const currentTaskLabel = computed(() => error.value ? '任务不可用' : taskLabel.value && taskLabel.value.route === props.target?.route ? taskLabel.value.label : '加载中')
 const videoTasksRoute = computed(() => {
-  const cardKey = props.target?.cardKey || selection.value?.card.cardKey
-  return videoTasksLocation(cardKey)
+  const cardKey = props.target?.cardKey
+  return cardKey ? videoTasksLocation(cardKey) : '/apps/video-mcp/'
 })
 function setTaskLabel(value: { route: string; label: string }) { if (value.route === props.target?.route) taskLabel.value = value }
 let generation = 0, pending: AbortController | undefined
@@ -67,7 +67,8 @@ async function navigate(route: string) {
     if (!next || next.adapterId !== selected.opened.adapterId) throw new Error('INVALID_LEGACY_ROUTE')
     await authorize()
     store.pinOpen(selected.card.cardKey, selected.card.bindingRevision)
-    const failed = await router.push(legacyLocation({ ...selected.opened, route: next.route }, selected.card.cardKey))
+    const sameAdapterCount = (store.state.value?.items ?? []).filter(c => c.entry?.transport === 'legacy' && c.entry.entryId === selected.opened.adapterId).length
+    const failed = await router.push(legacyAppLocation({ ...selected.opened, route: next.route }, sameAdapterCount > 1 ? selected.card.cardKey : undefined))
     if (failed) store.takeOpenBinding(selected.card.cardKey)
   } catch (e) { fail(e) }
 }

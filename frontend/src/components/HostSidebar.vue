@@ -29,8 +29,8 @@ const directoryMenus = [{ view: 'installed', label: '我的应用' }, { view: 'a
 const directoryCounts = computed(() => selectCards(appcenter?.state.value ?? null, '', 'all', 'all', !appcenter?.state.stale).counts)
 watch(() => expanded.value.has('directory'), value => appcenter?.setVisible('directory-menu', value), { immediate: true })
 const appPath = computed(() => typeof route.query.path === 'string' ? route.query.path : '/')
-const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-instance'].includes(String(route.name)) && route.params.installationId === entry.installationId
-const childSelected = (entry: NavigationEntry, path: string) => route.name === 'app-dashboard' && entrySelected(entry) && selectedNavigationChild(entry.children, appPath.value)?.route === path
+const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-dashboard-legacy', 'app-instance'].includes(String(route.name)) && (route.params.appId === entry.appId || route.params.installationId === entry.installationId)
+const childSelected = (entry: NavigationEntry, path: string) => ['app-dashboard', 'app-dashboard-legacy'].includes(String(route.name)) && entrySelected(entry) && selectedNavigationChild(entry.children, appPath.value)?.route === path
 let expandedForRoute = ''
 watch(() => [route.fullPath, navigation.pinned] as const, () => {
   const keys = new Set(['directory', ...navigation.pinned.map(branchKey)])
@@ -42,7 +42,7 @@ watch(() => [route.fullPath, navigation.pinned] as const, () => {
   expandedForRoute = signature
   expanded.value = next
 }, { immediate: true })
-const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.installationId, path)
+const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.appId, path)
 function entryReason(entry: NavigationEntry) { return appcenter ? reasonLabel('openReason' in entry ? entry.openReason as string : null) : entry.availability === 'offline' ? '应用离线' : '应用状态待确认' }
 const feedback = ref('')
 async function openEntry(entry: NavigationEntry, target = entry.route) {

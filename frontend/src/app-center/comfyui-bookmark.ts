@@ -34,7 +34,7 @@ export function comfyuiManagementCard(view: AppCenterView): AppCenterCard {
 
 export function comfyuiManagementLocation(card: AppCenterCard) {
   if (!card.installation) return fail('APPCENTER_OPEN_UNAVAILABLE')
-  return dashboardLocation(card.installation.installationId)
+  return dashboardLocation(card.appId)
 }
 
 /** The old directory owns old aliases; a new manager installation is irrelevant. */
