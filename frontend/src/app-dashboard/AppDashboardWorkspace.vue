@@ -14,6 +14,9 @@ import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
 import { useNavigationStore } from '../platform/navigationStore'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
+import { nativeTaskLocation, nativeTaskTarget } from '../navigation/native-task-target'
+import { createAppCenterTransport } from '../app-center/transport'
+import { decodeView } from '../app-center/controller'
 import { createFileAccess } from './files'
 
 const props = defineProps<{
@@ -94,10 +97,22 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       const target = decodeAppTarget(input)
       const current = await client!.inspect(id, opened.launch.installationId, signal)
       if (!current.launch.grantedCapabilities.includes(name)) throw new Error('CAPABILITY_DENIED')
-      const navigation = decodeNavigation(await createNavigationTransport().read(signal), current.context)
+      let destination: RouteLocationRaw
+      if (nativeTaskTarget(target)) {
+        const transport = createAppCenterTransport(), raw = await transport.read(signal)
+        const clock = transport.clock?.(raw)
+        if (!clock) throw new Error('APPCENTER_VIEW_EXPIRED')
+        const view = decodeView(raw, current.context, clock())
+        destination = nativeTaskLocation(target, view, clock(), current.context.contextRevision)
+      } else {
+        const navigation = decodeNavigation(await createNavigationTransport().read(signal), current.context)
+        if (navigation.projection.scope.authorizationEpoch !== current.context.contextRevision) throw new Error('CONTEXT_CHANGED')
+        destination = appTargetLocation(target, navigation)
+      }
       if (signal.aborted) throw new Error('REQUEST_CANCELLED')
-      if (navigation.projection.scope.authorizationEpoch !== current.context.contextRevision) throw new Error('CONTEXT_CHANGED')
-      const failed = await router.push(appTargetLocation(target, navigation))
+      const authorized = await client!.inspect(id, opened.launch.installationId, signal)
+      if (authorized.context.contextRevision !== current.context.contextRevision || !authorized.launch.grantedCapabilities.includes(name)) throw new Error('CONTEXT_CHANGED')
+      const failed = await router.push(destination)
       if (failed) throw new Error('NAVIGATION_CANCELLED')
       return null
     },
