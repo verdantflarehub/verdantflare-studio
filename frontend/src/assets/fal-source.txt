@@ -1,0 +1,3 @@
+fal.ai official favicon: https://fal.ai/favicon.ico
+Retrieved 2026-10-15. Converted to PNG without modifying the mark.
+Source SHA-256: 9dd1f90468064e89400d0d1c96cbaef52547ed38fefb6ac6cfe5c895ea1461ab
