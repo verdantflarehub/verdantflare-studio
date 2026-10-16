@@ -20,6 +20,17 @@ const error = ref(''), loading = ref(false), retry = ref(0)
 const taskLabel = ref<{ route: string; label: string } | null>(null)
 const video = computed(() => props.target?.adapterId === 'video-iframe-v1' ? videoPage(props.target.route) : null)
 const videoSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP', create: '新建视频', higgsfield: 'Higgsfield 任务' })[video.value?.section as 'tasks' | 'models' | 'mcp' | 'create' | 'higgsfield'] || '任务')
+const image = computed(() => {
+  if (props.target?.adapterId !== 'image-iframe-v1') return null
+  const path = new URL(props.target.route, 'https://studio.invalid').searchParams.get('image') ?? ''
+  const task = /^\/dashboard\/tasks\/([a-zA-Z0-9_-]+)(?:#(?:tasks|models|mcp))?$/.exec(path)
+  return { path, taskId: task?.[1] ?? '', section: task ? 'tasks' : path.split('#')[1] || 'tasks' }
+})
+const imageSection = computed(() => ({ tasks: '任务', models: '模型', mcp: 'MCP' })[image.value?.section as 'tasks' | 'models' | 'mcp'] || '任务')
+const imageTasksRoute = computed(() => {
+  const cardKey = props.target?.cardKey
+  return '/market?image=' + encodeURIComponent('/dashboard#tasks') + (cardKey ? '&legacyCard=' + encodeURIComponent(cardKey) : '')
+})
 const higgsfieldLocation = computed(() => {
   const card = store.state.value?.items.find(item => item.appId === 'higgsfield')
   return video.value && card?.installation?.installationId ? dashboardLocation(card.appId) : null
@@ -142,6 +153,16 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
           <span class="breadcrumb-current" aria-current="page" :title="currentTaskLabel">{{ currentTaskLabel }}</span>
         </template>
         <span v-else class="breadcrumb-current" aria-current="page">{{ videoSection }}</span>
+      </template>
+      <template v-else-if="image">
+        <a :href="router.resolve(imageTasksRoute).href" @click.prevent="navigate(imageTasksRoute)">{{ selection?.card.display.name || 'Image MCP' }}</a>
+        <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+        <template v-if="image.taskId">
+          <a :href="router.resolve(imageTasksRoute).href" @click.prevent="navigate(imageTasksRoute)">任务</a>
+          <span class="breadcrumb-sep" aria-hidden="true"> / </span>
+          <span class="breadcrumb-current" aria-current="page">{{ image.taskId }}</span>
+        </template>
+        <span v-else class="breadcrumb-current" aria-current="page">{{ imageSection }}</span>
       </template>
       <template v-else-if="selection">
         <span class="breadcrumb-current" aria-current="page">{{ selection.card.display.name }}</span>

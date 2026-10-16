@@ -10,7 +10,7 @@ export function mountVideo({listen, api, notice, login}) {
   return /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(params.get('video')||'')?params.get('video'):null;
  }
  function breadcrumbs(path){
-  const items=[['应用市场','#/market'],['Video MCP','#/market?video='+encodeURIComponent('/dashboard#tasks')]];
+  const items=[['Video MCP','#/market?video='+encodeURIComponent('/dashboard#tasks')]];
   if(path.startsWith('/dashboard/tasks/'))items.push(['任务','#/market?video='+encodeURIComponent('/dashboard#tasks')],['任务详情',null]);
   else items.push([{tasks:'任务',models:'模型',mcp:'MCP'}[path.split('#')[1]]||'任务',null]);
   const list=document.getElementById('videoBreadcrumb');if(list){list.replaceChildren();

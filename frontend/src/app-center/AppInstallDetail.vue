@@ -63,7 +63,7 @@ const origins: Record<string, string> = { installation: '安装记录', observat
 .appcenter-detail { display: grid; gap: 20px; }
 .detail-breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; }
 .detail-breadcrumb button { border: 0; padding: 0; background: none; color: inherit; cursor: pointer; }
-.detail-summary, .detail-section { padding: 24px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.detail-summary, .detail-section { padding: 24px; min-width: 0; background: var(--panel); border: 0.5px solid var(--vf-hairline-outer); box-shadow: inset 0 0 0 0.5px var(--vf-hairline-inner), var(--vf-shadow-card); border-radius: 12px; }
 .detail-title { display: flex; align-items: center; gap: 14px; }
 .detail-title h2 { margin: 0; font-size: 22px; }
 .detail-title p { margin: 5px 0 0; font-size: 12px; }
@@ -76,9 +76,9 @@ const origins: Record<string, string> = { installation: '安装记录', observat
 .detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .detail-section h3 { font-size: 16px; margin: 0 0 20px; }
 dl { display: grid; grid-template-columns: minmax(100px, .5fr) 1fr; gap: 14px 20px; font-size: 13px; margin: 0; }
-dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; } dd small { display: block; margin-top: 5px; color: var(--muted); }
+dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; } dd small { display: block; margin-top: 5px; color: var(--muted); }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
-.detail-tags li { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; max-width: 100%; }
+.detail-tags li { padding: 6px 10px; border: 0.5px solid var(--vf-hairline-outer); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; max-width: 100%; font-variant-numeric: tabular-nums; }
 .detail-note { font-size: 12px; line-height: 1.6; margin-top: 18px; }
 .detail-back { justify-self: start; }
 @media (max-width: 900px) { .detail-columns { grid-template-columns: 1fr; } }

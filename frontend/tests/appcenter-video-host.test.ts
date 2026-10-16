@@ -3,7 +3,8 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
-import { videoPage, videoTaskLabel } from '../src/app-center/legacy-video-navigation.ts'
+import { videoPath } from '../src/app-center/legacy.ts'
+import { videoPage, videoTaskLabel, videoTaskName } from '../src/app-center/legacy-video-navigation.ts'
 
 const source = readFileSync(new URL('../src/app-center/LegacyMediaHost.vue', import.meta.url), 'utf8').split('<script setup lang="ts">')[1].split('</script>')[0].replace(/^import .*$/gm, '')
 const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText
@@ -19,7 +20,7 @@ function host(fetcher: typeof fetch = async () => Response.json({})) {
   const doc = { body: { dataset: { theme: 'light' } }, documentElement: { scrollHeight: 5000 } }
   const deps = { defineProps: () => props, defineEmits: () => (name: string, data: any) => events.push([name, data]),
     ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: (fn: () => void) => { mount = fn }, onBeforeUnmount: (fn: () => void) => { dispose = fn },
-    mediaAdapter, validMediaRequest, videoPage, videoTaskLabel, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
+    mediaAdapter, validMediaRequest, videoPath, videoPage, videoTaskLabel, videoTaskName, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
     window: win, document: doc, location: { origin: 'https://studio.invalid' }, innerHeight: 1000, fetch: fetcher,
     MutationObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame: (fn: FrameRequestCallback) => { callbacks.set(++next, fn); return next }, cancelAnimationFrame: (id: number) => callbacks.delete(id) }

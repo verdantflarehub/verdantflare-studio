@@ -230,9 +230,19 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
       </template>
       <section v-else class="catalog-section">
-        <div class="appcenter-toolbar"><label class="search-box"><input v-model="query" type="search" aria-label="搜索应用、模型或能力" placeholder="搜索应用、模型或能力" /></label></div>
+        <div class="appcenter-toolbar"><label class="search-box"><input v-model="query" type="search" aria-label="搜索应用、模型或能力" placeholder="搜索应用、模型或能力" @keydown.enter="e => { if (e.isComposing || (e as KeyboardEvent).keyCode === 229) e.preventDefault() }" /></label></div>
         <div class="filters-bar"><button class="chip" :class="{ active: group === 'all' }" :aria-pressed="group === 'all'" @click="group = 'all'">全部</button><button v-for="item in groups" :key="item.id" class="chip" :class="{ active: group === item.id }" :aria-pressed="group === item.id" @click="group = item.id">{{ item.label }}</button><span class="result-count">{{ store.state.value ? `${result.items.length} 个应用` : '等待读取' }}</span></div>
-        <p v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="panel appcenter-message" role="status">正在读取应用信息…</p>
+        <div v-if="store.state.status === 'loading' || store.state.status === 'idle'" class="appcenter-loading-wrap">
+          <p class="panel appcenter-message" role="status">正在读取应用信息…</p>
+          <div class="vf-skeleton-grid" aria-hidden="true">
+            <div v-for="idx in 6" :key="idx" class="vf-skeleton-card">
+              <div style="display:flex;gap:13px;align-items:center"><div class="vf-shimmer-block"></div><div style="flex:1;display:grid;gap:8px"><div class="vf-shimmer-line medium"></div><div class="vf-shimmer-line short"></div></div></div>
+              <div class="vf-shimmer-line"></div>
+              <div class="vf-shimmer-line medium"></div>
+              <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:center"><div class="vf-shimmer-line short" style="width:32%"></div><div class="vf-shimmer-line short" style="width:24%;height:28px"></div></div>
+            </div>
+          </div>
+        </div>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
         <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
         <div v-else class="catalog-groups">

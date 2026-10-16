@@ -13,7 +13,7 @@ export function mountImage({ listen, api, notice, login }) {
   }
 
   function breadcrumbs(path) {
-    const items = [['应用市场', '#/market'], ['Image MCP', '#/market?image=' + encodeURIComponent('/dashboard#tasks')]];
+    const items = [['Image MCP', '#/market?image=' + encodeURIComponent('/dashboard#tasks')]];
     if (path.startsWith('/dashboard/tasks/')) items.push(['任务', '#/market?image=' + encodeURIComponent('/dashboard#tasks')], ['任务详情', null]);
     else items.push([{ tasks: '任务', models: '模型', mcp: 'MCP' }[path.split('#')[1]] || '任务', null]);
     const list = document.getElementById('imageBreadcrumb');

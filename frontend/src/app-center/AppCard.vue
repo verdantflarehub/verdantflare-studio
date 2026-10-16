@@ -72,7 +72,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
 .card-actions { position: relative; display: flex; align-items: stretch; gap: 0; }
 .card-actions:has(.menu-trigger) > .btn:first-child { border-radius: 10px 0 0 10px; }
 .menu-trigger { border-radius: 0 10px 10px 0; padding-inline: 10px; margin-left: -1px; }
-.management-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 180px; max-width: 260px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+.management-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 180px; max-width: 260px; padding: 6px; border: 0.5px solid var(--vf-hairline-outer); border-radius: 12px; background: var(--panel); box-shadow: inset 0 0 0 0.5px var(--vf-hairline-inner), var(--shadow); }
 .management-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
 .management-menu button:hover, .management-menu button:focus-visible { background: var(--subtle); }
 .management-menu button[aria-disabled="true"] { color: var(--muted); cursor: default; }
