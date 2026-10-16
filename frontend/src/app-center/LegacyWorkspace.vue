@@ -169,7 +169,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
         <p>{{ selection?.card.display.description }}</p>
       </div>
     </header>
-    <p v-if="loading" role="status">正在确认应用入口…</p>
+    <p v-if="loading && !selection" role="status">正在确认应用入口…</p>
     <div v-if="error" class="panel legacy-error" role="alert"><p>{{ reasonLabel(error) }}</p><button class="btn" @click="retry++">重试</button><button class="btn" @click="router.push(props.returnLocation ?? '/market')">返回应用中心</button></div>
     <template v-if="selection">
       <LegacyBlenderHost v-if="selection.opened.adapterId === 'blender-host-v1'" :key="selection.card.bindingRevision + (selection.opened.resourceBase ?? '')" :route="selection.route" :resource-base="selection.opened.resourceBase" :mcp-origin="selection.opened.mcpOrigin" :authorize="authorize" @navigate="navigate" />
