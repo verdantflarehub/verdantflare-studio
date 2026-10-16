@@ -35,7 +35,7 @@ func main() {
 	appCenter := application.NewAppCenter(s, os.Getenv("STUDIO_APPCENTER_PRESENTATION_REGISTRY")).WithDashboards(dashboards, os.Getenv("STUDIO_APPCENTER_DECLARATIONS_DIR")).WithPreinstalled(os.Getenv("STUDIO_PREINSTALLED_CONFIG"))
 	appCenter.WithLegacy(os.Getenv("STUDIO_APPCENTER_LEGACY_REGISTRY"), webServer.LegacyBackends(imageConfig, videoConfig))
 	webServer.EnableAppCenter(handler, appCenter)
-	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences()).WithAppCenter(appCenter)
+	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences(), webServer.NavigationKV()).WithAppCenter(appCenter)
 	defer navigation.Shutdown()
 	webServer.EnableNavigation(handler, navigation)
 	preinstalled := application.NewPreinstalled(s, os.Getenv("STUDIO_PREINSTALLED_CONFIG"), webServer.PreinstalledStore())
@@ -79,6 +79,7 @@ func main() {
 			if cli := gw.Client(); cli != nil {
 				log.Printf("[Session] Connected to etcd for persistent sessions")
 				webServer.SetEtcdClient(cli)
+				navigation.SyncCatalog(ctx)
 			}
 		}
 	}

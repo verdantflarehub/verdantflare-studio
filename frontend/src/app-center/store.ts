@@ -72,21 +72,32 @@ export const useAppCenterStore = defineStore('appcenter', () => {
       })
     } finally { if (readCycle === current) readCycle = null }
   }, schedule)
+  const navHintListeners = new Set<() => void>()
+  function onNavigationHint(listener: () => void) { navHintListeners.add(listener); return () => { navHintListeners.delete(listener) } }
   const calibration = createStateCalibration(
     () => visible() && host.connected ? sharedRefresh.refreshLatest() : Promise.resolve(),
-    !isDesktopHost() && typeof EventSource !== 'undefined' ? subscribeStateHints : undefined)
+    !isDesktopHost() && typeof EventSource !== 'undefined' ? notify => subscribeStateHints((rev?: string) => {
+      if (rev?.startsWith('nav:')) for (const listener of navHintListeners) listener()
+      notify()
+    }) : undefined)
   function syncCalibration() {
     const who = host.identity
     const scope = visible() && host.connected && who.user_id && who.organization_id && who.station_id
       ? JSON.stringify([who.user_id, who.organization_id, who.station_id, who.session_id, who.policy_version, who.revocation_version, who.roles, who.scopes]) : null
     calibration.activate(scope)
   }
+  function hasPageConsumer() {
+    for (const owner of consumers) {
+      if (owner !== 'navigation' && owner !== 'directory-menu') return true
+    }
+    return false
+  }
   function schedule() {
     clearTimeout(timer)
-    if (!visible() || !host.connected) return
+    if (!visible() || !host.connected || !hasPageConsumer()) return
     const until = state.value.value ? Date.parse(state.value.value.validUntil) - controller.currentTime() : 15000
-    const delay = state.value.status === 'ready' && !state.value.stale ? Math.max(100, Math.min(15000, until)) : 15000
-    timer = setTimeout(() => { controller.expire(); void refresh() }, delay)
+    const delay = state.value.status === 'ready' && !state.value.stale ? Math.max(5000, Math.min(15000, until)) : 15000
+    timer = setTimeout(() => { void refresh() }, delay)
   }
   function refresh(force = false): Promise<void> {
     forceOperations ||= force
@@ -102,6 +113,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     const wasVisible = visible()
     if (active) consumers.add(owner); else consumers.delete(owner)
     if (wasVisible !== visible()) changedVisibility()
+    else if (visible()) schedule()
   }
   function clear() { calibration.activate(null); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); progress.clear(null); openBindings.clear(); controller.clear() }
   watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
@@ -126,6 +138,6 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   document.addEventListener('visibilitychange', changedVisibility)
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
-  onScopeDispose(() => { calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
-  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
+  onScopeDispose(() => { navHintListeners.clear(); calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
+  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

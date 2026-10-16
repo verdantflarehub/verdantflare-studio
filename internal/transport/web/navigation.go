@@ -18,15 +18,19 @@ type NavigationService interface {
 	Patch(context.Context, string, application.NavigationPreferencePatch) application.Result
 }
 
-func (s *Server) NavigationPreferences() navigation.PreferenceStore {
-	return &navigation.EtcdPreferences{Client: func() clientv3.KV {
+func (s *Server) NavigationKV() func() clientv3.KV {
+	return func() clientv3.KV {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		if s.etcd == nil {
 			return nil
 		}
 		return s.etcd
-	}}
+	}
+}
+
+func (s *Server) NavigationPreferences() navigation.PreferenceStore {
+	return &navigation.EtcdPreferences{Client: s.NavigationKV()}
 }
 
 // EnableNavigation uses the same server-owned Cookie identity for browser and

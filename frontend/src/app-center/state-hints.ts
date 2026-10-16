@@ -1,5 +1,5 @@
 /** Notifications only ask for a read. Revision tokens are never ordered. */
-export function subscribeStateHints(notify: () => void, factory: () => EventSource = () => new EventSource('/studio/appcenter/v1/events')): () => void {
+export function subscribeStateHints(notify: (revision?: string) => void, factory: () => EventSource = () => new EventSource('/studio/appcenter/v1/events')): () => void {
   let stopped = false, current: EventSource | undefined, retry: ReturnType<typeof setTimeout> | undefined
   function connect() {
     if (stopped) return
@@ -16,7 +16,7 @@ export function subscribeStateHints(notify: () => void, factory: () => EventSour
           if (typeof event.data !== 'string' || event.data.length > 512) return failed()
           const value = JSON.parse(event.data)
           if (!value || typeof value !== 'object' || Object.keys(value).length !== 2 || value.schemaVersion !== 1 || typeof value.revision !== 'string' || !/^[A-Za-z0-9:._-]{0,128}$/.test(value.revision)) return failed()
-          notify()
+          notify(value.revision)
         } catch { failed() }
       })
       stream.onerror = failed

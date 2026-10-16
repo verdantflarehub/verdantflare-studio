@@ -12,6 +12,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 	"github.com/verdantflarehub/verdantflare-studio/internal/navigation"
 	"github.com/verdantflarehub/verdantflare-studio/internal/strictjson"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type Navigation struct {
@@ -22,9 +23,14 @@ type Navigation struct {
 	appCenter   *AppCenter
 }
 
-func NewNavigation(station *Station, registryPath, dashboardRegistryPath string, store navigation.PreferenceStore) *Navigation {
+func NewNavigation(station *Station, registryPath, dashboardRegistryPath string, store navigation.PreferenceStore, catalogKV ...func() clientv3.KV) *Navigation {
 	metadata := dashboard.NewRegisteredSource(dashboardRegistryPath, nil)
-	return &Navigation{station: station, source: &navigation.RegisteredSource{Path: registryPath, Artifacts: metadata.RegisteredArtifacts}, preferences: store, close: metadata.Close}
+	local := &navigation.RegisteredSource{Path: registryPath, Artifacts: metadata.RegisteredArtifacts}
+	var source navigation.Source = local
+	if len(catalogKV) > 0 && catalogKV[0] != nil {
+		source = &navigation.EtcdCatalogSource{Local: local, Artifacts: metadata.RegisteredArtifacts, Client: catalogKV[0]}
+	}
+	return &Navigation{station: station, source: source, preferences: store, close: metadata.Close}
 }
 
 // WithAppCenter binds the same authenticated projection as the directory.
@@ -32,6 +38,12 @@ func NewNavigation(station *Station, registryPath, dashboardRegistryPath string,
 func (n *Navigation) WithAppCenter(a *AppCenter) *Navigation {
 	n.appCenter = a
 	return n
+}
+
+func (n *Navigation) SyncCatalog(ctx context.Context) {
+	if n != nil && n.source != nil {
+		_, _ = n.source.Load(ctx)
+	}
 }
 
 func (n *Navigation) Shutdown() {

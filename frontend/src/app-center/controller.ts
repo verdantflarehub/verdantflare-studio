@@ -86,7 +86,7 @@ export function createAppCenterController(transport: AppCenterTransport, now = D
   async function refresh(): Promise<void> {
     if (!identity) return
     suspended = false
-    expire(); cancel()
+    cancel()
     const epoch = generation, expected = { ...identity }, controller = new AbortController()
     pending = controller
     const timer = setTimeout(() => controller.abort(), 10000)

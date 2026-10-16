@@ -11,7 +11,28 @@ export const useNavigationStore = defineStore('navigation', () => {
   const appcenter = import.meta.env.VITE_APPCENTER_MODE === 'unified' ? useAppCenterStore() : null
   controller.subscribe(next => { state.value = next })
   watch(() => state.value.value?.mode, mode => appcenter?.setVisible('navigation', mode === 'preinstalled'))
-  onScopeDispose(() => appcenter?.setVisible('navigation', false))
+  const stopNavHint = appcenter?.onNavigationHint(() => {
+    if (state.value.value?.mode === 'preinstalled') void controller.refresh()
+  })
+  let lastInstallSignature = ''
+  watch(() => {
+    const items = appcenter?.state.value?.items
+    if (!items) return ''
+    return items
+      .filter(card => card.installation?.state === 'installed')
+      .map(card => `${card.appId}@${card.installedVersion}:${card.installation?.installationId}`)
+      .sort()
+      .join('|')
+  }, sig => {
+    if (lastInstallSignature && sig && sig !== lastInstallSignature && state.value.value?.mode === 'preinstalled') {
+      void controller.refresh()
+    }
+    if (sig) lastInstallSignature = sig
+  })
+  onScopeDispose(() => {
+    stopNavHint?.()
+    appcenter?.setVisible('navigation', false)
+  })
   const entries = computed(() => {
     const value = state.value.value
     if (!value) return []

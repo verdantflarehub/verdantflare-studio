@@ -29,6 +29,14 @@ func (m *preferenceKV) Get(_ context.Context, key string, _ ...clientv3.OpOption
 	}
 	return out, nil
 }
+func (m *preferenceKV) Put(_ context.Context, key, val string, _ ...clientv3.OpOption) (*clientv3.PutResponse, error) {
+	if m.fail {
+		return nil, errors.New("unavailable")
+	}
+	m.revision++
+	m.data[key] = &mvccpb.KeyValue{Key: []byte(key), Value: []byte(val), ModRevision: m.revision}
+	return &clientv3.PutResponse{Header: &etcdserverpb.ResponseHeader{Revision: m.revision}}, nil
+}
 func (m *preferenceKV) Txn(context.Context) clientv3.Txn { return &preferenceTxn{kv: m} }
 
 type preferenceTxn struct {

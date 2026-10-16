@@ -57,6 +57,10 @@ func ValidPreferenceRevision(value string) bool {
 	return err == nil && n >= 0 && strconv.FormatInt(n, 10) == value
 }
 
+func PreferenceKey(scope Scope) string {
+	return preferenceKey(scope)
+}
+
 func preferenceKey(scope Scope) string {
 	data, _ := json.Marshal([]string{scope.UserID, scope.OrganizationID, scope.StationID})
 	return "/verdantflare/studio/navigation/preferences/" + sum(data)[7:]

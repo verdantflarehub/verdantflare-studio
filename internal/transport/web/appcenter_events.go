@@ -11,6 +11,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/appstatehints"
+	"github.com/verdantflarehub/verdantflare-studio/internal/navigation"
 )
 
 type appCenterEventAuthorizer interface {
@@ -23,7 +24,7 @@ func (s *Server) appCenterEvents(c *gin.Context, cookie, token string, authorize
 		c.Header("X-Request-ID", id)
 		c.JSON(status, gin.H{"code": code, "requestId": id})
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	initial, status := authorizer.AuthorizeEvents(ctx, token)
 	if status != 200 {
@@ -43,15 +44,27 @@ func (s *Server) appCenterEvents(c *gin.Context, cookie, token string, authorize
 	s.mu.Lock()
 	client, subscribe := s.etcd, s.appStateHints
 	s.mu.Unlock()
-	if subscribe == nil {
+	defaultSubscriber := subscribe == nil
+	if defaultSubscriber {
 		subscribe = func(ctx context.Context, scope appcenter.Scope) (<-chan appstatehints.RefreshEvent, error) {
-			return appstatehints.Subscribe(ctx, client, scope.StationID, scope.OrganizationID)
+			prefKey := navigation.PreferenceKey(navigation.Scope{
+				UserID:         scope.UserID,
+				OrganizationID: scope.OrganizationID,
+				StationID:      scope.StationID,
+			})
+			return appstatehints.SubscribeWithExtras(ctx, client, scope.StationID, scope.OrganizationID, navigation.CatalogEtcdKey, prefKey)
 		}
 	}
 	events, err := subscribe(ctx, initial)
 	if err != nil {
 		fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 		return
+	}
+	if defaultSubscriber {
+		select {
+		case <-events:
+		default:
+		}
 	}
 	controller := http.NewResponseController(c.Writer)
 	if controller.SetWriteDeadline(time.Now().Add(5*time.Second)) != nil {

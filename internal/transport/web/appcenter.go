@@ -81,7 +81,7 @@ func (s *Server) EnableAppCenter(r *gin.Engine, service AppCenterService) {
 			fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
 			return
 		}
-		if req.URL.Path == "/studio/appcenter/v1/events" {
+		if req.URL.Path == "/studio/appcenter/v1/events" || req.URL.Path == "/studio/navigation/events" {
 			authorizer, ok := service.(appCenterEventAuthorizer)
 			if !ok {
 				fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
@@ -110,6 +110,7 @@ func (s *Server) EnableAppCenter(r *gin.Engine, service AppCenterService) {
 	}
 	r.GET("/studio/appcenter/v1/view", handler)
 	r.GET("/studio/appcenter/v1/events", handler)
+	r.GET("/studio/navigation/events", handler)
 	r.POST("/studio/appcenter/v1/open", handler)
 	r.POST("/studio/appcenter/v1/commands/prepare", handler)
 	r.POST("/studio/appcenter/v1/commands", handler)

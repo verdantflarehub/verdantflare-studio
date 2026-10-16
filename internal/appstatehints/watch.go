@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +42,12 @@ func decode(raw []byte) RefreshEvent {
 // Subscribe establishes the Get/Watch barrier before requesting a fresh view.
 // The caller must cancel ctx; errors close the channel and require a new barrier.
 func Subscribe(ctx context.Context, client *clientv3.Client, station, organization string) (<-chan RefreshEvent, error) {
+	return SubscribeWithExtras(ctx, client, station, organization)
+}
+
+// SubscribeWithExtras watches the Station/Organization notification key as well
+// as optional exact etcd keys (such as navigation catalog and user preference keys).
+func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, organization string, extraKeys ...string) (<-chan RefreshEvent, error) {
 	key, err := Key(station, organization)
 	if err != nil || client == nil {
 		return nil, ErrUnavailable
@@ -52,19 +59,63 @@ func Subscribe(ctx context.Context, client *clientv3.Client, station, organizati
 		return nil, ErrUnavailable
 	}
 	watchCtx, stop := context.WithCancel(ctx)
-	watch := client.Watch(watchCtx, key, clientv3.WithRev(first.Header.Revision+1))
+	rev := first.Header.Revision + 1
+	watch := client.Watch(watchCtx, key, clientv3.WithRev(rev))
+	var extraWatches []clientv3.WatchChan
+	for _, extra := range extraKeys {
+		if extra != "" {
+			extraWatches = append(extraWatches, client.Watch(watchCtx, extra, clientv3.WithRev(rev)))
+		}
+	}
 	out := make(chan RefreshEvent, 1)
 	initial := RefreshEvent{SchemaVersion: 1}
 	if len(first.Kvs) == 1 {
 		initial = decode(first.Kvs[0].Value)
 	}
 	out <- initial
+	push := func(event RefreshEvent) bool {
+		select {
+		case <-out:
+		default:
+		}
+		select {
+		case out <- event:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+	for _, ew := range extraWatches {
+		ch := ew
+		go func() {
+			for {
+				select {
+				case <-watchCtx.Done():
+					return
+				case response, ok := <-ch:
+					if !ok || response.Canceled || response.Err() != nil {
+						stop()
+						return
+					}
+					for _, change := range response.Events {
+						event := RefreshEvent{SchemaVersion: 1}
+						if change.Kv != nil && change.Kv.ModRevision > 0 {
+							event.Revision = "nav:" + strconv.FormatInt(change.Kv.ModRevision, 10)
+						}
+						if !push(event) {
+							return
+						}
+					}
+				}
+			}
+		}()
+	}
 	go func() {
 		defer stop()
 		defer close(out)
 		for {
 			select {
-			case <-ctx.Done():
+			case <-watchCtx.Done():
 				return
 			case response, ok := <-watch:
 				if !ok || response.Canceled || response.Err() != nil {
@@ -75,14 +126,7 @@ func Subscribe(ctx context.Context, client *clientv3.Client, station, organizati
 					if change.Kv != nil && string(change.Kv.Key) == key && change.Type == clientv3.EventTypePut {
 						event = decode(change.Kv.Value)
 					}
-					// Only one pending hint is needed; no unbounded event queue.
-					select {
-					case <-out:
-					default:
-					}
-					select {
-					case out <- event:
-					case <-ctx.Done():
+					if !push(event) {
 						return
 					}
 				}

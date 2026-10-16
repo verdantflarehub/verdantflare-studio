@@ -8,7 +8,7 @@ export function appCenterNavigationEntries(navigation: NavigationEnvelope, state
   const view = state.value
   const sameScope = view && (['userId', 'organizationId', 'stationId', 'authorizationEpoch'] as const)
     .every(key => view.scope[key] === navigation.projection.scope[key])
-  const fresh = sameScope && !state.stale && state.status !== 'error'
+  const fresh = sameScope && state.status === 'ready'
   return navigation.projection.entries.map(entry => {
     const card = sameScope ? view.items.find(card => card.installation?.installationId === entry.installationId
       && card.appId === entry.appId && card.installedVersion === entry.appVersion) : undefined

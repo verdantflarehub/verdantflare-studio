@@ -173,12 +173,13 @@ test('menus use the shared snapshot while preserving title, pin and order', () =
   assert.equal(entry.bindingRevision, v.items[0].bindingRevision)
   assert.equal(entry.entryId, 'main', 'navigation entry is not the Dashboard entry')
   assert.equal(appCenterNavigationEntries(navigation, state, now + 86400000)[0].availability, 'ready', 'local clock does not invalidate server-authorized entries')
-  for (const scenario of ['failed', 'stale', 'scope', 'version', 'reinstalled', 'blocked', 'wrong-entry', 'wrong-transport', 'removed']) {
-    const next = structuredClone(state), nav = structuredClone(navigation)
+  assert.equal(appCenterNavigationEntries(navigation, { ...state, stale: true }, now)[0].availability, 'ready', 'background stale flag does not flash sidebar entries to unknown')
+  for (const scenario of ['failed', 'suspended', 'scope', 'version', 'reinstalled', 'blocked', 'wrong-entry', 'wrong-transport', 'removed']) {
+    const next = structuredClone(state) as any, nav = structuredClone(navigation)
     let at = now
     switch (scenario) {
-      case 'failed': next.stale = true; next.error = 'SOURCE_UNAVAILABLE'; break
-      case 'stale': next.stale = true; break
+      case 'failed': next.status = 'error'; next.stale = true; next.error = 'SOURCE_UNAVAILABLE'; break
+      case 'suspended': next.status = 'idle'; next.stale = true; break
       case 'scope': next.value.scope.authorizationEpoch = 'changed'; break
       case 'version': next.value.items[0].installedVersion = '1.1.0'; break
       case 'reinstalled': next.value.items[0].installation!.installationId = id(9); break

@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 func sourceFixture(t *testing.T) (*RegisteredSource, registry, []byte) {
@@ -110,5 +113,28 @@ func TestRegisteredNavigationRejectsUnboundAndUnsafeMetadata(t *testing.T) {
 				t.Fatal("unsafe metadata accepted")
 			}
 		})
+	}
+}
+
+func TestEtcdCatalogSourceSyncsAndReadsVerifiedSnapshot(t *testing.T) {
+	s, _, _ := sourceFixture(t)
+	kv := &preferenceKV{data: map[string]*mvccpb.KeyValue{}}
+	etcdSource := &EtcdCatalogSource{
+		Local:     s,
+		Artifacts: s.Artifacts,
+		Client:    func() clientv3.KV { return kv },
+	}
+	cat, err := etcdSource.Load(context.Background())
+	if err != nil || len(cat.Releases) != 1 || kv.data[CatalogEtcdKey] == nil {
+		t.Fatal("failed to sync catalog to etcd", err)
+	}
+	second := &EtcdCatalogSource{
+		Local:     s,
+		Artifacts: s.Artifacts,
+		Client:    func() clientv3.KV { return kv },
+	}
+	cat2, err := second.Load(context.Background())
+	if err != nil || len(cat2.Releases) != 1 || !cat2.Releases["sample@1.0.0"].Trusted {
+		t.Fatal("failed to read catalog from etcd", err)
 	}
 }

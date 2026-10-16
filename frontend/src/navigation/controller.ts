@@ -138,11 +138,20 @@ export function createNavigationController(transport: NavigationTransport) {
     const revision = generation, expected = { ...identity }, controller = new AbortController()
     pending = controller
     const timer = setTimeout(() => controller.abort(), 10000)
-    publish({ ...state, status: state.value ? 'ready' : 'loading', error: '' })
+    const nextStatus = state.value ? 'ready' : 'loading'
+    if (state.status !== nextStatus || state.error !== '') {
+      publish({ ...state, status: nextStatus, error: '' })
+    }
     try {
       const value = decodeNavigation(await transport.read(controller.signal), expected)
       if (revision !== generation) return
       if (controller.signal.aborted) throw new Error('NAVIGATION_TIMEOUT')
+      if (state.status === 'ready' && state.value && !state.saving && !state.error
+        && state.value.mode === value.mode
+        && state.value.preferenceRevision === value.preferenceRevision
+        && state.value.projection.revision === value.projection.revision) {
+        return
+      }
       publish({ status: 'ready', value, saving: false, error: '' })
     } catch (error) {
       if (revision === generation) publish({ status: 'error', value: denied(error) ? null : state.value, saving: false, error: '应用菜单暂时无法加载，请重试。' })

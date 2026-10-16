@@ -41,7 +41,9 @@ watch(() => [route.fullPath, navigation.pinned] as const, () => {
   const signature = route.fullPath + '/' + key
   if (key && signature !== expandedForRoute) next.add(key)
   expandedForRoute = signature
-  expanded.value = next
+  if (next.size !== expanded.value.size || [...next].some(k => !expanded.value.has(k))) {
+    expanded.value = next
+  }
 }, { immediate: true })
 const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.appId, path)
 function entryReason(entry: NavigationEntry) { return appcenter ? reasonLabel('openReason' in entry ? entry.openReason as string : null) : entry.availability === 'offline' ? '应用离线' : '应用状态待确认' }
@@ -71,8 +73,7 @@ const legacyEntries = [
 ]
 function legacySelected(item: typeof legacyEntries[number]) { return route.path === item.path && (route.query.mode === 'world') === (item.query.mode === 'world') }
 
-let refreshTimer: ReturnType<typeof setInterval> | undefined
-function refreshNavigation() { if (!document.hidden && host.connected) { void navigation.refresh(); void host.fetchCluster() } }
+function refreshNavigation() { if (host.connected) { void navigation.refresh(); void host.fetchCluster() } }
 function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
   const identity = host.identity
@@ -148,10 +149,7 @@ function themeKeys(event: KeyboardEvent) {
 function resized() { measureSidebar(); positionTheme() }
 onMounted(() => {
   void host.init()
-  refreshTimer = setInterval(refreshNavigation, 30000)
-  window.addEventListener('focus', refreshNavigation)
   window.addEventListener('studio:logout', clearNavigation)
-  document.addEventListener('visibilitychange', refreshNavigation)
   window.addEventListener('resize', resized)
   window.addEventListener('scroll', positionTheme, { passive: true })
   resizeObserver = new ResizeObserver(measureSidebar)
@@ -159,9 +157,9 @@ onMounted(() => {
   measureSidebar()
 })
 onBeforeUnmount(() => {
-  appcenter?.setVisible('directory-menu', false); clearInterval(refreshTimer); resizeObserver?.disconnect()
-  window.removeEventListener('focus', refreshNavigation); window.removeEventListener('studio:logout', clearNavigation)
-  document.removeEventListener('visibilitychange', refreshNavigation); window.removeEventListener('resize', resized)
+  appcenter?.setVisible('directory-menu', false); resizeObserver?.disconnect()
+  window.removeEventListener('studio:logout', clearNavigation)
+  window.removeEventListener('resize', resized)
   window.removeEventListener('scroll', positionTheme); clearNavigation()
 })
 </script>
