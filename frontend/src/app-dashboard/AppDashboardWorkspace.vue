@@ -10,6 +10,7 @@ import type { OpenedDashboard } from './web-client'
 import { DashboardSessions } from './sessions'
 import { appIdPattern, browserDashboardPath, dashboardLocation, dashboardOwnsBreadcrumb, dashboardSdkRoute, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
+import { openMediaPreview, closeMediaPreview } from '../platform/media-preview'
 import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
 import { useNavigationStore } from '../platform/navigationStore'
@@ -77,6 +78,7 @@ function showError(value: unknown) {
 }
 
 function adapters(opened: OpenedDashboard): SDKAdapters {
+  const mediaOwner = {}, mediaState = { revision: 0 }
   const id = opened.launch.dashboardSessionId
   const now = () => Math.max(opened.policy.now?.() ?? -Infinity, Number.isFinite(client!.now()) ? client!.now() : -Infinity)
   const files = createFileAccess({ now, expiresAt: opened.launch.expiresAt, async authorize(capability, signal) {
@@ -87,6 +89,13 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
   } })
   return {
     now,
+    closeMedia() { mediaState.revision++; closeMediaPreview(mediaOwner) },
+    async previewMedia(input, signal) {
+      const revision = ++mediaState.revision
+      const current = await client!.inspect(id, opened.launch.installationId, signal)
+      if (signal.aborted || revision !== mediaState.revision || current.context.contextRevision !== opened.context.contextRevision) throw new Error('CONTEXT_CHANGED')
+      openMediaPreview(mediaOwner, input)
+    },
     async navigate(input, signal) {
       await client!.inspect(id, opened.launch.installationId, signal)
       if (input.target === 'appcenter') {

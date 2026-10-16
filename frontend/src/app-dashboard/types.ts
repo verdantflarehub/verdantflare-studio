@@ -1,6 +1,7 @@
 // Implements docs/design/contracts/app-dashboard-v1.md in the design repository.
 // Public interfaces only: no Vue, Pinia, Wails or application business imports.
 export type Unsubscribe = () => void
+export interface MediaPreviewInput { bytes: ArrayBuffer; mime: string; title: string }
 export type Lifecycle = 'active' | 'hidden' | 'dispose'
 export type Theme = 'light' | 'dark'
 export interface AppRoute { path: string; revision: number }
@@ -62,11 +63,14 @@ export interface AppSDK {
   readonly capabilities: { call(name: string, input: Json, options?: RequestOptions): Promise<Json> }
   readonly app: { request(input: AppRequest, options?: RequestOptions): Promise<AppResponse> }
   readonly instances: { open(input: InstanceEntry): Promise<void> }
+  readonly media: { preview(input: MediaPreviewInput): Promise<void>; close(): void }
   readonly lifecycle: { subscribe(listener: (event: Lifecycle) => void): Unsubscribe }
 }
 
 // Host-only transport. This object must never be injected into the Dashboard.
 export interface SDKAdapters {
+  previewMedia?(input: MediaPreviewInput, signal: AbortSignal): Promise<void>
+  closeMedia?(): void
   now?: () => number
   navigate(input: Navigation, signal: AbortSignal): Promise<void>
   selectFiles(input: FileSelection, signal: AbortSignal): Promise<readonly SelectedFile[]>

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
+import { openMediaPreview, closeMediaPreview, validateMediaPreview, subscribeMediaPreview } from '../src/platform/media-preview.ts'
 import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
 import { videoPath } from '../src/app-center/legacy.ts'
 import { videoPage, videoTaskLabel, videoTaskName } from '../src/app-center/legacy-video-navigation.ts'
@@ -10,6 +11,27 @@ const source = readFileSync(new URL('../src/app-center/LegacyMediaHost.vue', imp
 const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText
 const root = '/market?video=' + encodeURIComponent('/dashboard#tasks')
 const detail = (id: string) => '/market?video=' + encodeURIComponent('/dashboard/tasks/' + id)
+
+test('global preview authorizes bytes, rejects active content and cancels on route changes', async () => {
+  const h = host(), states: any[] = []
+  const off = subscribeMediaPreview(value => states.push(value))
+  const media = { type: 'media-preview', id: 8, bytes: new Uint8Array([1]).buffer, mime: 'image/png', title: '参考图' }
+  try {
+    h.load()
+    await h.receive(media)
+    assert.equal(states.at(-1)?.title, '参考图')
+    await h.receive({ type: 'media-close' })
+    assert.equal(states.at(-1), null)
+    await h.receive({ ...media, mime: 'image/svg+xml' })
+    assert.equal(states.at(-1), null)
+    assert.ok(h.posts.some(p => p.type === 'media-result' && p.ok === false))
+    let allow!: () => void
+    h.props.authorize = () => new Promise<void>(resolve => { allow = resolve })
+    const pending = h.receive(media)
+    h.props.route = detail('other'); h.load(); allow(); await pending
+    assert.equal(states.at(-1), null)
+  } finally { h.dispose(); off() }
+})
 
 function host(fetcher: typeof fetch = async () => Response.json({})) {
   const props = { adapterId: 'video-iframe-v1', route: root, title: 'Video MCP', authorize: async () => {} }
@@ -20,7 +42,7 @@ function host(fetcher: typeof fetch = async () => Response.json({})) {
   const doc = { body: { dataset: { theme: 'light' } }, documentElement: { scrollHeight: 5000 } }
   const deps = { defineProps: () => props, defineEmits: () => (name: string, data: any) => events.push([name, data]),
     ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: (fn: () => void) => { mount = fn }, onBeforeUnmount: (fn: () => void) => { dispose = fn },
-    mediaAdapter, validMediaRequest, videoPath, videoPage, videoTaskLabel, videoTaskName, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
+    mediaAdapter, validMediaRequest, videoPath, videoPage, videoTaskLabel, videoTaskName, openMediaPreview, closeMediaPreview, validateMediaPreview, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
     window: win, document: doc, location: { origin: 'https://studio.invalid' }, innerHeight: 1000, fetch: fetcher,
     MutationObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame: (fn: FrameRequestCallback) => { callbacks.set(++next, fn); return next }, cancelAnimationFrame: (id: number) => callbacks.delete(id) }

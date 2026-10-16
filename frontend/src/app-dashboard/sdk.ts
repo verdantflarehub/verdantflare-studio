@@ -1,6 +1,7 @@
 import type {
   AppContext, AppRequest, AppRoute, AppSDK, DashboardLaunch, Json, Lifecycle, SDKAdapters, Theme,
 } from './types'
+import { validateMediaPreview } from '../platform/media-preview.ts'
 
 export class AppSDKError extends Error {
   constructor(readonly code: string) { super(code); this.name = 'AppSDKError' }
@@ -91,6 +92,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
     clearTimeout(expiryTimer)
     for (const controller of inflight.keys()) controller.abort()
     inflight.clear()
+    adapters.closeMedia?.()
     adapters.releaseFiles?.()
     emit(lifecycleListeners, 'dispose')
     contextListeners.clear()
@@ -145,6 +147,15 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
 
   const sdk: AppSDK = Object.freeze({
     version,
+    media: Object.freeze({
+      preview: async (input: import('./types').MediaPreviewInput) => {
+        live(); validateMediaPreview(input)
+        if (!adapters.previewMedia) fail('MEDIA_PREVIEW_UNSUPPORTED')
+        const copy = { bytes: input.bytes.slice(0), mime: input.mime, title: input.title }
+        return invoke(signal => adapters.previewMedia!(copy, signal), true)
+      },
+      close: () => { adapters.closeMedia?.() },
+    }),
     context: Object.freeze({
       get: () => { live(); return context },
       subscribe: (listener: (value: Readonly<AppContext>) => void) => subscribe(contextListeners, listener),
@@ -221,6 +232,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
         return
       }
       route = Object.freeze({ path: next.path, revision: next.revision })
+      adapters.closeMedia?.()
       emit(routeListeners, route)
     },
     setVisibility(visible: boolean) {
@@ -228,6 +240,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
       const next = visible ? 'active' : 'hidden'
       if (next === state) return
       state = next
+      if (!visible) adapters.closeMedia?.()
       if (!visible) for (const [controller, read] of inflight) if (read) controller.abort()
       emit(lifecycleListeners, next)
     },
@@ -242,6 +255,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
         fail('CONTEXT_REVISION_REQUIRED')
       }
       if (replacement.contextRevision !== context.contextRevision) {
+        adapters.closeMedia?.()
         for (const controller of inflight.keys()) controller.abort()
         adapters.releaseFiles?.()
       }

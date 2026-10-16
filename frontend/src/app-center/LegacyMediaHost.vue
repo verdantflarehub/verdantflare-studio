@@ -5,6 +5,7 @@ import { videoPath } from './legacy'
 import { mediaAdapter, validMediaRequest } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
 import { videoPage, videoTaskLabel, videoTaskName } from './legacy-video-navigation'
+import { openMediaPreview, closeMediaPreview, validateMediaPreview } from '../platform/media-preview'
 
 const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: string; resourceBase?: string; authorize: () => Promise<void> }>()
 const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: []; taskLabel: [value: { route: string; label: string }] }>()
@@ -12,6 +13,9 @@ const frame = ref<HTMLIFrameElement>(), src = ref(''), state = ref<'loading' | '
 const adapter = computed(() => mediaAdapter(props.adapterId))
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
+const mediaOwner = {}
+let mediaRevision = 0
+function closePreview() { mediaRevision++; closeMediaPreview(mediaOwner) }
 let currentBase = '', currentRoute = ''
 const taskNames = new Map<string, string>()
 let previousScrollRestoration: ScrollRestoration | undefined
@@ -35,8 +39,9 @@ function restoreListScroll() {
 const pending = new Set<number>()
 const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark'
 function post(value: object) { frame.value?.contentWindow?.postMessage({ channel: 'vf-studio', ...value }, '*') }
-function failed(text: string) { if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '任务不可用' }); state.value = 'error'; message.value = text; clearTimeout(deadline) }
+function failed(text: string) { closePreview(); if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '任务不可用' }); state.value = 'error'; message.value = text; clearTimeout(deadline) }
 function load(force = false) {
+  closePreview()
   const a = adapter.value
   if (!a) return
   const path = new URL(props.route, location.origin).searchParams.get(a.query)!
@@ -62,6 +67,19 @@ function load(force = false) {
 async function receive(event: MessageEvent) {
   const a = adapter.value, data = event.data
   if (disposed || !a || event.source !== frame.value?.contentWindow || event.origin !== 'null' || !data || data.channel !== a.channel || data.view !== String(generation)) return
+  if (data.type === 'media-close') { closePreview(); return }
+  if (data.type === 'media-preview') {
+    if (!Number.isSafeInteger(data.id) || data.id < 0) return
+    const epoch = generation, revision = ++mediaRevision
+    try {
+      validateMediaPreview(data)
+      await props.authorize()
+      if (disposed || epoch !== generation || revision !== mediaRevision) return
+      openMediaPreview(mediaOwner, data, () => { if (!disposed && epoch === generation) post({ type: 'media-closed', id: data.id }) })
+      post({ type: 'media-result', id: data.id, ok: true })
+    } catch { if (!disposed && epoch === generation) post({ type: 'media-result', id: data.id, ok: false }) }
+    return
+  }
   if (data.type === 'ready') { clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState }); return }
   if (data.type === 'navigate' && typeof data.path === 'string' && (a.channel === 'vf-video' ? videoPath : /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/).test(data.path)) {
     if (data.state && typeof data.state === 'object') viewState = data.state
@@ -133,6 +151,7 @@ onMounted(() => {
   window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load()
 })
 onBeforeUnmount(() => {
+  closePreview()
   disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive)
   if (previousScrollRestoration !== undefined && window.history.scrollRestoration === 'manual') window.history.scrollRestoration = previousScrollRestoration
 })

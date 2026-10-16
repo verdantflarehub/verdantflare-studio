@@ -48,6 +48,21 @@ function fixture(overrides: Partial<SDKAdapters> = {}, grants = ['app.request', 
   return { ...createAppSDK(launch, initial, adapters), calls, launch }
 }
 
+test('media display uses existing bytes and closes on navigation, hide and disposal', async t => {
+  let opened = 0, closed = 0
+  const session = fixture({ previewMedia: async () => { opened++ }, closeMedia: () => { closed++ } }, [])
+  t.after(session.dispose)
+  const input = { bytes: new Uint8Array([1]).buffer, mime: 'image/png', title: '参考图' }
+  await session.sdk.media.preview(input)
+  assert.equal(opened, 1)
+  await assert.rejects(session.sdk.media.preview({ ...input, mime: 'image/svg+xml' }), /INVALID_MEDIA_PREVIEW/)
+  session.setRoute({ path: '/next', revision: 1 }); assert.equal(closed, 1)
+  session.setVisibility(false); assert.equal(closed, 2)
+  await assert.rejects(session.sdk.media.preview(input), /DASHBOARD_HIDDEN/)
+  session.dispose(); assert.equal(closed, 3)
+  await assert.rejects(session.sdk.media.preview(input), /SESSION_REVOKED/)
+})
+
 test('one SDK opens multiple instances; hiding and disposing never invoke instance operations', async t => {
   const session = fixture()
   t.after(session.dispose)

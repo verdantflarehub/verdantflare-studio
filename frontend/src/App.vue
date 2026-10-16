@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import HostSidebar from './components/HostSidebar.vue'
 import HostLoginDialog from './components/HostLoginDialog.vue'
+import StudioMediaLightbox from './components/StudioMediaLightbox.vue'
 </script>
 
 <template>
@@ -8,6 +9,7 @@ import HostLoginDialog from './components/HostLoginDialog.vue'
     <HostSidebar />
     <RouterView />
     <HostLoginDialog />
+    <StudioMediaLightbox />
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
 </template>
