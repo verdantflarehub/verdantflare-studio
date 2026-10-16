@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AppCenterCard } from './schema.generated'
+import type { AppCenterCard, CommonAction } from './schema.generated'
 import AppIcon from './AppIcon.vue'
 import AppNavigationPreferences from '../components/AppNavigationPreferences.vue'
 import { actionLabels, statusLabels, factLabel, reasonLabel } from './labels'
@@ -13,6 +13,13 @@ const navigation = useNavigationStore()
 const hasNavigation = computed(() => props.card.installation?.state === 'installed' && navigation.entries.some(entry => entry.installationId === props.card.installation?.installationId && entry.appId === props.card.appId))
 const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string]; refreshOperation: [] }>()
 const origins: Record<string, string> = { installation: '安装记录', observation: '现场部署 · 待对账', catalog: '应用目录' }
+const localAction = (action: CommonAction) => ['refresh', 'progress'].includes(action.kind)
+function actionDisabled(action: CommonAction) { return !action.enabled || props.stale && !localAction(action) }
+function actionTip(action: CommonAction) {
+  if (!actionDisabled(action)) return ''
+  if (!action.enabled) return reasonLabel(action.reasonCode)
+  return '当前信息已过期，请刷新'
+}
 </script>
 
 <template>
@@ -22,10 +29,10 @@ const origins: Record<string, string> = { installation: '安装记录', observat
       <div class="detail-title"><AppIcon :icon-ref="card.display.iconRef" /><div><h2>{{ card.display.name }}</h2><p class="muted">{{ publisherLabel(card.display.publisherId) }} · {{ groupLabel }}</p></div></div>
       <p class="detail-description">{{ card.display.description || '应用说明待补充' }}</p>
       <p class="detail-state">{{ stale ? '信息已过期 · 请刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</p>
-      <div class="action-row"><div v-for="action in card.actions.filter(item => item.kind !== 'detail')" :key="action.id" class="detail-action">
-        <button class="btn" :disabled="!action.enabled || stale && !['refresh', 'progress'].includes(action.kind)" @click="emit('action', card, action.id)">{{ actionLabels[action.kind] }}</button>
-        <p v-if="!action.enabled">{{ reasonLabel(action.reasonCode) }}</p>
-      </div></div>
+      <div class="action-row"><span v-for="action in card.actions.filter(item => item.kind !== 'detail')" :key="action.id" class="detail-action" :tabindex="actionTip(action) ? 0 : undefined">
+        <button class="btn" :disabled="actionDisabled(action)" @click="emit('action', card, action.id)">{{ actionLabels[action.kind] }}</button>
+        <span v-if="actionTip(action)" class="action-tip" role="tooltip">{{ actionTip(action) }}</span>
+      </span></div>
     </header>
     <slot />
     <div class="detail-columns">
@@ -64,15 +71,17 @@ const origins: Record<string, string> = { installation: '安装记录', observat
 .detail-breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; }
 .detail-breadcrumb button { border: 0; padding: 0; background: none; color: inherit; cursor: pointer; }
 .detail-summary, .detail-section { padding: 24px; min-width: 0; background: var(--panel); border: 0.5px solid var(--vf-hairline-outer); box-shadow: inset 0 0 0 0.5px var(--vf-hairline-inner), var(--vf-shadow-card); border-radius: 12px; }
+.detail-summary { overflow: visible; }
 .detail-title { display: flex; align-items: center; gap: 14px; }
 .detail-title h2 { margin: 0; font-size: 22px; }
 .detail-title p { margin: 5px 0 0; font-size: 12px; }
 .detail-description { line-height: 1.7; }
 .detail-state { color: var(--accent); font-size: 13px; }
 .operation-refresh { margin-top: 16px; }
-.action-row { flex-wrap: wrap; align-items: start; }
-.detail-action { max-width: 220px; }
-.detail-action p { color: var(--muted); margin: 6px 0 0; font-size: 12px; }
+.action-row { flex-wrap: wrap; align-items: center; overflow: visible; }
+.detail-action { position: relative; display: inline-flex; outline: none; }
+.action-tip { position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 8; width: max-content; max-width: 240px; transform: translateX(-50%); padding: 8px 10px; border: 0.5px solid var(--vf-hairline-outer); border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 0.5px var(--vf-hairline-inner), var(--shadow); color: var(--ink); font-size: 12px; line-height: 1.5; text-align: left; pointer-events: none; opacity: 0; visibility: hidden; }
+.detail-action:hover .action-tip, .detail-action:focus-visible .action-tip { opacity: 1; visibility: visible; }
 .detail-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .detail-section h3 { font-size: 16px; margin: 0 0 20px; }
 dl { display: grid; grid-template-columns: minmax(100px, .5fr) 1fr; gap: 14px 20px; font-size: 13px; margin: 0; }
