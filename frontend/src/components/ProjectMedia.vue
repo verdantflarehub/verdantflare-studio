@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ProjectReader, readerError } from '../platform/project-reader'
+import { closeMediaPreview, openMediaPreviewBlob } from '../platform/media-preview'
 const props = withDefaults(defineProps<{ reader: ProjectReader; fileId?: string | null; kind: 'image' | 'audio' | 'video' | 'file'; label: string; thumbnail?: boolean }>(), { thumbnail: false })
 const source = ref(''), error = ref(''), busy = ref(false), downloadPath = ref('')
-const viewer = ref<HTMLDialogElement | null>(null)
+const previewOwner = {}, previewError = ref(''), route = useRoute()
+async function openLightbox() {
+  previewError.value = ''
+  const current = generation
+  try { await openMediaPreviewBlob(previewOwner, source.value, props.label) }
+  catch { if (current === generation) previewError.value = '图片预览失败，请点击图片重试。' }
+}
 let generation = 0
 async function load() {
   const current = ++generation
@@ -28,17 +36,18 @@ async function prepareDownload() {
 }
 watch(() => [props.reader, props.fileId, props.kind], () => {
   generation++; source.value = ''; error.value = ''; downloadPath.value = ''; busy.value = false
-  viewer.value?.close()
+  closeMediaPreview(previewOwner); previewError.value = ''
   if (props.kind === 'image' && props.fileId) void load()
 }, { immediate: true })
-onBeforeUnmount(() => { generation++; viewer.value?.close() })
+watch(() => route.fullPath, () => { closeMediaPreview(previewOwner); previewError.value = '' })
+onBeforeUnmount(() => { generation++; closeMediaPreview(previewOwner) })
 </script>
 
 <template>
   <div class="project-media" :class="[kind, { thumbnail }]" :aria-label="label">
     <template v-if="source">
       <img v-if="kind === 'image' && thumbnail" :src="source" :alt="label" @error="error = '图片解码失败。'; source = ''">
-      <button v-else-if="kind === 'image'" class="image-open" :aria-label="`放大${label}`" @click="viewer?.showModal()"><img :src="source" :alt="label" @error="error = '图片解码失败。'; source = ''"></button>
+      <button v-else-if="kind === 'image'" class="image-open" :aria-label="`放大${label}`" @click="openLightbox"><img :src="source" :alt="label" @error="error = '图片解码失败。'; source = ''"></button>
       <audio v-else-if="kind === 'audio'" :src="source" controls preload="metadata" :aria-label="label" @error="error = '浏览器无法播放此音频。'; source = ''" />
       <video v-else :src="source" controls playsinline preload="metadata" :aria-label="label" @error="error = '浏览器无法播放此视频。'; source = ''" />
     </template>
@@ -49,10 +58,7 @@ onBeforeUnmount(() => { generation++; viewer.value?.close() })
       <button v-else-if="!downloadPath" class="btn" @click="load">{{ kind === 'file' ? `准备下载 ${label}` : kind === 'audio' ? '加载音频' : '加载视频' }}</button>
       <a v-if="downloadPath" class="btn" :href="downloadPath" download>{{ kind === 'file' ? `下载 ${label}` : '下载文件' }}</a>
     </div>
-    <dialog v-if="kind === 'image' && !thumbnail" ref="viewer" :aria-label="label" @click="($event.target === viewer) && viewer?.close()">
-      <button class="btn close" autofocus aria-label="关闭图片" @click="viewer?.close()">关闭</button>
-      <img :src="source || undefined" :alt="label">
-    </dialog>
+    <p v-if="previewError" role="alert">{{ previewError }}</p>
   </div>
 </template>
 
@@ -67,8 +73,4 @@ img { display: block; width: 100%; height: auto; }
 .image .media-state, .video .media-state { min-height: 180px; height: 100%; }
 audio, video { display: block; width: 100%; }
 video { max-height: 70vh; }
-dialog { margin: auto; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 12px; max-width: 95vw; max-height: 95vh; padding: 12px; }
-dialog::backdrop { background: var(--aside); }
-dialog img { width: auto; max-width: 90vw; max-height: 80vh; object-fit: contain; }
-.close { display: block; margin: 0 0 10px auto; }
 </style>
