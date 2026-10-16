@@ -11,7 +11,6 @@ import { reasonLabel } from './labels'
 import { videoPage, videoTasksLocation } from './legacy-video-navigation'
 import LegacyMediaHost from './LegacyMediaHost.vue'
 import LegacyBlenderHost from './LegacyBlenderHost.vue'
-import { dashboardLocation } from '../app-dashboard/routes'
 
 const props = defineProps<{ returnLocation?: RouteLocationRaw; target: LegacyTarget | null; routeError: string }>()
 const router = useRouter(), host = useHostStore(), store = useAppCenterStore(), client = createLegacyClient()
@@ -30,10 +29,6 @@ const imageSection = computed(() => ({ tasks: '任务', models: '模型', mcp: '
 const imageTasksRoute = computed(() => {
   const cardKey = props.target?.cardKey
   return '/market?image=' + encodeURIComponent('/dashboard#tasks') + (cardKey ? '&legacyCard=' + encodeURIComponent(cardKey) : '')
-})
-const higgsfieldLocation = computed(() => {
-  const card = store.state.value?.items.find(item => item.appId === 'higgsfield')
-  return video.value && card?.installation?.installationId ? dashboardLocation(card.appId) : null
 })
 const currentTaskLabel = computed(() => error.value ? '任务不可用' : taskLabel.value && taskLabel.value.route === props.target?.route ? taskLabel.value.label : '加载中')
 const videoTasksRoute = computed(() => {
@@ -172,7 +167,6 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
       <div class="heading-left">
         <h1>{{ selection?.card.display.name || '应用入口' }}</h1>
         <p>{{ selection?.card.display.description }}</p>
-        <p v-if="higgsfieldLocation"><a :href="router.resolve(higgsfieldLocation).href" @click.prevent="router.push(higgsfieldLocation)">打开 Higgsfield 应用 · 授权与用量</a></p>
       </div>
     </header>
     <p v-if="loading" role="status">正在确认应用入口…</p>
