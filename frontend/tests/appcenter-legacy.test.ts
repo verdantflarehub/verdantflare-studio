@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createLegacyClient, legacyLocation, legacyTarget, selectLegacyCard } from '../src/app-center/legacy.ts'
+import { createLegacyClient, legacyAppLocation, legacyLocation, legacyTarget, selectLegacyCard } from '../src/app-center/legacy.ts'
 import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
 import { createBlenderFetcher, validStudioOrigin, blenderMCPAddress } from '../src/app-center/legacy-blender.ts'
 import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.generated.ts'
@@ -9,6 +9,25 @@ const digest = `sha256:${'a'.repeat(64)}`, key = `obs:${'b'.repeat(64)}`
 const card = { cardKey: key, bindingRevision: digest, entry: { transport: 'legacy', entryId: 'image-iframe-v1' } } as AppCenterCard
 const view = { revision: digest, items: [card] } as AppCenterView
 const opened = { schemaVersion: 1, transport: 'legacy', adapterId: 'image-iframe-v1', bindingId: 'old-deployment', bindingRevision: digest, route: '/market?image=%2Fdashboard%23tasks' }
+
+test('Image task and tab navigation round trips through pure paths with the selected binding', () => {
+  for (const [path, location] of [
+    ['/dashboard#tasks', '/apps/image-mcp/'],
+    ['/dashboard/tasks/imgtask-test', '/apps/image-mcp/tasks/imgtask-test'],
+    ['/dashboard#models', '/apps/image-mcp/models'],
+    ['/dashboard#mcp', '/apps/image-mcp/mcp'],
+  ]) {
+    const route = '/market?image=' + encodeURIComponent(path)
+    assert.equal(legacyAppLocation({ adapterId: 'image-iframe-v1', route }), location)
+    for (const cardKey of [undefined, key]) {
+      const target = legacyTarget(legacyAppLocation({ adapterId: 'image-iframe-v1', route }, cardKey))!
+      assert.equal(new URL(target.route, 'https://studio.invalid').searchParams.get('image'), path)
+      assert.equal(target.cardKey, cardKey)
+    }
+  }
+  assert.throws(() => legacyTarget('/apps/image-mcp/tasks/imgtask-test?image=%2Fdashboard%23models'))
+  assert.throws(() => legacyTarget('/apps/image-mcp/models?unexpected=1'))
+})
 
 test('desktop media opens a bound local workspace and releases it without changing the remote JSON contract', async () => {
   const handle = '01980000-0000-4000-8000-000000000001', calls: string[] = []

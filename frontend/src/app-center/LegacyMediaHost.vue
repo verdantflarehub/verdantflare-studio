@@ -56,12 +56,12 @@ function load(force = false) {
     if (!isTaskList(props.route)) window.scrollTo({ top: 0, behavior: 'instant' })
     currentRoute = props.route
   }
-  if (!force && currentBase === base && currentPath === pathname && src.value && state.value === 'ready') { post({ type: 'route', hash: hash || 'tasks' }); return }
+  if (!force && currentBase === base && (currentPath === pathname || props.adapterId === 'image-iframe-v1') && src.value && state.value === 'ready') { post({ type: 'route', path, hash: hash || 'tasks' }); return }
   currentBase = base
   currentPath = pathname; generation++; controller.abort(); controller = new AbortController(); pending.clear(); clearTimeout(deadline)
   if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '加载中' })
   state.value = 'loading'; message.value = '正在加载应用…'
-  src.value = base + pathname + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
+  src.value = base + (props.adapterId === 'image-iframe-v1' ? '/dashboard' : pathname) + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
   deadline = setTimeout(() => failed('应用尚未响应，请重试。'), 20000)
 }
 async function receive(event: MessageEvent) {
@@ -80,7 +80,14 @@ async function receive(event: MessageEvent) {
     } catch { if (!disposed && epoch === generation) post({ type: 'media-result', id: data.id, ok: false }) }
     return
   }
-  if (data.type === 'ready') { clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState }); return }
+  if (data.type === 'ready') {
+    clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState })
+    if (a.channel === 'vf-image') {
+      const path = new URL(props.route, location.origin).searchParams.get(a.query)!
+      post({ type: 'route', path, hash: path.split('#')[1] || 'tasks' })
+    }
+    return
+  }
   if (data.type === 'navigate' && typeof data.path === 'string' && (a.channel === 'vf-video' ? videoPath : /^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/).test(data.path)) {
     if (data.state && typeof data.state === 'object') viewState = data.state
     const current = new URL(props.route, location.origin).searchParams.get(a.query)

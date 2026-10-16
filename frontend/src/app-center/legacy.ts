@@ -21,6 +21,8 @@ const legacyAppRoutes: Record<string, { key: 'image' | 'video' | 'blender'; defa
 
 /** Historical query names and unified /apps/:appId/ routes live in this finite compatibility adapter. */
 export function legacyTarget(route: string): LegacyTarget | null {
+  const imagePath = /^\/apps\/image-mcp\/(tasks\/[a-zA-Z0-9_-]+|models|mcp)\/?$/.exec(route.split('?')[0])
+  if (imagePath) route = '/market?image=' + encodeURIComponent(imagePath[1].startsWith('tasks/') ? '/dashboard/' + imagePath[1] : '/dashboard#' + imagePath[1]) + (route.includes('?') ? '&' + route.slice(route.indexOf('?') + 1) : '')
   const rawPath = route.split(/[?#]/)[0]
   const appMatch = /^\/apps\/([a-z0-9][a-z0-9-]{0,63})\/?$/.exec(rawPath)
   if (appMatch) {
@@ -80,8 +82,11 @@ export function legacyAppLocation(opened: Pick<LegacyOpened, 'adapterId' | 'rout
   const u = new URL(target.route, 'https://studio.invalid')
   const q = u.searchParams
   const appSlug = opened.adapterId === 'image-iframe-v1' ? 'image-mcp' : opened.adapterId === 'video-iframe-v1' ? 'video-mcp' : 'blender'
-  if (opened.adapterId === 'image-iframe-v1' && q.get('image') === '/dashboard#tasks') q.delete('image')
-  else if (opened.adapterId === 'video-iframe-v1' && q.get('video') === '/dashboard#tasks') q.delete('video')
+  if (opened.adapterId === 'image-iframe-v1') {
+    const path = q.get('image')!
+    return '/apps/image-mcp/' + (path.startsWith('/dashboard/tasks/') ? path.slice('/dashboard/'.length).split('#')[0] : ['models', 'mcp'].includes(path.split('#')[1]) ? path.split('#')[1] : '') + (cardKey ? '?legacyCard=' + encodeURIComponent(cardKey) : '')
+  }
+  if (opened.adapterId === 'video-iframe-v1' && q.get('video') === '/dashboard#tasks') q.delete('video')
   else if (opened.adapterId === 'blender-host-v1' && q.get('blender') === 'instances' && q.size === 1) q.delete('blender')
   if (cardKey) q.set('legacyCard', cardKey)
   const qs = q.toString()
