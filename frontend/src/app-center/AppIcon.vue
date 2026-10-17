@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { vfLogo, brandPaths } from '../pages/brands'
 import higgsfieldLogo from '../assets/higgsfield.svg'
 import falLogo from '../assets/fal.png'
+import ChannelBrandIcon from './ChannelBrandIcon.vue'
 const props = defineProps<{ iconRef: string | null }>()
 const paths: Record<string, string> = { 'brand:minimax': brandPaths.minimax, 'brand:github': brandPaths.github }
 const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef) ? paths[props.iconRef] : null)
@@ -13,6 +14,7 @@ const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef)
     <img v-if="iconRef === 'brand:vf'" :src="vfLogo" alt="" />
     <img v-else-if="iconRef === 'brand:higgsfield'" :src="higgsfieldLogo" alt="" />
     <img v-else-if="iconRef === 'brand:fal'" :src="falLogo" alt="" />
+    <ChannelBrandIcon v-else-if="['brand:google', 'brand:chatgpt', 'brand:grok'].includes(iconRef || '')" :brand="iconRef || ''" />
     <svg v-else-if="path" viewBox="0 0 24 24" fill="currentColor"><path :d="path" /></svg>
     <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
   </span>
