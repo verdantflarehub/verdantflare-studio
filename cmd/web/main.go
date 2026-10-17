@@ -54,7 +54,7 @@ func main() {
 	if len(etcdEndpoints) > 0 {
 		gw, err := mcp.NewGateway(etcdEndpoints)
 		if err != nil {
-			log.Printf("[MCP Gateway Warning] failed to connect to etcd (%v): %v", etcdEndpoints, err)
+			log.Printf("[MCP Gateway Warning] invalid or unavailable registry configuration")
 		} else {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

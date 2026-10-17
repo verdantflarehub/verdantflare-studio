@@ -43,7 +43,11 @@ type Gateway struct {
 }
 
 func NewGateway(endpoints []string) (*Gateway, error) {
-	cli, e := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: 5 * time.Second})
+	config, e := registryClientConfig(endpoints, os.Getenv)
+	if e != nil {
+		return nil, e
+	}
+	cli, e := clientv3.New(config)
 	if e != nil {
 		return nil, errors.New("invalid registry configuration")
 	}
