@@ -15,4 +15,3 @@ test('AppIcon handles brand:blender and brand:comfyui correctly', async () => {
   const comfyuiSvg = await readFile(new URL('../src/assets/comfyui.svg', import.meta.url), 'utf8')
   assert.ok(comfyuiSvg.includes('<svg') && comfyuiSvg.includes('#172DD7') && comfyuiSvg.includes('#F0FF41'), 'comfyui svg must be valid')
 })
-
