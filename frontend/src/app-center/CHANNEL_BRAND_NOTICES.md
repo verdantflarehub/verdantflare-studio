@@ -1,6 +1,6 @@
 # Third-party notices
 
-Google, OpenAI and Grok brand SVGs from Lobe Icons: https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons. Brand marks remain the property of their owners.
+Google, OpenAI, Grok and ComfyUI brand SVGs from Lobe Icons: https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons. Blender brand SVG from Simple Icons (CC0). Brand marks remain the property of their owners.
 
 MIT License
 
