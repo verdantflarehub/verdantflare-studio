@@ -300,7 +300,13 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, e := g.httpClient.Do(req)
+	client := g.httpClient
+	if name == "music.generate" {
+		copy := *client
+		copy.Timeout = MusicGenerateTimeout
+		client = &copy
+	}
+	resp, e := client.Do(req)
 	if e != nil {
 		return nil, 502, errors.New("downstream unavailable")
 	}
@@ -329,6 +335,9 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		return nil, 502, errors.New("downstream protocol error")
 	}
 	if result, ok := envelope["result"]; ok {
+		if musicTool(name) {
+			return musicResult(result), resp.StatusCode, nil
+		}
 		if Managed(name) || expectedVersion != "" {
 			var version, id string
 			if json.Unmarshal(envelope["jsonrpc"], &version) != nil || version != "2.0" || json.Unmarshal(envelope["id"], &id) != nil || id != headers["X-Request-Id"] {

@@ -23,6 +23,7 @@ type videoRegistry struct {
 	pb.UnimplementedKVServer
 	pb.UnimplementedWatchServer
 	registration []byte
+	domain       string
 }
 
 func (v *videoRegistry) Watch(stream pb.Watch_WatchServer) error {
@@ -31,13 +32,24 @@ func (v *videoRegistry) Watch(stream pb.Watch_WatchServer) error {
 }
 
 func (v *videoRegistry) Range(context.Context, *pb.RangeRequest) (*pb.RangeResponse, error) {
-	return &pb.RangeResponse{Header: &pb.ResponseHeader{Revision: 1}, Kvs: []*mvccpb.KeyValue{{Key: []byte(mcp.ServicesPrefix + "video"), Value: v.registration}}}, nil
+	domain := v.domain
+	if domain == "" {
+		domain = "video"
+	}
+	return &pb.RangeResponse{Header: &pb.ResponseHeader{Revision: 1}, Kvs: []*mvccpb.KeyValue{{Key: []byte(mcp.ServicesPrefix + domain), Value: v.registration}}}, nil
 }
 
 func TestVideoResultDownloadThroughStudio(t *testing.T) {
+	testLegacyResultDownloadThroughStudio(t, "video", "video.result", "")
+}
+func TestMusicResultDownloadThroughStudio(t *testing.T) {
+	testLegacyResultDownloadThroughStudio(t, "music", "music.generate", "/mcp-content/music")
+}
+func testLegacyResultDownloadThroughStudio(t *testing.T, domain, tool, prefix string) {
 	t.Setenv("STUDIO_BEARER_TOKEN", "studio-secret")
-	t.Setenv("STUDIO_VIDEO_TOKEN", "video-secret")
-	path := "/artifacts/art_" + strings.Repeat("a", 32) + "/content"
+	t.Setenv("STUDIO_"+strings.ToUpper(domain)+"_TOKEN", "video-secret")
+	internalPath := "/artifacts/art_" + strings.Repeat("a", 32) + "/content"
+	path := prefix + internalPath
 	upstreamCalls := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamCalls++
@@ -45,25 +57,29 @@ func TestVideoResultDownloadThroughStudio(t *testing.T) {
 			t.Error("external credentials forwarded")
 		}
 		if r.URL.Path == "/mcp" {
+			if domain == "music" {
+				// Exceed the host's ordinary write deadline without slow tests.
+				time.Sleep(200 * time.Millisecond)
+			}
 			var req map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&req)
-			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req["id"], "result": map[string]any{"structuredContent": map[string]string{"download_path": path}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req["id"], "result": map[string]any{"structuredContent": map[string]string{"download_path": internalPath}}})
 			return
 		}
-		if r.URL.Path != path {
+		if r.URL.Path != internalPath {
 			t.Error("unexpected downstream path", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "video/mp4")
 		http.ServeContent(w, r, "clip.mp4", time.Time{}, strings.NewReader("video-bytes"))
 	}))
 	defer upstream.Close()
-	registration, _ := json.Marshal(mcp.ServiceRegistration{Domain: "video", Endpoint: upstream.URL + "/mcp", HealthEndpoint: upstream.URL + "/health", Version: "1.0.0", UpdatedAt: time.Now().UTC().Format(time.RFC3339), Tools: []mcp.ToolDefinition{{Name: "video.result", Description: "Result", InputSchema: map[string]any{"type": "object"}}}})
+	registration, _ := json.Marshal(mcp.ServiceRegistration{Domain: domain, Endpoint: upstream.URL + "/mcp", HealthEndpoint: upstream.URL + "/health", Version: "1.0.0", UpdatedAt: time.Now().UTC().Format(time.RFC3339), Tools: []mcp.ToolDefinition{{Name: tool, Description: "Result", InputSchema: map[string]any{"type": "object"}}}})
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	registry := grpc.NewServer()
-	registryData := &videoRegistry{registration: registration}
+	registryData := &videoRegistry{registration: registration, domain: domain}
 	pb.RegisterKVServer(registry, registryData)
 	pb.RegisterWatchServer(registry, registryData)
 	go registry.Serve(listener)
@@ -82,7 +98,11 @@ func TestVideoResultDownloadThroughStudio(t *testing.T) {
 	station := bearerStation(t, "studio-secret")
 	router, server := NewServer(station, "https://studio.example", fstest.MapFS{})
 	server.SetMCPGateway(gateway)
-	host := httptest.NewServer(router)
+	host := httptest.NewUnstartedServer(router)
+	if domain == "music" {
+		host.Config.WriteTimeout = 100 * time.Millisecond
+	}
+	host.Start()
 	defer host.Close()
 	call := func(method, target, auth, body, origin, site, byteRange string) (*http.Response, []byte) {
 		t.Helper()
@@ -111,7 +131,7 @@ func TestVideoResultDownloadThroughStudio(t *testing.T) {
 		}
 		return resp, b
 	}
-	resp, body := call("POST", "/mcp", "Bearer studio-secret", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"video.result","arguments":{"task_id":"existing-task"}}}`, "", "", "")
+	resp, body := call("POST", "/mcp", "Bearer studio-secret", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`","arguments":{"task_id":"existing-task"}}}`, "", "", "")
 	var result struct {
 		Result struct {
 			StructuredContent struct {

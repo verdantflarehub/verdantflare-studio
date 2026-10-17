@@ -21,31 +21,35 @@ func (g *Gateway) VideoContent(ctx context.Context, path, byteRange string, iden
 	if !VideoContentPath(path) {
 		return nil, 400, errors.New("invalid video content path")
 	}
+	return g.legacyMediaContent(ctx, "video", "video.result", path, byteRange, identity)
+}
+
+func (g *Gateway) legacyMediaContent(ctx context.Context, domain, requiredTool, path, byteRange string, identity map[string]string) (*http.Response, int, error) {
 	g.mu.RLock()
-	svc, ok := g.services["video"]
+	svc, ok := g.services[domain]
 	g.mu.RUnlock()
 	found := false
 	for _, tool := range svc.Tools {
-		if tool.Name == "video.result" {
+		if tool.Name == requiredTool {
 			found = true
 		}
 	}
 	u, err := url.Parse(svc.Endpoint)
 	if !ok || !found || !endpointValid(svc.Endpoint) || err != nil || u.Path != "/mcp" || u.RawPath != "" {
-		return nil, 503, errors.New("video content service unavailable")
+		return nil, 503, errors.New("media content service unavailable")
 	}
-	// Never substitute the external Studio credential for a missing Video key.
-	token := strings.TrimSpace(os.Getenv("STUDIO_VIDEO_TOKEN"))
+	// Never substitute external Studio or shared credentials for a missing domain key.
+	token := strings.TrimSpace(os.Getenv("STUDIO_" + strings.ToUpper(domain) + "_TOKEN"))
 	if token == "" {
-		token = strings.TrimSpace(os.Getenv("VIDEO_MCP_BEARER_TOKEN"))
+		token = strings.TrimSpace(os.Getenv(strings.ToUpper(domain) + "_MCP_BEARER_TOKEN"))
 	}
 	if token == "" {
-		return nil, 503, errors.New("video service credential unavailable")
+		return nil, 503, errors.New("media service credential unavailable")
 	}
 	u.Path = path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, 503, errors.New("video content service unavailable")
+		return nil, 503, errors.New("media content service unavailable")
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept-Encoding", "identity")
@@ -60,11 +64,11 @@ func (g *Gateway) VideoContent(ctx context.Context, path, byteRange string, iden
 	client := &http.Client{Transport: g.httpClient.Transport, Timeout: 30 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(req)
 	if err != nil {
-		return nil, 502, errors.New("video content service unavailable")
+		return nil, 502, errors.New("media content service unavailable")
 	}
 	if response.StatusCode >= 300 && response.StatusCode < 400 {
 		response.Body.Close()
-		return nil, 502, errors.New("video content redirect rejected")
+		return nil, 502, errors.New("media content redirect rejected")
 	}
 	return response, response.StatusCode, nil
 }

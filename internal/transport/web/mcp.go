@@ -2,6 +2,8 @@ package web
 
 import (
 	"mime"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
@@ -54,6 +56,12 @@ func (s *Server) mcpHandler(c *gin.Context) {
 		if gateway == nil {
 			mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Service discovery unavailable")
 			return
+		}
+		if name == "music.generate" {
+			if http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(mcp.MusicGenerateTimeout+time.Minute)) != nil {
+				mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Long-running response unavailable")
+				return
+			}
 		}
 		result, status, e := gateway.CallVerified(c.Request.Context(), name, args, principal, c.GetHeader("X-Project-Id"))
 		if e != nil {

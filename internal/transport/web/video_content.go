@@ -10,10 +10,22 @@ import (
 )
 
 func (s *Server) videoContent(c *gin.Context) {
+	s.legacyMediaContent(c, false)
+}
+
+func (s *Server) musicContent(c *gin.Context) {
+	s.legacyMediaContent(c, true)
+}
+
+func (s *Server) legacyMediaContent(c *gin.Context, music bool) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
 	r := c.Request
-	if !mcp.VideoContentPath(r.URL.Path) || r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 || len(r.TransferEncoding) != 0 || r.Header.Get("Content-Encoding") != "" || len(r.Header.Values("Range")) > 1 {
+	validPath := mcp.VideoContentPath(r.URL.Path)
+	if music {
+		validPath = mcp.MusicContentPath(r.URL.Path)
+	}
+	if !validPath || r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 || len(r.TransferEncoding) != 0 || r.Header.Get("Content-Encoding") != "" || len(r.Header.Values("Range")) > 1 {
 		c.Status(400)
 		return
 	}
@@ -40,7 +52,11 @@ func (s *Server) videoContent(c *gin.Context) {
 	identity := map[string]string{"X-Request-Id": c.Writer.Header().Get("X-Request-Id")}
 	identity["X-User-Id"] = p.SubjectID
 	identity["X-Organization-Id"] = p.OrganizationID
-	response, status, err := gateway.VideoContent(r.Context(), r.URL.Path, r.Header.Get("Range"), identity)
+	content := gateway.VideoContent
+	if music {
+		content = gateway.MusicContent
+	}
+	response, status, err := content(r.Context(), r.URL.Path, r.Header.Get("Range"), identity)
 	if err != nil {
 		c.Status(status)
 		return
