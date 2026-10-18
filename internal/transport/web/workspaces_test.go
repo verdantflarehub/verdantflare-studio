@@ -178,3 +178,197 @@ func TestWorkspacesEnrichmentAndComfyUIGuard(t *testing.T) {
 	}
 }
 
+func TestWorkspacesUnifiedAppNamespace(t *testing.T) {
+	blenderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/instances" {
+			t.Fatalf("unexpected blender path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"instances":[{"instance_id":"01a12a49-4621-769b-b221-dd75aa76bb2e","name":"谢小娥·梦字迷局 白模"}]}`)
+	}))
+	defer blenderServer.Close()
+
+	comfyuiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/instances" {
+			t.Fatalf("unexpected comfyui path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"instances":[{"instance_id":"01a12b1b-f5c3-75a1-bed3-3ef6ea897cf9","name":"ComfyUI Dashboard A"}]}`)
+	}))
+	defer comfyuiServer.Close()
+
+	t.Setenv("STUDIO_BLENDER_SERVICE_TOKEN", "blender-token-0123456789abcdef0123456789abcdef")
+	t.Setenv("STUDIO_COMFYUI_URL", comfyuiServer.URL+"/internal/mcp")
+	t.Setenv("STUDIO_COMFYUI_SERVICE_TOKEN", "comfyui-token-0123456789abcdef0123456789abcdef")
+
+	stationID := uuid.Must(uuid.NewV7()).String()
+	sessionID := uuid.Must(uuid.NewV7()).String()
+	userID := uuid.Must(uuid.NewV7()).String()
+	orgID := uuid.Must(uuid.NewV7()).String()
+
+	releasedCalls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/identity/login":
+			w.WriteHeader(http.StatusCreated)
+			io.WriteString(w, `{"access_token":"tok-1","user_id":"`+userID+`"}`)
+		case "/identity/me":
+			w.Header().Set("Content-Type", "application/json")
+			me, _ := json.Marshal(map[string]any{
+				"station_id":         stationID,
+				"session_id":         sessionID,
+				"user_id":            userID,
+				"organization_id":    orgID,
+				"organization_name":  "VerdantFlare",
+				"request_id":         uuid.Must(uuid.NewV7()).String(),
+				"username":           "admin",
+				"roles":              []string{"admin"},
+				"scopes":             []string{"identity:read"},
+				"issued_at":          time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
+				"expires_at":         time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+				"revocation_version": 0,
+				"policy_version":     1,
+			})
+			w.Write(me)
+		case "/api/v1/resources/workspaces":
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{
+				"workspaces": [
+					{
+						"namespace": "verdantflare-app",
+						"pvc_name": "comfyui-managed-a",
+						"pool_name": "comfyui-managed",
+						"state": "bound_stopped",
+						"instance_id": "01a12b1b-f5c3-75a1-bed3-3ef6ea897cf9",
+						"allowed_actions": []
+					},
+					{
+						"namespace": "verdantflare-app",
+						"pvc_name": "comfyui-managed-b",
+						"pool_name": "comfyui-managed",
+						"state": "bound_stopped",
+						"instance_id": "01a12b1b-f6a3-7be7-8509-08628c2bdc13",
+						"bound_at": "2026-10-14T08:00:00Z",
+						"allowed_actions": []
+					},
+					{
+						"namespace": "verdantflare-app",
+						"pvc_name": "comfyui-managed-inuse",
+						"app_id": "comfyui",
+						"state": "in_use",
+						"instance_id": "01a12b1b-f5c3-75a1-bed3-3ef6ea897cf9",
+						"allowed_actions": []
+					},
+					{
+						"namespace": "verdantflare-app",
+						"pvc_name": "blender-pool-003",
+						"pool_name": "blender-pool",
+						"state": "retained",
+						"instance_id": "01a12a49-4621-769b-b221-dd75aa76bb2e",
+						"allowed_actions": ["release"]
+					}
+				],
+				"request_id": "req-2"
+			}`)
+		case "/api/v1/resources/workspaces/release":
+			releasedCalls++
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"released":true,"workspace":{"namespace":"verdantflare-app","pvc_name":"released","state":"available"}}`)
+		default:
+			t.Fatalf("unexpected upstream path: %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	station, err := application.NewStation(upstream.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, srv := NewServer(station, "https://studio.example", fstest.MapFS{"index.html": {Data: []byte("studio")}})
+	srv.blenderEndpoint = func() (string, bool) { return blenderServer.URL + "/internal/mcp", true }
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"username":"admin","password":"x"}`))
+	loginReq.Header.Set("Origin", "https://studio.example")
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginRR := httptest.NewRecorder()
+	handler.ServeHTTP(loginRR, loginReq)
+	cookie := loginRR.Result().Cookies()[0]
+
+	// 1. GET /api/resources/workspaces in verdantflare-app should infer app_id/app_name and enrich instance_name
+	listReq := httptest.NewRequest(http.MethodGet, "/api/resources/workspaces", nil)
+	listReq.AddCookie(cookie)
+	listRR := httptest.NewRecorder()
+	handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listRR.Code, listRR.Body.String())
+	}
+	var listOut struct {
+		Workspaces []map[string]any `json:"workspaces"`
+	}
+	if err := json.Unmarshal(listRR.Body.Bytes(), &listOut); err != nil {
+		t.Fatal(err)
+	}
+	if got := listOut.Workspaces[0]["app_id"]; got != "comfyui" {
+		t.Fatalf("expected comfyui-managed-a app_id=comfyui, got %v", got)
+	}
+	if got := listOut.Workspaces[0]["app_name"]; got != "ComfyUI" {
+		t.Fatalf("expected comfyui-managed-a app_name=ComfyUI, got %v", got)
+	}
+	if got := listOut.Workspaces[0]["instance_name"]; got != "ComfyUI Dashboard A" {
+		t.Fatalf("expected comfyui-managed-a instance_name, got %v", got)
+	}
+	if got := listOut.Workspaces[1]["state"]; got != "retained" {
+		t.Fatalf("expected comfyui-managed-b to be promoted to retained, got %v", got)
+	}
+	if got := listOut.Workspaces[1]["instance_name"]; got != "ComfyUI 实例（已销毁）" {
+		t.Fatalf("expected comfyui-managed-b destroyed label, got %v", got)
+	}
+	if got := listOut.Workspaces[3]["app_id"]; got != "blender" {
+		t.Fatalf("expected blender-pool-003 app_id=blender, got %v", got)
+	}
+	if got := listOut.Workspaces[3]["app_name"]; got != "Blender" {
+		t.Fatalf("expected blender-pool-003 app_name=Blender, got %v", got)
+	}
+	if got := listOut.Workspaces[3]["instance_name"]; got != "谢小娥·梦字迷局 白模" {
+		t.Fatalf("expected blender-pool-003 instance_name, got %v", got)
+	}
+
+	// 2. Active ComfyUI workspace in verdantflare-app -> 409 INSTANCE_NOT_DESTROYED
+	for _, body := range []string{
+		`{"namespace":"verdantflare-app","pvc_name":"comfyui-managed-a"}`,
+		`{"namespace":"verdantflare-app","pvc_name":"comfyui-managed-inuse"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/resources/workspaces/release", strings.NewReader(body))
+		req.Header.Set("Origin", "https://studio.example")
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(cookie)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusConflict {
+			t.Fatalf("expected 409 for %s, got %d: %s", body, rr.Code, rr.Body.String())
+		}
+	}
+	if releasedCalls != 0 {
+		t.Fatalf("expected upstream release not called for blocked ComfyUI workspaces")
+	}
+
+	// 3. Destroyed ComfyUI workspace and Blender workspace in verdantflare-app should pass through
+	for _, body := range []string{
+		`{"namespace":"verdantflare-app","pvc_name":"comfyui-managed-b"}`,
+		`{"namespace":"verdantflare-app","pvc_name":"blender-pool-003"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/resources/workspaces/release", strings.NewReader(body))
+		req.Header.Set("Origin", "https://studio.example")
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(cookie)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for %s, got %d: %s", body, rr.Code, rr.Body.String())
+		}
+	}
+	if releasedCalls != 2 {
+		t.Fatalf("expected upstream release called twice, got %d", releasedCalls)
+	}
+}
+

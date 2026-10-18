@@ -27,7 +27,7 @@ func main() {
 	}
 
 	videoConfig := web.VideoConfig{URL: os.Getenv("STUDIO_VIDEO_URL"), Token: os.Getenv("STUDIO_VIDEO_TOKEN")}
-	imageConfig := web.ImageConfig{URL: env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-image.svc.cluster.local:8000"), Token: os.Getenv("STUDIO_IMAGE_TOKEN")}
+	imageConfig := web.ImageConfig{URL: env("STUDIO_IMAGE_URL", "http://image-mcp-server.verdantflare-app.svc.cluster.local:8000"), Token: os.Getenv("STUDIO_IMAGE_TOKEN")}
 	handler, webServer := web.NewServer(s, env("STUDIO_PUBLIC_ORIGIN", "http://127.0.0.1:8000"), frontend.Assets(), videoConfig)
 	dashboards := application.NewDashboards(s, os.Getenv("STUDIO_DASHBOARD_REGISTRY"))
 	defer dashboards.Shutdown()

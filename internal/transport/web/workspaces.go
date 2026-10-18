@@ -159,6 +159,62 @@ func (s *Server) fetchComfyUIInstanceNames(ctx context.Context, actor dashboard.
 	return names, true
 }
 
+func stringValue(v any) string {
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
+}
+
+type runtimeWorkspaceSnapshot struct {
+	AppID      string `json:"app_id"`
+	Namespace  string `json:"namespace"`
+	PVCName    string `json:"pvc_name"`
+	PoolName   string `json:"pool_name"`
+	InstanceID string `json:"instance_id"`
+	State      string `json:"state"`
+}
+
+func inferWorkspaceAppID(ws map[string]any, comfyuiNames, blenderNames map[string]string) string {
+	switch strings.ToLower(stringValue(ws["app_id"])) {
+	case "comfyui":
+		return "comfyui"
+	case "blender":
+		return "blender"
+	}
+	for _, field := range []string{"pool_name", "pvc_name"} {
+		v := strings.ToLower(stringValue(ws[field]))
+		if strings.HasPrefix(v, "comfyui") {
+			return "comfyui"
+		}
+		if strings.HasPrefix(v, "blender") {
+			return "blender"
+		}
+	}
+	switch stringValue(ws["namespace"]) {
+	case "verdantflare-comfyui":
+		return "comfyui"
+	case "verdantflare-blender":
+		return "blender"
+	}
+	if instID := stringValue(ws["instance_id"]); instID != "" {
+		if _, ok := comfyuiNames[instID]; ok {
+			return "comfyui"
+		}
+		if _, ok := blenderNames[instID]; ok {
+			return "blender"
+		}
+	}
+	return ""
+}
+
+func isComfyUIWorkspaceSnapshot(ws runtimeWorkspaceSnapshot) bool {
+	return inferWorkspaceAppID(map[string]any{
+		"app_id":    ws.AppID,
+		"pool_name": ws.PoolName,
+		"pvc_name":  ws.PVCName,
+		"namespace": ws.Namespace,
+	}, nil, nil) == "comfyui"
+}
+
 func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte) []byte {
 	var payload struct {
 		Workspaces []map[string]any `json:"workspaces"`
@@ -191,31 +247,44 @@ func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte)
 	wg.Wait()
 
 	for _, ws := range payload.Workspaces {
-		ns, _ := ws["namespace"].(string)
-		instID, _ := ws["instance_id"].(string)
-		state, _ := ws["state"].(string)
+		appID := inferWorkspaceAppID(ws, comfyuiNames, blenderNames)
+		switch appID {
+		case "comfyui":
+			if stringValue(ws["app_id"]) == "" {
+				ws["app_id"] = "comfyui"
+			}
+			if stringValue(ws["app_name"]) == "" {
+				ws["app_name"] = "ComfyUI"
+			}
+		case "blender":
+			if stringValue(ws["app_id"]) == "" {
+				ws["app_id"] = "blender"
+			}
+			if stringValue(ws["app_name"]) == "" {
+				ws["app_name"] = "Blender"
+			}
+		}
+		instID := stringValue(ws["instance_id"])
+		state := stringValue(ws["state"])
 		if instID == "" {
-			if state == "retained" {
-				if cur, _ := ws["instance_name"].(string); cur == "" {
-					if ns == "verdantflare-blender" {
-						ws["instance_name"] = "Blender 历史实例（已销毁）"
-					} else if ns == "verdantflare-comfyui" {
-						ws["instance_name"] = "ComfyUI 实例（已销毁）"
-					}
+			if state == "retained" && stringValue(ws["instance_name"]) == "" {
+				switch appID {
+				case "blender":
+					ws["instance_name"] = "Blender 历史实例（已销毁）"
+				case "comfyui":
+					ws["instance_name"] = "ComfyUI 实例（已销毁）"
 				}
 			}
 			continue
 		}
-		switch ns {
-		case "verdantflare-blender":
+		switch appID {
+		case "blender":
 			if name, exists := blenderNames[instID]; exists && name != "" {
 				ws["instance_name"] = name
-			} else if state == "retained" {
-				if cur, _ := ws["instance_name"].(string); cur == "" {
-					ws["instance_name"] = "Blender 历史实例（已销毁）"
-				}
+			} else if state == "retained" && stringValue(ws["instance_name"]) == "" {
+				ws["instance_name"] = "Blender 历史实例（已销毁）"
 			}
-		case "verdantflare-comfyui":
+		case "comfyui":
 			if name, exists := comfyuiNames[instID]; exists {
 				if name != "" {
 					ws["instance_name"] = name
@@ -224,8 +293,8 @@ func (s *Server) enrichWorkspaces(ctx context.Context, token string, raw []byte)
 				ws["state"] = "retained"
 				ws["allowed_actions"] = []string{"release"}
 				ws["instance_name"] = "ComfyUI 实例（已销毁）"
-				if retAt, _ := ws["retained_at"].(string); retAt == "" {
-					if boundAt, _ := ws["bound_at"].(string); boundAt != "" {
+				if stringValue(ws["retained_at"]) == "" {
+					if boundAt := stringValue(ws["bound_at"]); boundAt != "" {
 						ws["retained_at"] = boundAt
 					}
 				}
@@ -244,7 +313,7 @@ func (s *Server) guardComfyUIWorkspaceRelease(ctx context.Context, token string,
 		Namespace string `json:"namespace"`
 		PVCName   string `json:"pvc_name"`
 	}
-	if json.Unmarshal(body, &req) != nil || req.Namespace != "verdantflare-comfyui" || req.PVCName == "" || token == "" {
+	if json.Unmarshal(body, &req) != nil || (req.Namespace != "verdantflare-comfyui" && req.Namespace != "verdantflare-app") || req.PVCName == "" || token == "" {
 		return nil
 	}
 	listRes := s.station.Call(ctx, token, application.Request{Path: "resources/workspaces", Method: "GET"})
@@ -252,27 +321,36 @@ func (s *Server) guardComfyUIWorkspaceRelease(ctx context.Context, token string,
 		return nil
 	}
 	var payload struct {
-		Workspaces []struct {
-			Namespace  string `json:"namespace"`
-			PVCName    string `json:"pvc_name"`
-			InstanceID string `json:"instance_id"`
-			State      string `json:"state"`
-		} `json:"workspaces"`
+		Workspaces []runtimeWorkspaceSnapshot `json:"workspaces"`
 	}
 	if json.Unmarshal(listRes.Data, &payload) != nil {
 		return nil
 	}
-	var boundInstanceID string
-	for _, ws := range payload.Workspaces {
-		if ws.Namespace == "verdantflare-comfyui" && ws.PVCName == req.PVCName {
-			if ws.State == "in_use" {
-				res := application.Error(http.StatusConflict, "WORKSPACE_IN_USE")
-				return &res
-			}
-			boundInstanceID = ws.InstanceID
+	var matched *runtimeWorkspaceSnapshot
+	for i := range payload.Workspaces {
+		ws := &payload.Workspaces[i]
+		if ws.Namespace == req.Namespace && ws.PVCName == req.PVCName {
+			matched = ws
 			break
 		}
 	}
+	if matched == nil {
+		for i := range payload.Workspaces {
+			ws := &payload.Workspaces[i]
+			if ws.PVCName == req.PVCName && isComfyUIWorkspaceSnapshot(*ws) {
+				matched = ws
+				break
+			}
+		}
+	}
+	if matched == nil || !isComfyUIWorkspaceSnapshot(*matched) {
+		return nil
+	}
+	if matched.State == "in_use" {
+		res := application.Error(http.StatusConflict, "WORKSPACE_IN_USE")
+		return &res
+	}
+	boundInstanceID := matched.InstanceID
 	if boundInstanceID == "" {
 		return nil
 	}
