@@ -138,7 +138,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 
 <template>
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
-    <nav class="dashboard-breadcrumb" aria-label="面包屑">
+    <nav v-if="selection?.opened.adapterId !== 'blender-host-v1'" class="dashboard-breadcrumb" aria-label="面包屑">
       <template v-if="video">
         <a :href="router.resolve(videoTasksRoute).href" @click.prevent="navigate(videoTasksRoute)">{{ selection?.card.display.name || 'Video MCP' }}</a>
         <span class="breadcrumb-sep" aria-hidden="true"> / </span>
@@ -163,7 +163,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
         <span class="breadcrumb-current" aria-current="page">{{ selection.card.display.name }}</span>
       </template>
     </nav>
-    <header class="heading">
+    <header v-if="selection?.opened.adapterId !== 'blender-host-v1'" class="heading">
       <div class="heading-left">
         <h1>{{ selection?.card.display.name || '应用入口' }}</h1>
         <p>{{ selection?.card.display.description }}</p>

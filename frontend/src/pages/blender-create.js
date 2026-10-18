@@ -32,22 +32,21 @@ export function mountBlenderCreation({ host, request, listen, onAccepted }) {
     const profile = options.profiles.find(p => p.profile_id === model.profile_id);
     const projectOptions = projects.map(p => `<option value="${esc(p.project_id)}" ${p.project_id === model.project_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
     const currentMissing = model.project_id && !projects.some(p => p.project_id === model.project_id);
-    host.innerHTML = `<div class="page-heading"><h1>准备一个独立工作区</h1><p>项目保存你的成果，实例提供 Blender 的运行环境。</p></div>
-      <form id="blenderCreateForm"><div class="form-layout"><div class="panel"><fieldset ${locked?'disabled':''}>
-      <section class="form-section"><div class="step-heading"><span class="step-number">01</span><h2>名称与项目</h2></div>
+    host.innerHTML = `<div class="page-heading"><h2 id="blenderCreateTitle">创建 Blender 实例</h2><p>创建后默认处于「已停止」状态，不提前占用 5090 GPU；需要时点击「启动」即可分配算力并进入 3D 桌面。</p></div>
+      <form id="blenderCreateForm"><fieldset ${locked?'disabled':''}>
+      <section class="form-section">
       <label class="field"><span>实例名称</span><input name="name" value="${esc(model.name)}" maxlength="40" required placeholder="例如：产品建模工作区" autocomplete="off"><small>1–40 个字符；当前组织内名称不重复。</small></label>
       <label class="field"><span>关联项目</span><select name="project" required><option value="">选择可编辑的项目</option>${projectOptions}${currentMissing?`<option selected value="${esc(model.project_id)}">已选择项目 · ${esc(model.project_id)}</option>`:''}<option value="new" ${model.new_project?'selected':''}>新建项目 · 空白场景</option></select><small>实例固定关联该项目，保存时生成新的项目修订。</small></label>
-      ${nextCursor?'<button class="btn" type="button" data-create-action="more">加载更多项目</button>':''}
+      ${nextCursor?'<button class="btn sm" type="button" data-create-action="more">加载更多项目</button>':''}
       ${model.new_project?`<label class="field"><span>新项目名称</span><input name="project_name" maxlength="256" value="${esc(model.project_name)}" required placeholder="例如：产品空间"><small>创建实例失败时，已经建立的项目仍会保留。</small></label>`:
-      `<label class="field"><span>来源修订</span><input name="revision" value="${esc(model.source_revision_id)}" placeholder="选择项目后自动填入，也可指定旧修订" ${model.project_id?'':'disabled'} required><small>固定使用此修订，后续项目更新不会替换工作副本。</small></label><button class="btn" data-create-action="verify" type="button" ${model.project_id && !checking?'':'disabled'}>核验来源修订</button>`}
+      `<label class="field"><span>来源修订</span><input name="revision" value="${esc(model.source_revision_id)}" placeholder="选择项目后自动填入，也可指定旧修订" ${model.project_id?'':'disabled'} required><small>固定使用此修订，后续项目更新不会替换工作副本。</small></label><button class="btn sm" data-create-action="verify" type="button" ${model.project_id && !checking?'':'disabled'}>核验来源修订</button>`}
       <div class="source-summary" role="status"><span class="kicker">初始工程</span><p>${checking?'正在核验修订与工程…':esc(sourceText(source))}</p>${source?.kind==='restore'?`<small>${esc(formatResource(source.size,'bytes'))} · 已核验工程元数据</small>`:''}</div>
-      </section><section class="form-section"><div class="step-heading"><span class="step-number">02</span><h2>运行位置与规格</h2></div>
-      <label class="field"><span>Station</span><input value="当前 Station" disabled></label><label class="field"><span>运行规格</span><select name="profile" required>${options.profiles.map(p=>`<option value="${esc(p.profile_id)}" ${p.profile_id===model.profile_id?'selected':''}>${esc(p.profile_id)}</option>`).join('')}</select></label>
-      <div class="profile"><div class="profile-grid"><div><small>存储预留</small>${esc(formatResource(profile?.storage_reserved_bytes,'bytes'))}</div><div><small>单工程大小上限</small>${esc(formatResource(profile?.max_file_bytes,'bytes'))}</div></div><p class="muted">创建完成后保持停止，启动时检查并分配计算资源。</p></div></section></fieldset>
-      <div class="form-actions"><a class="btn" href="#/market?blender=instances">返回实例</a><button class="btn primary" type="submit" ${busy || checking || !options.profiles.length || (!pending && !model.new_project && !source)?'disabled':''}>${busy?'正在确认…':pending?.operation?'查看创建进度':pending?'重试确认创建':'创建实例'}</button></div></div>
-      <aside class="panel pad"><h2>创建后的步骤</h2><ol class="creation-steps"><li><strong>准备独立工作区</strong><p>校验并恢复所选工程，或建立空白工作副本。</p></li><li><strong>按需启动</strong><p>启动后分配计算资源，确认场景加载完成。</p></li><li><strong>打开并创作</strong><p>保存到项目；停止或销毁后保留工程与工作区。</p></li></ol><div class="state-note">你将拥有新实例的管理和编辑权限。创建操作不授予其他项目的访问权。</div></aside></div>
+      </section><section class="form-section">
+      <label class="field"><span>运行规格（5090 独占工作站）</span><select name="profile" required>${options.profiles.map(p=>`<option value="${esc(p.profile_id)}" ${p.profile_id===model.profile_id?'selected':''}>${esc(p.profile_id)}</option>`).join('')}</select></label>
+      <div class="profile"><div class="profile-head"><strong>${esc(profile?.profile_id || '标准独占工作区')}</strong><span class="badge running"><span class="dot"></span>默认</span></div><div class="profile-grid num"><div><small>存储预留</small>${esc(formatResource(profile?.storage_reserved_bytes,'bytes'))}</div><div><small>单工程大小上限</small>${esc(formatResource(profile?.max_file_bytes,'bytes'))}</div><div><small>运行节点</small>当前 Station</div></div></div></section></fieldset>
       <p id="blenderCreateError" class="state-note error" role="alert" ${error?'':'hidden'}>${esc(error)}</p>
-      ${pending?'<p class="state-note" role="status">已保留本次请求。离开页面不会取消已受理的操作；重试沿用同一次创建。</p>':''}</form>`;
+      ${pending?'<p class="state-note" role="status">已保留本次请求。离开页面不会取消已受理的操作；重试沿用同一次创建。</p>':''}
+      <div class="form-actions actions"><a class="btn" href="#/market?blender=instances">取消</a><button class="btn primary" type="submit" ${busy || checking || !options.profiles.length || (!pending && !model.new_project && !source)?'disabled':''}>${busy?'正在确认…':pending?.operation?'查看创建进度':pending?'重试确认创建':'确认创建'}</button></div></form>`;
   }
   async function loadProjects(cursor) {
     const data = await request(base+'instance-projects', cursor ? {cursor} : {});
@@ -56,7 +55,7 @@ export function mountBlenderCreation({ host, request, listen, onAccepted }) {
   }
   async function show() {
     const current = ++epoch; ++selection; options = null; busy = false; pending = null; error = ''; source = null; checking = false;
-    host.innerHTML = '<section class="panel pad"><p role="status">正在读取创建权限与规格…</p></section>';
+    host.innerHTML = '<div class="pad"><p role="status">正在读取创建权限与规格…</p></div>';
     try {
       const value = await request(base+'instance-options');
       if (current !== epoch) return;
@@ -73,7 +72,7 @@ export function mountBlenderCreation({ host, request, listen, onAccepted }) {
     } catch (e) {
       if (current !== epoch) return;
       options = null;
-      host.innerHTML = `<section class="panel pad"><h2>暂时无法创建实例</h2><p class="state-note error" role="status">${esc(e.message)}</p><div class="actions"><a class="btn" href="#/market?blender=instances">返回实例</a><button class="btn" data-create-action="reload">重试</button></div></section>`;
+      host.innerHTML = `<div class="pad"><h2 id="blenderCreateTitle">暂时无法创建实例</h2><p class="state-note error" role="status">${esc(e.message)}</p><div class="actions"><a class="btn" href="#/market?blender=instances">取消</a><button class="btn primary" data-create-action="reload">重试</button></div></div>`;
     }
   }
   async function verify() {

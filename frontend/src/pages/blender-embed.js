@@ -1,4 +1,4 @@
-import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, summary, instanceCard, detail } from './blender-management';
+import { instanceName, instanceURL, isFresh, canOpen, canStop, canDestroy, filterCounts, summary, instanceCard, detail } from './blender-management';
 import { mountBlenderCreation } from './blender-create';
 import { createBlenderStarter } from './blender-start';
 import { blenderMCPAddress } from '../app-center/legacy-blender';
@@ -6,10 +6,11 @@ import { blenderMCPAddress } from '../app-center/legacy-blender';
 export function mountBlender({ listen, notice, root = /** @type {Document | HTMLElement} */ (document), location = /** @type {Pick<Location, 'hash' | 'origin'>} */ (window.location), authorize, fetcher = fetch, mcpOrigin = location.origin }) {
   const $ = id => root.querySelector('#' + id), host = $('blenderHost'), frame = $('blenderFrame'), main = host.closest('.main');
   const lifetime = new AbortController();
-  const now = () => Date.now();
+  const now = () => undefined;
+  const PAGE_SIZE = 10;
   let active = false, items = [], route = null, epoch = 0, session = null, pending = null;
   let timeout, renewal, saving = false, listScroll = 0, marketScroll = 0;
-  let polling, filter = 'all', refreshing = false, hasSnapshot = false, createAvailable = false, operation = null, operationError = '';
+  let polling, filter = 'all', page = 1, refreshing = false, hasSnapshot = false, createAvailable = false, operation = null, operationError = '';
   const alias = () => new URLSearchParams(location.hash.split('?')[1] || '').get('blender');
   const panel = () => new URLSearchParams(location.hash.split('?')[1] || '').get('panel') || '';
   const name = instanceName;
@@ -102,6 +103,8 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   function status(text, state = 'error', canRetry = true) {
     host.dataset.state = state;
     $('blenderMessage').textContent = text;
+    const selected = items.find(item => item.alias === alias());
+    if ($('blenderWorkspaceTitle')) $('blenderWorkspaceTitle').textContent = selected ? name(selected) : 'Blender';
     $('blenderLoading').hidden = state === 'ready'; $('blenderToolbar').hidden = state !== 'ready';
     $('blenderProgress').hidden = state !== 'loading'; $('blenderAction').hidden = state === 'ready' || !canRetry;
     $('blenderAction').disabled = saving;
@@ -153,13 +156,32 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   function renderList() {
     if (!hasSnapshot) return;
     const currentTime = now();
+    const counts = filterCounts(items, currentTime);
+    for (const [k, v] of Object.entries(counts)) {
+      const badgeEl = $('blenderFilters')?.querySelector(`[data-filter-count="${k}"]`);
+      if (badgeEl) badgeEl.textContent = String(v);
+    }
     const search = $('blenderSearch').value.trim().toLowerCase();
     const matches = items.filter(item => (name(item) + ' ' + item.alias + ' ' + (item.project_name || '')).toLowerCase().includes(search)
-      && (filter === 'all' || filter === 'failed' && (!isFresh(item, currentTime) || ['unknown','failed'].includes(item.status)) || isFresh(item, currentTime) && item.status === filter));
-    $('blenderRows').innerHTML = matches.map(item => instanceCard(item, currentTime)).join('');
-    $('blenderSummary').innerHTML = summary(items, currentTime); $('blenderSummary').hidden = false;
+      && (filter === 'all'
+        || filter === 'failed' && (!isFresh(item, currentTime) || ['unknown','failed'].includes(item.status))
+        || filter === 'stopped' && isFresh(item, currentTime) && ['stopped','created'].includes(item.status)
+        || isFresh(item, currentTime) && item.status === filter));
+    const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+    page = Math.min(Math.max(1, page), totalPages);
+    const paged = matches.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    if ($('blenderSkeleton')) $('blenderSkeleton').hidden = true;
+    $('blenderRows').innerHTML = paged.map(item => instanceCard(item, currentTime)).join('');
+    $('blenderSummary').innerHTML = summary(items, currentTime); $('blenderSummary').hidden = true;
+    if ($('blenderTableWrap')) $('blenderTableWrap').hidden = !matches.length;
+    if ($('blenderPageSummary')) $('blenderPageSummary').textContent = `共 ${matches.length} 个实例 · 第 ${page} / ${totalPages} 页（每页 ${PAGE_SIZE} 条）`;
+    if ($('blenderPrevPage')) $('blenderPrevPage').disabled = page <= 1;
+    if ($('blenderNextPage')) $('blenderNextPage').disabled = page >= totalPages;
+    if ($('blenderEmpty')) $('blenderEmpty').hidden = !!matches.length;
+    if ($('blenderEmptyTitle')) $('blenderEmptyTitle').textContent = items.length ? '没有匹配的实例' : '暂无 Blender 实例';
+    if ($('blenderClearFilter')) $('blenderClearFilter').hidden = !items.length || (filter === 'all' && !search);
     $('blenderListMessage').hidden = !!matches.length;
-    $('blenderListMessage').textContent = items.length ? '没有匹配的实例。' : '当前账号暂无可访问的实例。';
+    $('blenderListMessage').textContent = items.length ? '没有匹配的实例，请尝试其他关键词或清除筛选条件。' : '当前账号暂无可访问的实例。';
   }
   function renderDetail() {
     const selected = items.find(item => item.alias === alias());
@@ -202,7 +224,9 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       items = items.map(item => ({...item,observed_at:null,status:'unknown',allowed_actions:['view'],resources_observed_at:null,
         resources:Object.fromEntries(Object.entries(item.resources || {}).map(([key,value]) => [key,{...value,value:null,quality:'unavailable'}]))}));
       if (alias() === 'instances') {
-        renderList(); $('blenderListMessage').hidden = false; $('blenderListMessage').textContent = error.message; $('blenderListRetry').hidden = false;
+        renderList();
+        if ($('blenderEmpty')) $('blenderEmpty').hidden = !!items.length;
+        $('blenderListMessage').hidden = false; $('blenderListMessage').textContent = error.message; $('blenderListRetry').hidden = false;
       } else { if (hasSnapshot) {renderDetail();notice(error.message);} else detailError(error.message); }
     } finally {
       refreshing = false; $('blenderRefresh').disabled = false;
@@ -211,14 +235,21 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
   }
   function breadcrumb(target) {
     const nav = $('blenderBreadcrumb'); nav.replaceChildren();
-    const market = document.createElement('a'); market.href = '#/market'; market.textContent = '应用中心'; nav.append(market, ' / ');
-    const app = document.createElement(target === 'instances' ? 'span' : 'a'); app.textContent = 'Blender';
-    if (target !== 'instances') app.href = '#/market?blender=instances'; else app.setAttribute('aria-current', 'page');
-    nav.append(app);
-    if (target !== 'instances') {
-      const current = document.createElement('span'), item = items.find(i => i.alias === target);
-      current.setAttribute('aria-current', 'page'); current.textContent = target === 'create' ? '创建实例' : item ? name(item) : '实例不可用'; nav.append(' / ', current);
+    const app = document.createElement('a');
+    app.textContent = 'Blender';
+    app.href = '#/market?blender=instances';
+    const sep = document.createElement('span');
+    sep.setAttribute('aria-hidden', 'true');
+    sep.textContent = '/';
+    const current = document.createElement('span');
+    current.setAttribute('aria-current', 'page');
+    if (target === 'instances') {
+      current.textContent = '实例列表';
+    } else {
+      const item = items.find(i => i.alias === target);
+      current.textContent = target === 'create' ? '创建实例' : item ? name(item) : '实例详情';
     }
+    nav.append(app, sep, current);
   }
   async function sync(force = false) {
     const target = alias();
@@ -228,22 +259,54 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (route === 'instances') listScroll = window.scrollY;
     const current = ++epoch, opening = pending;
     if (!active) marketScroll = window.scrollY;
-    active = true; route = key; items = []; hasSnapshot = false; operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
+    const keepListForCreate = target === 'create' && hasSnapshot;
+    active = true; route = key;
+    if (!keepListForCreate) { items = []; hasSnapshot = false; }
+    operation=null;operationError='';createAvailable=false;creationAction();clearTimeout(polling);creation.hide();
     host.hidden = false; host.style.display = 'flex'; if ($('marketView')) { $('marketView').hidden = true; $('marketView').style.display = 'none'; }
     main.classList.add('embed-active', 'blender-active');
     const management = target !== 'instances' && target !== 'create' && !!panel();
-    $('blenderCreateView').hidden = target !== 'create';
-    $('blenderList').hidden = target !== 'instances'; $('blenderWorkspace').hidden = target === 'instances' || target === 'create' || management;
+    const createDialog = $('blenderCreateDialog');
+    if (createDialog) {
+      if (target === 'create') {
+        $('blenderCreateView').hidden = false;
+        if (!createDialog.open && typeof createDialog.showModal === 'function') createDialog.showModal();
+      } else {
+        if (createDialog.open && typeof createDialog.close === 'function') createDialog.close();
+        $('blenderCreateView').hidden = true;
+      }
+    } else {
+      $('blenderCreateView').hidden = target !== 'create';
+    }
+    if ($('blenderAppHeader')) $('blenderAppHeader').hidden = target !== 'instances' && target !== 'create';
+    $('blenderList').hidden = target !== 'instances' && target !== 'create';
+    $('blenderWorkspace').hidden = target === 'instances' || target === 'create' || management;
     $('blenderDetail').hidden = !management; $('blenderDetail').textContent = '正在读取实例…';
     $('blenderManageLink').hidden = target === 'instances' || target === 'create' || management;
-    $('blenderCreate').hidden = target !== 'instances';
+    $('blenderCreate').hidden = target !== 'instances' && target !== 'create';
     $('blenderManageLink').href = instanceURL({alias:target}, 'overview');
-    $('blenderListRetry').hidden = true; $('blenderRows').replaceChildren(); $('blenderSummary').hidden = true;
-    $('blenderListMessage').hidden = false; $('blenderListMessage').textContent = '正在读取实例…';
+    if (!keepListForCreate) {
+      $('blenderListRetry').hidden = true; $('blenderRows').replaceChildren(); $('blenderSummary').hidden = true;
+      if ($('blenderTableWrap')) $('blenderTableWrap').hidden = true;
+      if ($('blenderSkeleton')) $('blenderSkeleton').hidden = target !== 'instances';
+      if ($('blenderEmpty')) $('blenderEmpty').hidden = true;
+      $('blenderListMessage').hidden = false; $('blenderListMessage').textContent = '正在读取实例…';
+    }
     breadcrumb(target); status('正在打开', 'loading');
     await release().catch(() => {}); await opening?.catch(() => {});
     if (current !== epoch) return;
-    if (target === 'create') {window.scrollTo(0,0);await creation.show();return;}
+    if (target === 'create') {
+      if (!keepListForCreate) {
+        void request('/studio/apps/blender/instances').then(data => {
+          if (current !== epoch) return;
+          adoptSnapshot(data);
+          createAvailable = data.capabilities?.create === true; creationAction();
+          renderList();
+        }).catch(() => {});
+      }
+      await creation.show();
+      return;
+    }
     try {
       const data = await request('/studio/apps/blender/instances');
       if (current !== epoch) return;
@@ -263,7 +326,12 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       }
     } catch (error) {
       if (current !== epoch) return;
-      if (target === 'instances') { $('blenderListMessage').textContent = error.message; $('blenderListRetry').hidden = false; }
+      if (target === 'instances') {
+        if ($('blenderSkeleton')) $('blenderSkeleton').hidden = true;
+        if ($('blenderEmpty')) $('blenderEmpty').hidden = false;
+        if ($('blenderEmptyTitle')) $('blenderEmptyTitle').textContent = '实例列表读取失败';
+        $('blenderListMessage').hidden = false; $('blenderListMessage').textContent = error.message; $('blenderListRetry').hidden = false;
+      }
       else if (management) detailError(error.message);
       else status(error.message);
     }
@@ -324,13 +392,21 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       catch { notice('实例 MCP 地址无效，请刷新后重试。'); }
     }
   });
-  listen($('blenderSearch'), 'input', renderList); listen($('blenderListRetry'), 'click', () => void sync(true));
+  listen($('blenderSearch'), 'input', () => { page = 1; renderList(); }); listen($('blenderListRetry'), 'click', () => void sync(true));
+  if ($('blenderPrevPage')) listen($('blenderPrevPage'), 'click', () => { if (page > 1) { page--; renderList(); } });
+  if ($('blenderNextPage')) listen($('blenderNextPage'), 'click', () => { page++; renderList(); });
+  if ($('blenderClearFilter')) listen($('blenderClearFilter'), 'click', () => {
+    filter = 'all'; page = 1; $('blenderSearch').value = '';
+    for (const el of $('blenderFilters').querySelectorAll('[data-status]')) el.setAttribute('aria-pressed', String(el.dataset.status === 'all'));
+    renderList();
+  });
+  if ($('blenderCreateDialog')) listen($('blenderCreateDialog'), 'cancel', event => { event.preventDefault(); location.hash = '/market?blender=instances'; });
   const startInstance = createBlenderStarter({request,now,storage:sessionStorage});
   const stopInstance = createBlenderStarter({request,now,storage:sessionStorage,action:'stop'});
   const destroyInstance = createBlenderStarter({request,now,storage:sessionStorage,action:'destroy'});
   const stopDialog = document.createElement('dialog');stopDialog.className='blender-management blender-stop-dialog';
   stopDialog.setAttribute('aria-labelledby','blenderStopTitle');
-  stopDialog.innerHTML='<h2 id="blenderStopTitle"></h2><p data-description></p><ul><li data-retention></li><li data-access></li></ul><label class="field" data-name-field hidden><span>输入实例名称以确认</span><input autocomplete="off" data-name></label><p class="state-note" role="status"></p><div class="actions"><button class="btn" data-cancel>取消</button><button class="btn primary" data-confirm>保存并停止</button></div>';
+  stopDialog.innerHTML='<h2 id="blenderStopTitle"></h2><p data-description></p><ul><li data-retention></li><li data-access></li></ul><label class="field" data-name-field hidden><span>输入实例名称以确认</span><input autocomplete="off" data-name></label><p class="state-note" role="status"></p><div class="actions"><button class="btn" type="button" data-cancel>取消</button><button class="btn primary" type="button" data-confirm>保存并停止</button></div>';
   host.append(stopDialog);
   let stopTarget = null, stopTrigger = null, dialogAction = 'stop';
   const stopConfirm = stopDialog.querySelector('[data-confirm]');
@@ -356,7 +432,7 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
       const item=items.find(value=>value.alias===(destroying?stopButton.dataset.blenderDestroy:stopButton.dataset.blenderStop));
       if(!item || !(destroying?canDestroy(item, now()):canStop(item, now())))return;
       dialogAction=destroying?'destroy':'stop';stopTarget=item.alias;stopTrigger=stopButton;stopConfirm.disabled=destroying;
-      stopConfirm.textContent=destroying?'确认销毁':'保存并停止';stopConfirm.className=destroying?'btn danger':'btn primary';
+      stopConfirm.textContent=destroying?'确认销毁':'保存并停止';stopConfirm.className=destroying?'btn danger solid':'btn primary';
       confirmName.value='';stopDialog.querySelector('[data-name-field]').hidden=!destroying;
       stopDialog.querySelector('h2').textContent=(destroying?'销毁 ':'保存并停止 ')+instanceName(item)+'？';
       stopDialog.querySelector('[data-description]').textContent=destroying?'销毁后，该实例及其访问入口将不可用。':'先将工程保存到项目，确认成功后再停止 Blender 并释放 CPU、内存与 GPU。';
@@ -368,18 +444,19 @@ export function mountBlender({ listen, notice, root = /** @type {Document | HTML
     if (!button || button.disabled) return;
     const item = items.find(value=>value.alias===button.dataset.blenderStart), current = epoch;
     if (!item) return;
-    button.disabled = true; button.textContent = '正在受理…';
+    const prevHtml = button.innerHTML;
+    button.disabled = true; button.setAttribute('aria-busy', 'true');
     try {
       const result = await startInstance(item);
       if (result && current === epoch) location.hash = '/market?blender='+encodeURIComponent(result.alias)+'&panel=overview&operation='+encodeURIComponent(result.operation_id);
     } catch(e) { if(current===epoch) {notice(e.message);await refresh();} }
-    finally { if(button.isConnected) {button.disabled=false;button.textContent='启动';} }
+    finally { if(button.isConnected) {button.disabled=false;button.removeAttribute('aria-busy');button.innerHTML=prevHtml;} }
   });
   listen($('blenderCreate'),'click',()=>{if(createAvailable)location.hash='/market?blender=create';});
   listen($('blenderRefresh'), 'click', () => void refresh());
   listen($('blenderFilters'), 'click', event => {
     const button = event.target.closest('[data-status]'); if (!button) return;
-    filter = button.dataset.status;
+    filter = button.dataset.status; page = 1;
     for (const el of $('blenderFilters').querySelectorAll('[data-status]')) el.setAttribute('aria-pressed', String(el === button));
     renderList();
   });
