@@ -2,7 +2,6 @@ package appcenter
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"os"
 	"regexp"
@@ -153,15 +152,17 @@ func LoadLegacy(ctx context.Context, path string, facts Facts, backends map[stri
 			if fact.AppID != binding.AppID {
 				continue
 			}
-			helmBacked := hasHelmCatalog(fact.Catalog)
+			_, _, helm, _, _ := catalogDetails(fact)
+			helmBacked := helm != nil && helm.OCIRef != ""
 			observed := fact.Origin == "observation" && fact.Installation == nil && fact.CardKey == binding.ObservationKey
 			installed := fact.Origin == "installation" && fact.InstallationQuality == "known" &&
 				fact.Installation != nil && fact.Installation.State == "installed" &&
-				fact.Service.ObservationKey != nil && *fact.Service.ObservationKey == binding.ObservationKey &&
+				fact.Service.ObservationKey != nil && (*fact.Service.ObservationKey == binding.ObservationKey || (helmBacked && *fact.Service.ObservationKey != "")) &&
 				fact.Service.WorkloadUID != nil && (*fact.Service.WorkloadUID == binding.WorkloadUID || (helmBacked && *fact.Service.WorkloadUID != ""))
 			if observed || installed {
 				bound := binding
 				if installed && helmBacked {
+					bound.ObservationKey = *fact.Service.ObservationKey
 					bound.WorkloadUID = *fact.Service.WorkloadUID
 				}
 				result[fact.CardKey] = bound
@@ -173,14 +174,4 @@ func LoadLegacy(ctx context.Context, path string, facts Facts, backends map[stri
 		Bindings map[string]LegacyBinding
 		Backends map[string]string
 	}{result, backends}), nil
-}
-
-func hasHelmCatalog(raw []byte) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	var cat struct {
-		Helm *Helm `json:"helm"`
-	}
-	return json.Unmarshal(raw, &cat) == nil && cat.Helm != nil && cat.Helm.OCIRef != ""
 }
