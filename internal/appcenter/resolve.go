@@ -238,7 +238,7 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 		}
 	}
 	for _, candidate := range f.Lifecycle.Candidates {
-		if !slices.Contains([]string{"install", "start", "stop", "restart", "delete"}, candidate.Kind) {
+		if !slices.Contains([]string{"install", "upgrade", "start", "stop", "restart", "delete"}, candidate.Kind) {
 			continue
 		}
 		reason := denied
@@ -251,6 +251,10 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 		if reason == "" {
 			if candidate.Kind == "install" {
 				if f.Installation != nil || f.Origin != "catalog" || f.Service.State != "absent" || candidateVersion == nil || *candidateVersion != candidate.AppVersion {
+					reason = "INSTALLATION_STATE_CONFLICT"
+				}
+			} else if candidate.Kind == "upgrade" {
+				if f.Installation == nil || f.Installation.State != "installed" || candidateVersion == nil || *candidateVersion != candidate.AppVersion || f.Installation.AppVersion == candidate.AppVersion {
 					reason = "INSTALLATION_STATE_CONFLICT"
 				}
 			} else if f.Installation == nil || f.Installation.State != "installed" || f.Installation.AppVersion != candidate.AppVersion {

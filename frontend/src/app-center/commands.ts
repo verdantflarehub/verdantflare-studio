@@ -83,7 +83,7 @@ export function createCommands(storage: CommandStorage, transport: CommandTransp
     if (!lease || state.loading || state.error || state.preparing || !canExecute()) throw new Error('APPCENTER_RECOVERY_STORAGE_UNAVAILABLE')
     if (state.items.some(item => parsePending(item.record, scope).command.app_id === card.appId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error))) throw new Error('APPCENTER_RECOVERY_PENDING')
     const action = card.actions.find(item => item.id === actionId)
-    if (!action || !['install', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) throw new Error('ACTION_UNSUPPORTED')
+    if (!action || !['install', 'upgrade', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) throw new Error('ACTION_UNSUPPORTED')
     const generation = epoch, active = lease, abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), 15000)
     pending.add(abort); publish({ preparing: true })
@@ -91,7 +91,7 @@ export function createCommands(storage: CommandStorage, transport: CommandTransp
       const input: CommandPrepare = { schemaVersion: 1, requestId: uuid(), idempotencyKey: uuid(), cardKey: card.cardKey,
         actionId: action.kind as CommandPrepare['actionId'], expectedBindingRevision: card.bindingRevision }
       const prepared = await transport.prepare(input, abort.signal); current(generation)
-      if (!canExecute() || prepared.command.app_id !== card.appId || prepared.command.app_version !== (action.kind === 'install' ? card.candidateVersion : card.installedVersion)) throw new Error('APPCENTER_BINDING_CHANGED')
+      if (!canExecute() || prepared.command.app_id !== card.appId || prepared.command.app_version !== (['install', 'upgrade'].includes(action.kind) ? card.candidateVersion : card.installedVersion)) throw new Error('APPCENTER_BINDING_CHANGED')
       const record: PendingCommand = { key: input.idempotencyKey, body: JSON.stringify({ schemaVersion: 1, prepared }), operationId: null }
       parsePending(record, active.scope)
       await storage.put(active, record); current(generation)

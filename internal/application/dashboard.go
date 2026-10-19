@@ -241,7 +241,7 @@ func (d *Dashboards) Installations(ctx context.Context, token string) Result {
 			return dashboardError(dashboard.ErrInvalid, result.RequestID)
 		}
 		seen[i.InstallationID] = true
-		if i.State == "installed" && versions[i.AppID+"@"+i.AppVersion] {
+		if i.State == "installed" && (versions[i.AppID+"@"+i.AppVersion] || versions[i.AppID]) {
 			items = append(items, DashboardInstallation{i.InstallationID, i.AppID, i.AppVersion})
 		}
 	}

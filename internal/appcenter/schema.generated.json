@@ -43,6 +43,7 @@
           "action": {
             "enum": [
               "install",
+              "upgrade",
               "start",
               "stop",
               "restart",
@@ -161,6 +162,7 @@
       "actionId": {
         "enum": [
           "install",
+          "upgrade",
           "start",
           "stop",
           "restart",
@@ -745,6 +747,7 @@
               "open",
               "detail",
               "install",
+              "upgrade",
               "start",
               "stop",
               "restart",
@@ -1073,6 +1076,7 @@
           "kind": {
             "enum": [
               "install",
+              "upgrade",
               "start",
               "stop",
               "restart",
@@ -1333,7 +1337,7 @@
                 "items": {
                   "$ref": "station://contracts/appcenter-v1/common#/$defs/candidate"
                 },
-                "maxItems": 6
+                "maxItems": 7
               }
             },
             "required": [
@@ -2228,6 +2232,7 @@
       "action": {
         "enum": [
           "install",
+          "upgrade",
           "start",
           "stop",
           "restart",
@@ -2312,6 +2317,7 @@
       "action": {
         "enum": [
           "install",
+          "upgrade",
           "start",
           "stop",
           "restart",

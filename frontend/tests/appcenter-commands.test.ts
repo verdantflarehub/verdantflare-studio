@@ -11,7 +11,8 @@ for (const c of cases) test(`command contract: ${c.name}`, () => {
 test('prepare accepts only the closed lifecycle selection', () => {
   const input = { schemaVersion: 1, requestId: 'trace', idempotencyKey: 'command-key', cardKey: 'catalog:test-app', actionId: 'install', expectedBindingRevision: 'sha256:' + 'a'.repeat(64) }
   assert.equal(validCommandPrepare(input), true)
-  for (const actionId of ['open', 'adopt', 'upgrade', 'rollback', 'arbitrary']) assert.equal(validCommandPrepare({ ...input, actionId }), false)
+  assert.equal(validCommandPrepare({ ...input, actionId: 'upgrade' }), true)
+  for (const actionId of ['open', 'adopt', 'rollback', 'arbitrary']) assert.equal(validCommandPrepare({ ...input, actionId }), false)
   for (const key of Object.keys(input)) {
     const missing = { ...input } as Record<string, unknown>
     delete missing[key]

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -163,6 +164,15 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 				continue
 			}
 			e, ok := registered[fact.AppID+"@"+fact.Installation.AppVersion]
+			if !ok && strings.Contains(string(fact.Catalog), `"oci_ref":`) {
+				for key, candidate := range registered {
+					if strings.HasPrefix(key, fact.AppID+"@") {
+						e = candidate
+						ok = true
+						break
+					}
+				}
+			}
 			if !ok {
 				continue
 			}

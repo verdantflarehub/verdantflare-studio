@@ -1,4 +1,4 @@
-export const actionLabels: Record<string, string> = { detail: '查看', refresh: '刷新', open: '打开', install: '安装', start: '启动', stop: '停止', restart: '重启', delete: '移除', progress: '查看进度' }
+export const actionLabels: Record<string, string> = { detail: '查看', refresh: '刷新', open: '打开', install: '安装', upgrade: '更新', start: '启动', stop: '停止', restart: '重启', delete: '移除', progress: '查看进度' }
 export const statusLabels: Record<string, string> = {
   READY: '已就绪', STOPPED: '已安装 · 已停止', STARTING: '启动中', STOPPING: '停止中', DEGRADED: '服务异常', SERVICE_ABSENT: '服务未部署',
   NOT_INSTALLED: '未安装', INSTALLATION_PENDING: '安装待确认', INSTALLATION_FAILED: '安装失败', INSTALLATION_REMOVED: '已移除',

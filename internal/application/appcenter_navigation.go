@@ -2,6 +2,7 @@ package application
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/navigation"
@@ -18,6 +19,16 @@ func appCenterNavigationBindings(view appcenter.View, metadata map[string]appcen
 			continue
 		}
 		binding, exists := catalog.Releases[card.AppID+"@"+installed.AppVersion]
+		if !exists && card.Helm != nil {
+			for key, candidate := range catalog.Releases {
+				if strings.HasPrefix(key, card.AppID+"@") {
+					binding = candidate
+					binding.AppVersion = installed.AppVersion
+					exists = true
+					break
+				}
+			}
+		}
 		if !exists {
 			continue
 		}

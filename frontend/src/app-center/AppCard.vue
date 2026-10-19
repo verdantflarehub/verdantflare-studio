@@ -35,6 +35,7 @@ function manage(item: ReturnType<typeof managementActions>[number]) {
   close(true); emit('action', props.card, item.id)
 }
 const primary = computed(() => props.card.actions.find(action => action.id === props.card.primaryActionId))
+const upgradeAction = computed(() => props.card.actions.find(action => action.kind === 'upgrade'))
 const local = computed(() => ['detail', 'progress', 'refresh'].includes(primary.value?.kind ?? ''))
 const disabled = computed(() => !primary.value?.enabled || props.stale && !local.value)
 const hint = computed(() => props.stale && !local.value ? '当前信息已过期，请刷新' : reasonLabel(primary.value?.reasonCode ?? null))
@@ -45,7 +46,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
     <div class="card-top">
       <button class="appcenter-icon-button" :aria-label="`查看 ${card.display.name} 详情`" @click="emit('action', card, 'detail')"><AppIcon :icon-ref="card.display.iconRef" /></button>
       <div><button class="app-title" @click="emit('action', card, 'detail')">{{ card.display.name }}</button>
-        <div class="brand-version"><span>{{ publisherLabel(card.display.publisherId) }}</span><span>{{ versionLabel(card) }}</span></div>
+        <div class="brand-version"><span>{{ publisherLabel(card.display.publisherId) }}</span><span>{{ versionLabel(card) }}</span><span v-if="upgradeAction && card.candidateVersion" class="upgrade-badge">→ {{ card.candidateVersion }}</span></div>
       </div>
     </div>
     <p class="card-desc">{{ card.display.description || '暂无应用说明' }}</p>
@@ -54,6 +55,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
     <div class="card-foot">
       <span class="status" :class="{ running: card.statusCode === 'READY' && !stale }"><i class="dot" :class="{ on: card.statusCode === 'READY' && !stale }" />{{ stale ? '待刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</span>
       <div ref="root" class="card-actions">
+        <button v-if="upgradeAction && primary?.id !== upgradeAction.id" class="btn upgrade-btn" :disabled="!upgradeAction.enabled || stale" :title="stale ? '当前信息已过期，请刷新' : reasonLabel(upgradeAction.reasonCode)" @click="emit('action', card, upgradeAction.id)">{{ actionLabels.upgrade }}</button>
         <button v-if="primary" class="btn" :disabled="disabled" :title="hint" @click="emit('action', card, primary.id)">{{ actionLabels[primary.kind] }}</button>
         <button v-if="management.length" ref="trigger" class="btn menu-trigger" :aria-label="`${card.display.name} 管理操作`" aria-haspopup="menu" :aria-expanded="menuOpen" :aria-controls="menuId" @click="menuOpen ? close(true) : open()" @keydown.down.prevent="open()" @keydown.up.prevent="open(true)" @keydown.esc.prevent="close(true)">▾</button>
         <div v-if="menuOpen && management.length" :id="menuId" ref="menu" class="management-menu" role="menu" :aria-label="`${card.display.name} 管理操作`" @keydown="menuKey">
@@ -72,7 +74,9 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
 .app-card { overflow: visible; }
 .app-card:has(.management-menu) { z-index: 21; }
 .card-actions { position: relative; display: flex; align-items: stretch; gap: 0; }
-.card-actions:has(.menu-trigger) > .btn:first-child { border-radius: 10px 0 0 10px; }
+.upgrade-badge { color: var(--accent); font-weight: 600; }
+.upgrade-btn { margin-right: 6px; border-radius: 10px !important; }
+.card-actions:has(.menu-trigger) > .btn:not(.upgrade-btn):not(.menu-trigger) { border-radius: 10px 0 0 10px; }
 .menu-trigger { border-radius: 0 10px 10px 0; padding-inline: 10px; margin-left: -1px; }
 .management-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 180px; max-width: 260px; padding: 6px; border: 0.5px solid var(--vf-hairline-outer); border-radius: 12px; background: var(--panel); box-shadow: inset 0 0 0 0.5px var(--vf-hairline-inner), var(--shadow); }
 .management-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }

@@ -155,9 +155,11 @@ async function perform(card: AppCenterCard, actionId: string) {
       return
     }
   }
-  if (['install', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) {
+  if (['install', 'upgrade', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) {
     const impacts: Record<string, string> = {
-      install: '将安装此版本的应用管理服务。', start: '将启动应用管理服务。',
+      install: '将安装此版本的应用管理服务。',
+      upgrade: '将使用 Market 发布的候选版本更新此应用管理服务，保留已有安装标识与持久化数据。',
+      start: '将启动应用管理服务。',
       stop: '将停止应用管理服务，相关业务可能暂时无法访问。此操作与关闭页面独立，不会批量停止工作实例；活动任务和依赖保护由服务端检查。', restart: '将重启应用管理服务，相关业务可能暂时中断。',
       delete: '将移除此应用安装。项目资料、历史任务和产物保留，模型清理独立进行。请先保存当前工作；活动任务和依赖保护由服务端检查。',
     }
@@ -265,7 +267,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
     :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation" />
   <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation" />
   <ComfyUIBookmarkWorkspace :target="legacy.comfyui" :return-location="returnLocation" />
-  <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :helm="confirmation.card.helm ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
+  <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : confirmation.kind === 'upgrade' ? `${confirmation.card.installedVersion ?? '版本待确认'} → ${confirmation.card.candidateVersion ?? '版本待确认'}` : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :helm="confirmation.card.helm ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>
 
 <style scoped>

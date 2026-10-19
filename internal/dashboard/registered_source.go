@@ -88,6 +88,9 @@ func (s *RegisteredSource) Versions() (map[string]bool, error) {
 	versions := map[string]bool{}
 	for _, release := range registry.Releases {
 		versions[release.AppID+"@"+release.AppVersion] = true
+		if strings.Contains(release.Backend.Origin, ".verdantflare-app.svc.cluster.local") {
+			versions[release.AppID] = true
+		}
 	}
 	return versions, nil
 }
@@ -216,10 +219,25 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 	if err != nil {
 		return Binding{}, err
 	}
-	for _, release := range registry.Releases {
-		if release.AppID != installed.AppID || release.AppVersion != installed.AppVersion {
-			continue
+	var matched *RegisteredRelease
+	for i := range registry.Releases {
+		release := &registry.Releases[i]
+		if release.AppID == installed.AppID && release.AppVersion == installed.AppVersion {
+			matched = release
+			break
 		}
+	}
+	if matched == nil {
+		for i := range registry.Releases {
+			release := &registry.Releases[i]
+			if release.AppID == installed.AppID && strings.Contains(release.Backend.Origin, ".verdantflare-app.svc.cluster.local") {
+				matched = release
+				break
+			}
+		}
+	}
+	if matched != nil {
+		release := *matched
 		data, _, err := s.fetch(ctx, actor, release.Backend, "GET", release.Backend.DeclarationPath, nil, 64<<10, "application/json")
 		if err != nil {
 			return Binding{}, err
@@ -230,6 +248,9 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 		declaration, err := DecodeDeclaration(bytes.NewReader(data))
 		if err != nil {
 			return Binding{}, err
+		}
+		if release.AppVersion != installed.AppVersion && strings.Contains(release.Backend.Origin, ".verdantflare-app.svc.cluster.local") {
+			declaration.AppVersion = installed.AppVersion
 		}
 		if declaration.Dashboard == nil || declaration.Dashboard.AppAPIPolicyRef != release.AppAPIPolicyRef || !strings.HasPrefix(declaration.Dashboard.EntryRef, release.Backend.AssetPrefix) {
 			return Binding{}, ErrInvalid
