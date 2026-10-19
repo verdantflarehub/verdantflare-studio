@@ -14,4 +14,10 @@ test('AppIcon handles brand:blender and brand:comfyui correctly', async () => {
 
   const comfyuiSvg = await readFile(new URL('../src/assets/comfyui.svg', import.meta.url), 'utf8')
   assert.ok(comfyuiSvg.includes('<svg') && comfyuiSvg.includes('#172DD7') && comfyuiSvg.includes('#F0FF41'), 'comfyui svg must be valid')
+
+  const channelIconSfc = await readFile(new URL('../src/app-center/ChannelBrandIcon.vue', import.meta.url), 'utf8')
+  assert.ok(channelIconSfc.includes('color: var(--ink)'), 'ChannelBrandIcon must use var(--ink) instead of undefined var(--text)')
+  assert.ok(!channelIconSfc.includes('var(--text)'), 'ChannelBrandIcon must not reference undefined var(--text)')
+  assert.ok(iconSfc.includes("'brand:chatgpt'") && iconSfc.includes("'brand:grok'") && iconSfc.includes('is-mono'), 'AppIcon must apply monochrome ink class to ChatGPT and Grok')
+  assert.ok(iconSfc.includes('#E2167E') && iconSfc.includes('#FE603C'), 'AppIcon must use MiniMax official gradient')
 })

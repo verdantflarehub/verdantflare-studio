@@ -9,5 +9,5 @@ defineProps<{ brand: string }>()
 </template>
 
 <style scoped>
-svg { color: var(--text); }
+svg { color: var(--ink); }
 </style>

@@ -13,7 +13,14 @@ const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef)
 </script>
 
 <template>
-  <span class="app-icon appcenter-icon" :class="{ 'is-github': iconRef === 'brand:github' }" aria-hidden="true">
+  <span
+    class="app-icon appcenter-icon"
+    :class="{
+      'is-github': iconRef === 'brand:github',
+      'is-mono': ['brand:github', 'brand:chatgpt', 'brand:grok'].includes(iconRef || '')
+    }"
+    aria-hidden="true"
+  >
     <img v-if="iconRef === 'brand:vf'" :src="vfLogo" alt="" />
     <img v-else-if="iconRef === 'brand:higgsfield'" :src="higgsfieldLogo" alt="" />
     <img v-else-if="iconRef === 'brand:fal'" :src="falLogo" alt="" />
@@ -22,7 +29,7 @@ const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef)
     <ChannelBrandIcon v-else-if="['brand:google', 'brand:chatgpt', 'brand:grok'].includes(iconRef || '')" :brand="iconRef || ''" />
     <svg v-else-if="iconRef === 'brand:minimax' && path" viewBox="0 0 24 24">
       <defs>
-        <linearGradient :id="gradId" x1="0%" y1="50%" x2="100%" y2="50%">
+        <linearGradient :id="gradId" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#E2167E" />
           <stop offset="100%" stop-color="#FE603C" />
         </linearGradient>
@@ -36,6 +43,7 @@ const path = computed(() => props.iconRef && Object.hasOwn(paths, props.iconRef)
 
 <style scoped>
 .appcenter-icon { color: var(--accent); background: var(--panel); flex-shrink: 0; }
-.appcenter-icon.is-github { color: var(--ink); }
+.appcenter-icon.is-github,
+.appcenter-icon.is-mono { color: var(--ink); }
 .appcenter-icon svg, .appcenter-icon img { width: 26px; height: 26px; object-fit: contain; }
 </style>
