@@ -96,8 +96,26 @@ func LoadPresentation(ctx context.Context, path string, facts Facts) ([]Group, m
 		}
 		records[r.AppID+"@"+version] = r.Display
 	}
+	groupExists := map[string]bool{}
+	for _, g := range reg.Groups {
+		groupExists[g.ID] = true
+	}
+	standardGroups := map[string]Group{
+		"image":   {ID: "image", Label: "图像", Order: 10},
+		"music":   {ID: "music", Label: "音乐", Order: 20},
+		"video":   {ID: "video", Label: "视频", Order: 30},
+		"channel": {ID: "channel", Label: "渠道管理", Order: 35},
+		"desktop": {ID: "desktop", Label: "桌面与3D", Order: 40},
+		"system":  {ID: "system", Label: "系统", Order: 50},
+	}
 	for _, fact := range facts.Items {
-		_, candidate := catalogDisplay(fact)
+		catDisp, candidate, _, sortOrder, hasMarketMeta := catalogDetails(fact)
+		if hasMarketMeta && !groupExists[catDisp.GroupID] {
+			if std, ok := standardGroups[catDisp.GroupID]; ok {
+				reg.Groups = append(reg.Groups, std)
+				groupExists[catDisp.GroupID] = true
+			}
+		}
 		version := ""
 		if candidate != nil {
 			version = *candidate
@@ -109,9 +127,17 @@ func LoadPresentation(ctx context.Context, path string, facts Facts) ([]Group, m
 		if !ok {
 			display, ok = records[fact.AppID+"@*"]
 		}
+		ord := ordering[fact.AppID]
+		if hasMarketMeta && sortOrder != nil {
+			ordVal := *sortOrder
+			ord = &AppOrdering{PriorityClass: "standard", Order: &ordVal}
+		}
 		if ok {
 			copy := display
-			metadata[fact.CardKey] = Metadata{Display: &copy, Ordering: ordering[fact.AppID]}
+			metadata[fact.CardKey] = Metadata{Display: &copy, Ordering: ord}
+		} else if hasMarketMeta {
+			copy := catDisp
+			metadata[fact.CardKey] = Metadata{Display: &copy, Ordering: ord}
 		}
 	}
 	now := time.Now().UTC()

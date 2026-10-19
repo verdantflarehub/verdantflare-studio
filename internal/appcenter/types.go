@@ -87,15 +87,27 @@ type ResourceTag struct {
 	SourceRef string  `json:"sourceRef"`
 }
 type Display struct {
-	Name         string        `json:"name"`
-	Description  string        `json:"description"`
-	GroupID      string        `json:"groupId"`
-	PublisherID  *string       `json:"publisherId"`
-	IconRef      *string       `json:"iconRef"`
-	ResourceTags []ResourceTag `json:"resourceTags"`
-	Quality      string        `json:"quality"`
-	Models       *[]string     `json:"models,omitempty"`
-	Capabilities *[]string     `json:"capabilities,omitempty"`
+	Name           string        `json:"name"`
+	Description    string        `json:"description"`
+	GroupID        string        `json:"groupId"`
+	PublisherID    *string       `json:"publisherId"`
+	IconRef        *string       `json:"iconRef"`
+	ResourceTags   []ResourceTag `json:"resourceTags"`
+	Quality        string        `json:"quality"`
+	Models         *[]string     `json:"models,omitempty"`
+	Capabilities   *[]string     `json:"capabilities,omitempty"`
+	DisabledReason *string       `json:"disabledReason,omitempty"`
+}
+type Helm struct {
+	OCIRef           string `json:"ociRef"`
+	ChartName        string `json:"chartName"`
+	ChartVersion     string `json:"chartVersion"`
+	ManifestDigest   string `json:"manifestDigest"`
+	PackageDigest    string `json:"packageDigest"`
+	PackageSizeBytes int64  `json:"packageSizeBytes"`
+	TargetNamespace  string `json:"targetNamespace"`
+	ReleaseName      string `json:"releaseName"`
+	ValuesSource     string `json:"valuesSource"`
 }
 type Entry struct {
 	EntryID              string  `json:"entryId"`
@@ -131,6 +143,7 @@ type Card struct {
 	PrimaryActionID     string        `json:"primaryActionId"`
 	Actions             []Action      `json:"actions"`
 	Preinstalled        bool          `json:"preinstalled"`
+	Helm                *Helm         `json:"helm,omitempty"`
 }
 type Group struct {
 	ID    string `json:"id"`

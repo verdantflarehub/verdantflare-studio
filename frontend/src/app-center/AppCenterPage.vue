@@ -91,6 +91,7 @@ const groupMeta: Record<string, { title: string; subtitle: string }> = {
   image: { title: '图像应用', subtitle: 'Image' },
   video: { title: '视频制作', subtitle: 'Video' },
   music: { title: '音频制作', subtitle: 'Music' },
+  channel: { title: '渠道管理', subtitle: 'Channel' },
   desktop: { title: '创作工具', subtitle: 'Desktop Tools' },
   system: { title: '系统应用', subtitle: 'System' },
 }
@@ -264,7 +265,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
     :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation" />
   <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation" />
   <ComfyUIBookmarkWorkspace :target="legacy.comfyui" :return-location="returnLocation" />
-  <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
+  <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :helm="confirmation.card.helm ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>
 
 <style scoped>

@@ -49,6 +49,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
       </div>
     </div>
     <p class="card-desc">{{ card.display.description || '暂无应用说明' }}</p>
+    <p v-if="card.statusCode === 'NOT_INSTALLED' && card.display.disabledReason" class="card-disabled-reason">{{ card.display.disabledReason }}</p>
     <div v-if="card.display.resourceTags.length || card.display.models?.length" class="tags appcenter-tags"><span v-for="tag in card.display.resourceTags" :key="tag.kind" class="tag">{{ resourceLabel(tag.kind) }} {{ tag.value }} {{ tag.unit }}</span><span v-if="card.display.models?.length" class="tag">{{ card.display.models.length }} 项声明模型</span></div>
     <div class="card-foot">
       <span class="status" :class="{ running: card.statusCode === 'READY' && !stale }"><i class="dot" :class="{ on: card.statusCode === 'READY' && !stale }" />{{ stale ? '待刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</span>
@@ -66,6 +67,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
 <style scoped>
 .appcenter-icon-button { padding: 0; border: 0; background: none; cursor: pointer; }
 .card-desc { flex: 1; }
+.card-disabled-reason { margin: 6px 0 0; font-size: 11px; color: var(--muted); line-height: 1.45; }
 .appcenter-tags { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 11px; }
 .app-card { overflow: visible; }
 .app-card:has(.management-menu) { z-index: 21; }

@@ -12,7 +12,7 @@ export function serviceReasonLabel(code: string | null): string {
 }
 
 export function publisherLabel(id: string | null): string {
-  const names: Record<string, string> = { vf: 'VerdantFlare', minimax: 'MiniMax', github: 'GitHub' }
+  const names: Record<string, string> = { vf: 'VerdantFlare', minimax: 'MiniMax', github: 'GitHub', blender: 'Blender', comfyui: 'ComfyUI' }
   return id ? Object.hasOwn(names, id) ? names[id] : id : '发布方资料待补充'
 }
 export function observedTime(value: string | null): string {

@@ -44,6 +44,16 @@ function actionTip(action: CommonAction) {
         <dt>服务状态</dt><dd>{{ factLabel(card.service.state) }}<small v-if="card.service.reasonCode">{{ serviceReasonLabel(card.service.reasonCode) }}</small></dd>
         <dt>服务观测时间</dt><dd>{{ observedTime(card.service.observedAt) }}</dd>
         <dt>应用分组</dt><dd>{{ groupLabel }}</dd>
+        <template v-if="card.display.disabledReason"><dt>未开放原因</dt><dd>{{ card.display.disabledReason }}</dd></template>
+      </dl></section>
+      <section v-if="card.helm" class="panel detail-section"><h3>Helm OCI 安装输入</h3><dl>
+        <dt>Chart OCI</dt><dd><code>{{ card.helm.ociRef }}</code></dd>
+        <dt>Chart 版本</dt><dd>{{ card.helm.chartName }} @ {{ card.helm.chartVersion }}</dd>
+        <dt>Manifest Digest</dt><dd><code>{{ card.helm.manifestDigest }}</code></dd>
+        <dt>Package Digest</dt><dd><code>{{ card.helm.packageDigest }}</code></dd>
+        <dt>目标 Namespace</dt><dd><code>{{ card.helm.targetNamespace }}</code></dd>
+        <dt>Helm Release</dt><dd><code>{{ card.helm.releaseName }}</code></dd>
+        <dt>Values 来源</dt><dd><code>{{ card.helm.valuesSource }}</code></dd>
       </dl></section>
       <section class="panel detail-section"><h3>应用入口</h3><dl>
         <dt>入口状态</dt><dd>{{ card.entry ? factLabel(card.entry.availability) : '尚无可用入口' }}</dd>

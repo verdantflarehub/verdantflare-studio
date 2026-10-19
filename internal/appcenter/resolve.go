@@ -50,23 +50,74 @@ func orderingValue(ordering *AppOrdering) int {
 	return 1000
 }
 func catalogDisplay(f Fact) (Display, *string) {
+	d, v, _, _, _ := catalogDetails(f)
+	return d, v
+}
+
+func catalogDetails(f Fact) (Display, *string, *Helm, *int, bool) {
 	d := Display{Name: f.AppID, GroupID: "other", ResourceTags: []ResourceTag{}, Quality: "unknown"}
 	var data struct {
-		Name    string `json:"display_name"`
-		Group   string `json:"group_id"`
-		Brand   string `json:"brand"`
-		Version string `json:"version"`
+		Name           string   `json:"display_name"`
+		Group          string   `json:"group_id"`
+		Brand          string   `json:"brand"`
+		Version        string   `json:"version"`
+		SortOrder      *int     `json:"sort_order"`
+		IconRef        string   `json:"icon_ref"`
+		Description    string   `json:"description"`
+		Models         []string `json:"models"`
+		Capabilities   []string `json:"capabilities"`
+		DisabledReason string   `json:"disabled_reason"`
+		Helm           *struct {
+			OCIRef           string `json:"oci_ref"`
+			ChartName        string `json:"chart_name"`
+			ChartVersion     string `json:"chart_version"`
+			ManifestDigest   string `json:"manifest_digest"`
+			PackageDigest    string `json:"package_digest"`
+			PackageSizeBytes int64  `json:"package_size_bytes"`
+			TargetNamespace  string `json:"target_namespace"`
+			ReleaseName      string `json:"release_name"`
+			ValuesSource     string `json:"values_source"`
+		} `json:"helm"`
 	}
 	if json.Unmarshal(f.Catalog, &data) != nil || data.Name == "" {
-		return d, nil
+		return d, nil, nil, nil, false
 	}
 	d.Name, d.GroupID, d.PublisherID = data.Name, data.Group, Text(data.Brand)
+	hasMarketMeta := data.IconRef != "" || data.Description != "" || data.DisabledReason != "" || data.Helm != nil
+	var helm *Helm
+	if hasMarketMeta {
+		d.Quality = "known"
+		d.Description = data.Description
+		d.IconRef = Text(data.IconRef)
+		d.DisabledReason = Text(data.DisabledReason)
+		if data.Models != nil {
+			models := slices.Clone(data.Models)
+			d.Models = &models
+		}
+		if data.Capabilities != nil {
+			caps := slices.Clone(data.Capabilities)
+			d.Capabilities = &caps
+		}
+		if data.Helm != nil {
+			helm = &Helm{
+				OCIRef:           data.Helm.OCIRef,
+				ChartName:        data.Helm.ChartName,
+				ChartVersion:     data.Helm.ChartVersion,
+				ManifestDigest:   data.Helm.ManifestDigest,
+				PackageDigest:    data.Helm.PackageDigest,
+				PackageSizeBytes: data.Helm.PackageSizeBytes,
+				TargetNamespace:  data.Helm.TargetNamespace,
+				ReleaseName:      data.Helm.ReleaseName,
+				ValuesSource:     data.Helm.ValuesSource,
+			}
+		}
+	}
 	// An observation's labels are never an install candidate. The Core reader
 	// emits registered catalog metadata only; it may still accompany an orphan.
 	if f.Origin == "observation" {
-		return d, nil
+		return d, nil, helm, data.SortOrder, hasMarketMeta
 	}
-	return d, Text(data.Version)
+	return d, Text(data.Version), helm, data.SortOrder, hasMarketMeta
 }
 func action(kind string, enabled bool, reason string) Action {
 	a := Action{ID: kind, Kind: kind, Enabled: enabled, Confirmation: "none"}
@@ -148,11 +199,23 @@ func unsafeReason(f Fact) string {
 }
 
 func project(f Fact, meta Metadata, scope Scope) Card {
-	display, candidateVersion := catalogDisplay(f)
+	display, candidateVersion, helm, _, hasMarketMeta := catalogDetails(f)
 	if meta.Display != nil {
-		display = *meta.Display
+		if hasMarketMeta {
+			if len(meta.Display.ResourceTags) > 0 {
+				display.ResourceTags = slices.Clone(meta.Display.ResourceTags)
+			}
+			if display.Description == "" {
+				display.Description = meta.Display.Description
+			}
+			if display.IconRef == nil {
+				display.IconRef = meta.Display.IconRef
+			}
+		} else {
+			display = *meta.Display
+		}
 	}
-	c := Card{CardKey: f.CardKey, AppID: f.AppID, Origin: f.Origin, Display: display, CandidateVersion: candidateVersion, Installation: f.Installation, InstallationQuality: f.InstallationQuality, Service: f.Service.Service, Operation: f.Operation, Entry: meta.Entry, StatusCode: state(f), PrimaryActionID: "detail", Preinstalled: meta.Preinstalled, Actions: []Action{action("detail", true, ""), action("refresh", true, "")}}
+	c := Card{CardKey: f.CardKey, AppID: f.AppID, Origin: f.Origin, Display: display, CandidateVersion: candidateVersion, Installation: f.Installation, InstallationQuality: f.InstallationQuality, Service: f.Service.Service, Operation: f.Operation, Entry: meta.Entry, StatusCode: state(f), PrimaryActionID: "detail", Preinstalled: meta.Preinstalled, Helm: helm, Actions: []Action{action("detail", true, ""), action("refresh", true, "")}}
 	if f.Installation != nil {
 		c.InstalledVersion = Text(f.Installation.AppVersion)
 	}
