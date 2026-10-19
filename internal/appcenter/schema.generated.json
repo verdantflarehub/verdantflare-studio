@@ -227,7 +227,6 @@
             },
             "releaseKind": {
               "enum": [
-                "signed-package",
                 "management-release",
                 "dashboard-release"
               ]
