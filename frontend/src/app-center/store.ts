@@ -49,8 +49,10 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   async function execute(card: AppCenterCard, action: string) {
     await commands.execute(card, action, () => controller.canExecute(card.cardKey, action, card.bindingRevision))
     await refresh()
+    schedule()
   }
-  async function resumeCommand(key: string) { await commands.resume(key); await refresh() }
+  async function resumeCommand(key: string) { await commands.resume(key); await refresh(); schedule() }
+  async function dismissCommand(key: string) { await commands.dismiss(key); schedule() }
   const openBindings = new Map<string, { revision: string; payload?: unknown }>()
   function pinOpen(id: string, binding: string, payload?: unknown) { openBindings.set(id, { revision: binding, payload }) }
   function takeOpenBinding(id: string) { const binding = openBindings.get(id); openBindings.delete(id); return binding?.revision }
@@ -65,6 +67,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     const current = new AbortController(); readCycle = current
     try {
       await controller.refresh()
+      await commands.reconcile(state.value.value?.items ?? [])
       if (current.signal.aborted || !visible() || !progressVisible) return
       const force = forceOperations; forceOperations = false
       await reads.cycle(async () => {
@@ -95,8 +98,10 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   function schedule() {
     clearTimeout(timer)
     if (!visible() || !host.connected || !hasPageConsumer()) return
+    const hasActiveOp = commandState.value.items.some(item => item.busy || (item.record.operationId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status))))
+      || (state.value.value?.items.some(card => card.operation.blocking) ?? false)
     const until = state.value.value ? Date.parse(state.value.value.validUntil) - controller.currentTime() : 15000
-    const delay = state.value.status === 'ready' && !state.value.stale ? Math.max(5000, Math.min(15000, until)) : 15000
+    const delay = hasActiveOp ? 1500 : state.value.status === 'ready' && !state.value.stale ? Math.max(5000, Math.min(15000, until)) : 15000
     timer = setTimeout(() => { void refresh() }, delay)
   }
   function refresh(force = false): Promise<void> {
@@ -139,5 +144,5 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
   onScopeDispose(() => { navHintListeners.clear(); calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
-  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
+  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, dismissCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

@@ -5,12 +5,12 @@ import type { AppCommand } from './schema.generated'
 import { actionLabels, reasonLabel } from './labels'
 import AppOperationStatus from './AppOperationStatus.vue'
 const props = defineProps<{ state: CommandState; titles: Record<string, string>; appId?: string; exceptOperationId?: string }>()
-const emit = defineEmits<{ resume: [key: string] }>()
+const emit = defineEmits<{ resume: [key: string]; dismiss: [key: string] }>()
 const rows = computed(() => props.state.items.map(item => {
   const input = JSON.parse(item.record.body)
   const command: AppCommand = item.record.protocol === 'legacy' ? input : input.prepared.command
   return { ...item, command }
-}).filter(item => (!props.appId || item.command.app_id === props.appId) && (!props.exceptOperationId || item.record.operationId !== props.exceptOperationId || item.error)))
+}).filter(item => (!props.appId || item.command.app_id === props.appId) && (!props.exceptOperationId || item.record.operationId !== props.exceptOperationId || item.error) && !(item.operation?.status === 'succeeded' && !item.error)))
 </script>
 
 <template>
@@ -21,7 +21,10 @@ const rows = computed(() => props.state.items.map(item => {
       <AppOperationStatus v-if="item.operation" :operation="item.operation" :stale="Boolean(item.error)" />
       <p v-else>{{ item.record.operationId ? '等待确认原操作状态。' : '提交结果待确认。恢复将继续原请求，请勿重复发起。' }}</p>
       <p v-if="item.error" role="alert">{{ reasonLabel(item.error) }}</p>
-      <button v-if="!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error" class="btn" :disabled="item.busy" @click="emit('resume', item.record.key)">{{ item.busy ? '正在确认…' : item.record.operationId ? '刷新进度' : '恢复原请求' }}</button>
+      <div class="recovery-actions">
+        <button v-if="!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error" class="btn" :disabled="item.busy" @click="emit('resume', item.record.key)">{{ item.busy ? '正在确认…' : item.record.operationId ? '刷新进度' : '恢复原请求' }}</button>
+        <button v-if="!item.record.operationId || item.operation?.status === 'failed' || item.error" class="btn" :disabled="item.busy" @click="emit('dismiss', item.record.key)">放弃请求</button>
+      </div>
     </article>
   </section>
 </template>
@@ -31,6 +34,6 @@ const rows = computed(() => props.state.items.map(item => {
 h2 { font-size: 18px; margin: 0 0 12px; }
 h3 { font-size: 15px; margin: 0 0 16px; overflow-wrap: anywhere; }
 .recovery-item + .recovery-item { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
-.recovery-item .btn { margin-top: 16px; }
+.recovery-actions { display: flex; gap: 10px; margin-top: 16px; }
 .recovery-item p { color: var(--muted); line-height: 1.6; }
 </style>

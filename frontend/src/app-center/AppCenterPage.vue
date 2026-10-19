@@ -225,10 +225,10 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
       <p v-if="store.state.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.state.error) }}<span v-if="store.state.value"> 当前保留上次读取的信息，操作已暂停。</span></p>
       <p v-if="message" class="appcenter-message" role="status">{{ message }}</p>
       <p v-if="store.commandState.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.commandState.error) }}</p>
-      <AppCommandRecovery v-if="!selectedKey" :state="store.commandState" :titles="titles" @resume="store.resumeCommand" />
+      <AppCommandRecovery v-if="!selectedKey" :state="store.commandState" :titles="titles" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
       <template v-if="selectedKey">
         <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
-          <AppCommandRecovery :state="store.commandState" :titles="titles" :app-id="selected.appId" :except-operation-id="store.operationState.value?.operation_id" @resume="store.resumeCommand" />
+          <AppCommandRecovery :state="store.commandState" :titles="titles" :app-id="selected.appId" :except-operation-id="store.operationState.value?.operation_id" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
         </AppInstallDetail>
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
       </template>

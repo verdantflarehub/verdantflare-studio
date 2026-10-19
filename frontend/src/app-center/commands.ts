@@ -74,17 +74,71 @@ export function createCommands(storage: CommandStorage, transport: CommandTransp
         }
       }
     } catch (error) {
-      if (epoch === generation && !signal?.aborted) itemUpdate(key, { error: errorCode(error),
-        ...(error instanceof AppCenterError && [401, 403].includes(error.status) ? { operation: null } : {}) })
+      if (epoch === generation && !signal?.aborted) {
+        if (!item.record.operationId && error instanceof AppCenterError && [400, 409].includes(error.status)) {
+          await storage.remove(active, key).catch(() => undefined)
+          if (epoch === generation) publish({ items: state.items.filter(entry => entry.record.key !== key) })
+        } else {
+          itemUpdate(key, { error: errorCode(error),
+            ...(error instanceof AppCenterError && [401, 403].includes(error.status) ? { operation: null } : {}) })
+        }
+      }
     }
     finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); pending.delete(abort); if (epoch === generation) itemUpdate(key, { busy: false }) }
   }
+  async function reconcile(cards: AppCenterCard[]) {
+    if (!lease || state.loading || !cards.length) return
+    const generation = epoch, active = lease
+    const byApp = new Map(cards.map(c => [c.appId, c]))
+    const staleKeys: string[] = []
+    for (const item of state.items) {
+      if (item.busy || item.record.operationId) continue
+      try {
+        const pending = parsePending(item.record, active.scope)
+        const card = byApp.get(pending.command.app_id)
+        if (!card || card.operation.blocking) continue
+        if ('expected' in pending) {
+          const curId = card.installation?.installationId ?? null
+          const curRev = card.installation?.revision ?? null
+          if (pending.expected.installationId !== curId || pending.expected.installationRevision !== curRev
+            || (['install', 'upgrade'].includes(pending.command.action ?? '') && card.installedVersion === pending.command.app_version)) {
+            staleKeys.push(item.record.key)
+          }
+        } else if (pending.command.app_version !== card.installedVersion && pending.command.app_version !== card.candidateVersion) {
+          staleKeys.push(item.record.key)
+        }
+      } catch { staleKeys.push(item.record.key) }
+    }
+    if (!staleKeys.length) return
+    for (const key of staleKeys) {
+      if (epoch !== generation) return
+      await storage.remove(active, key).catch(() => undefined)
+    }
+    if (epoch === generation) publish({ items: state.items.filter(item => !staleKeys.includes(item.record.key)) })
+  }
+  async function dismiss(key: string) {
+    if (!lease) return
+    const generation = epoch, active = lease
+    await storage.remove(active, key)
+    if (epoch === generation) publish({ items: state.items.filter(item => item.record.key !== key) })
+  }
   async function execute(card: AppCenterCard, actionId: string, canExecute: () => boolean) {
     if (!lease || state.loading || state.error || state.preparing || !canExecute()) throw new Error('APPCENTER_RECOVERY_STORAGE_UNAVAILABLE')
+    const generation = epoch, active = lease
+    for (const existing of state.items) {
+      if (existing.busy || existing.record.operationId) continue
+      try {
+        const pending = parsePending(existing.record, scope)
+        if (pending.command.app_id === card.appId && (existing.error || ('expected' in pending && (pending.expected.installationId !== (card.installation?.installationId ?? null) || pending.expected.installationRevision !== (card.installation?.revision ?? null))))) {
+          await storage.remove(active, existing.record.key); current(generation)
+          publish({ items: state.items.filter(item => item.record.key !== existing.record.key) })
+        }
+      } catch { /* ignore */ }
+    }
     if (state.items.some(item => parsePending(item.record, scope).command.app_id === card.appId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error))) throw new Error('APPCENTER_RECOVERY_PENDING')
     const action = card.actions.find(item => item.id === actionId)
     if (!action || !['install', 'upgrade', 'start', 'stop', 'restart', 'delete'].includes(action.kind)) throw new Error('ACTION_UNSUPPORTED')
-    const generation = epoch, active = lease, abort = new AbortController()
+    const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), 15000)
     pending.add(abort); publish({ preparing: true })
     try {
@@ -105,7 +159,7 @@ export function createCommands(storage: CommandStorage, transport: CommandTransp
     catch (error) { if (target === scope) publish({ error: errorCode(error) }); throw error }
   }
   return {
-    get state() { return state }, setScope, execute, resume, clearScope,
+    get state() { return state }, setScope, execute, resume, reconcile, dismiss, clearScope,
     async refreshKnown(signal: AbortSignal) {
       const generation = epoch
       const keys = state.items.filter(item => item.record.operationId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status) || item.error)).map(item => item.record.key)
