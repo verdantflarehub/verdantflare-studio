@@ -39,6 +39,7 @@ const upgradeAction = computed(() => props.card.actions.find(action => action.ki
 const local = computed(() => ['detail', 'progress', 'refresh'].includes(primary.value?.kind ?? ''))
 const disabled = computed(() => !primary.value?.enabled || props.stale && !local.value)
 const hint = computed(() => props.stale && !local.value ? '当前信息已过期，请刷新' : reasonLabel(primary.value?.reasonCode ?? null))
+const installRestriction = computed(() => props.card.statusCode === 'NOT_INSTALLED' && primary.value?.kind === 'install' && disabled.value ? hint.value : '')
 </script>
 
 <template>
@@ -51,6 +52,7 @@ const hint = computed(() => props.stale && !local.value ? '当前信息已过期
     </div>
     <p class="card-desc">{{ card.display.description || '暂无应用说明' }}</p>
     <p v-if="card.statusCode === 'NOT_INSTALLED' && card.display.disabledReason" class="card-disabled-reason">{{ card.display.disabledReason }}</p>
+    <p v-if="installRestriction && installRestriction !== card.display.disabledReason" class="card-disabled-reason" role="status">{{ installRestriction }}</p>
     <div v-if="card.display.resourceTags.length || card.display.models?.length" class="tags appcenter-tags"><span v-for="tag in card.display.resourceTags" :key="tag.kind" class="tag">{{ resourceLabel(tag.kind) }} {{ tag.value }} {{ tag.unit }}</span><span v-if="card.display.models?.length" class="tag">{{ card.display.models.length }} 项声明模型</span></div>
     <div class="card-foot">
       <span class="status" :class="{ running: card.statusCode === 'READY' && !stale }"><i class="dot" :class="{ on: card.statusCode === 'READY' && !stale }" />{{ stale ? '待刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</span>

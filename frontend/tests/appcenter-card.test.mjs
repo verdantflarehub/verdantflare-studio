@@ -46,6 +46,34 @@ const renderer = createRenderer({
 const find = (root, predicate) => predicate(root) ? root : root.children.map(child => find(child, predicate)).find(Boolean)
 const action = (id, kind, enabled = true) => ({ id, kind, enabled, reasonCode: enabled ? null : 'PERMISSION_DENIED', entryId: null, confirmation: 'none' })
 
+test('uninstalled card shows disabled install and visible denial, then enables the same server action', async () => {
+  const originalDocument = globalThis.document
+  globalThis.document = { addEventListener() {}, removeEventListener() {} }
+  const AppCard = await component('AppCard')
+  const card = ref({ cardKey: 'catalog:sample', display: { name: 'Sample', resourceTags: [] },
+    installation: null, candidateVersion: '1.0.0', primaryActionId: 'install', statusCode: 'NOT_INSTALLED',
+    actions: [{ ...action('install', 'install', false), reasonCode: 'RELEASE_UNVERIFIED' }] })
+  const root = new Element('root'), emitted = []
+  const app = renderer.createApp({ setup: () => () => h(AppCard, { card: card.value, stale: false, menuOpen: false,
+    onAction: (_card, id) => emitted.push(id) }) })
+  try {
+    app.mount(root)
+    const button = () => find(root, node => node.tag === 'button' && node.text === '安装')
+    assert.equal(button().props.disabled, true)
+    assert.equal(find(root, node => node.props.role === 'status').text, '此版本尚未完成发行校验。')
+    card.value.actions[0].enabled = true
+    card.value.actions[0].reasonCode = null
+    await nextTick()
+    assert.equal(button().props.disabled, false)
+    assert.equal(find(root, node => node.props.role === 'status'), undefined)
+    button().props.onClick()
+    assert.deepEqual(emitted, ['install'])
+  } finally {
+    app.unmount()
+    globalThis.document = originalDocument
+  }
+})
+
 test('card menu dispatches exact server actions, supports focus navigation, denies stale actions and cleans up', async () => {
   const originalDocument = globalThis.document
   globalThis.document = { activeElement: null,

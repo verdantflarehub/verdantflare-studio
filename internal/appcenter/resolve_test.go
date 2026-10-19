@@ -106,6 +106,51 @@ func TestAppCenterScopeFreshnessAndRevision(t *testing.T) {
 	}
 }
 
+func TestUninstalledPrimaryPreservesAdmissionDenial(t *testing.T) {
+	var sample vector
+	for _, v := range vectors(t) {
+		if v.Expected.Status == "NOT_INSTALLED" {
+			sample = v
+			break
+		}
+	}
+	if sample.Name == "" {
+		t.Fatal("missing uninstalled fixture")
+	}
+	for _, reason := range []string{"RELEASE_UNVERIFIED", "PERMISSION_DENIED", "ACTION_UNSUPPORTED"} {
+		t.Run(reason, func(t *testing.T) {
+			in := input(sample)
+			in.Facts.Items = slices.Clone(in.Facts.Items)
+			f := &in.Facts.Items[0]
+			f.Lifecycle.Candidates = slices.Clone(f.Lifecycle.Candidates)
+			for i := range f.Lifecycle.Candidates {
+				c := &f.Lifecycle.Candidates[i]
+				if c.Kind == "install" {
+					c.Enabled, c.ReasonCode = false, Text(reason)
+				}
+			}
+			out, err := Resolve(in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			card := out.Items[0]
+			if card.StatusCode != "NOT_INSTALLED" || card.PrimaryActionID != "install" {
+				t.Fatalf("denied install intent hidden: %s/%s", card.StatusCode, card.PrimaryActionID)
+			}
+			for _, a := range card.Actions {
+				if a.ID == card.PrimaryActionID && (a.Enabled || a.ReasonCode == nil || *a.ReasonCode != reason) {
+					t.Fatalf("admission denial changed: %+v", a)
+				}
+			}
+			f.Service.Quality = "unknown"
+			out, err = Resolve(in)
+			if err != nil || out.Items[0].PrimaryActionID != "refresh" {
+				t.Fatal("unknown facts must still require refresh", err)
+			}
+		})
+	}
+}
+
 func TestAppCenterPresentationChangesNeverGrantOrInvalidateEntryActions(t *testing.T) {
 	in := input(vectors(t)[0])
 	before, err := Resolve(in)

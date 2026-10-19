@@ -263,7 +263,9 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 		}
 		a := action(candidate.Kind, reason == "", reason)
 		c.Actions = append(c.Actions, a)
-		if a.Enabled && ((a.Kind == "install" && c.StatusCode == "NOT_INSTALLED") || (a.Kind == "start" && c.StatusCode == "STOPPED")) {
+		// Installation remains the primary intent even when admission denies it.
+		// Keep the denial and its reason visible rather than falling back to detail.
+		if (a.Kind == "install" && c.StatusCode == "NOT_INSTALLED") || (a.Enabled && a.Kind == "start" && c.StatusCode == "STOPPED") {
 			c.PrimaryActionID = a.ID
 		}
 	}
