@@ -165,11 +165,14 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 			}
 			e, ok := registered[fact.AppID+"@"+fact.Installation.AppVersion]
 			if !ok && strings.Contains(string(fact.Catalog), `"oci_ref":`) {
+				bestVer := ""
 				for key, candidate := range registered {
-					if strings.HasPrefix(key, fact.AppID+"@") {
-						e = candidate
-						ok = true
-						break
+					if ver, found := strings.CutPrefix(key, fact.AppID+"@"); found {
+						if !ok || (candidate.Availability == "available" && e.Availability != "available") || (candidate.Availability == e.Availability && compareAppVersion(ver, bestVer) > 0) {
+							e = candidate
+							bestVer = ver
+							ok = true
+						}
 					}
 				}
 			}

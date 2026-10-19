@@ -2,11 +2,33 @@ package application
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/appcenter"
 	"github.com/verdantflarehub/verdantflare-studio/internal/navigation"
 )
+
+func compareAppVersion(a, b string) int {
+	pa := strings.Split(a, ".")
+	pb := strings.Split(b, ".")
+	for i := 0; i < max(len(pa), len(pb)); i++ {
+		var va, vb int
+		if i < len(pa) {
+			va, _ = strconv.Atoi(pa[i])
+		}
+		if i < len(pb) {
+			vb, _ = strconv.Atoi(pb[i])
+		}
+		if va != vb {
+			if va > vb {
+				return 1
+			}
+			return -1
+		}
+	}
+	return strings.Compare(a, b)
+}
 
 // Navigation metadata contributes presentation and preferences, never another
 // installation or service-state inference. Missing/disabled entries stay visible
@@ -20,12 +42,18 @@ func appCenterNavigationBindings(view appcenter.View, metadata map[string]appcen
 		}
 		binding, exists := catalog.Releases[card.AppID+"@"+installed.AppVersion]
 		if !exists && card.Helm != nil {
+			artifact := metadata[card.CardKey].ArtifactDigest
+			bestVer := ""
 			for key, candidate := range catalog.Releases {
-				if strings.HasPrefix(key, card.AppID+"@") {
-					binding = candidate
-					binding.AppVersion = installed.AppVersion
-					exists = true
-					break
+				if ver, found := strings.CutPrefix(key, card.AppID+"@"); found {
+					if artifact != "" && candidate.ArtifactDigest != artifact {
+						continue
+					}
+					if !exists || compareAppVersion(ver, bestVer) > 0 {
+						binding = candidate
+						bestVer = ver
+						exists = true
+					}
 				}
 			}
 		}

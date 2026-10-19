@@ -228,7 +228,7 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 		}
 	}
 	if matched == nil {
-		for i := range registry.Releases {
+		for i := len(registry.Releases) - 1; i >= 0; i-- {
 			release := &registry.Releases[i]
 			if release.AppID == installed.AppID && strings.Contains(release.Backend.Origin, ".verdantflare-app.svc.cluster.local") {
 				matched = release
@@ -241,6 +241,15 @@ func (s *RegisteredSource) Lookup(ctx context.Context, actor Actor, id string) (
 		data, _, err := s.fetch(ctx, actor, release.Backend, "GET", release.Backend.DeclarationPath, nil, 64<<10, "application/json")
 		if err != nil {
 			return Binding{}, err
+		}
+		if sum(data) != release.DeclarationDigest {
+			for i := len(registry.Releases) - 1; i >= 0; i-- {
+				candidate := &registry.Releases[i]
+				if candidate.AppID == installed.AppID && candidate.DeclarationDigest == sum(data) {
+					release = *candidate
+					break
+				}
+			}
 		}
 		if sum(data) != release.DeclarationDigest {
 			return Binding{}, ErrInvalid
