@@ -67,10 +67,11 @@ var credentialName = regexp.MustCompile(`^STUDIO_APP_[A-Z0-9_]+_TOKEN$`)
 var serviceHost = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svc\.cluster\.local$`)
 var rawDigest = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
-// maxRegistryReleases bounds historical App/version rows. The 1 MiB file cap
-// remains the size bound. 512 leaves room for accumulated releases so one new
-// version cannot reject the entire AppCenter view.
+// maxRegistryReleases bounds historical App/version rows. maxRegistryBytes is the
+// file cap. 512 leaves room for accumulated releases so one new version cannot
+// reject the entire AppCenter view.
 const maxRegistryReleases = 512
+const maxRegistryBytes = 5 << 20
 
 func NewRegisteredSource(path string, reader InstallationReader) *RegisteredSource {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -117,12 +118,12 @@ func (s *RegisteredSource) registry() (Registry, string, error) {
 		return Registry{}, "", ErrUnavailable
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, (1<<20)+1))
-	if err != nil || len(data) > 1<<20 {
+	data, err := io.ReadAll(io.LimitReader(f, maxRegistryBytes+1))
+	if err != nil || len(data) > maxRegistryBytes {
 		return Registry{}, "", ErrInvalid
 	}
 	var registry Registry
-	if strictjson.Decode(bytes.NewReader(data), 1<<20, &registry) != nil || registry.SchemaVersion != 1 || registry.Releases == nil || len(registry.Releases) > maxRegistryReleases {
+	if strictjson.Decode(bytes.NewReader(data), maxRegistryBytes, &registry) != nil || registry.SchemaVersion != 1 || registry.Releases == nil || len(registry.Releases) > maxRegistryReleases {
 		return Registry{}, "", ErrInvalid
 	}
 	seen := map[string]bool{}

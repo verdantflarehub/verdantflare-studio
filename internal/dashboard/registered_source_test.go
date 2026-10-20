@@ -296,7 +296,7 @@ func TestRegistryRejectsUnsafeOriginsPathsAndAmbiguousPolicies(t *testing.T) {
 	for _, data := range [][]byte{
 		[]byte(`{"schemaVersion":1,"schemaVersion":1,"releases":[]}`),
 		[]byte(`{"schemaVersion":1,"releases":[],"unknown":false}`),
-		[]byte(`{"schemaVersion":1,"releases":null}`), bytes.Repeat([]byte(" "), (1<<20)+1),
+		[]byte(`{"schemaVersion":1,"releases":null}`), bytes.Repeat([]byte(" "), maxRegistryBytes+1),
 	} {
 		if err := os.WriteFile(f.source.path, data, 0600); err != nil {
 			t.Fatal(err)
