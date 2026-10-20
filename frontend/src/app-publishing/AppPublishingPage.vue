@@ -181,7 +181,7 @@ onMounted(async () => { if (!host.connected) await host.init(); if (canOpen.valu
         <div v-else-if="error && !readAt" class="empty" role="alert"><h2>无法读取应用目录</h2><button class="btn" @click="refreshDirectory">重试</button></div>
         <div v-else-if="!filteredApps.length" class="empty"><h2>{{ apps.length ? '没有匹配结果' : '暂无已登记应用' }}</h2><p>{{ apps.length ? '调整搜索或筛选条件。' : '点击右上角“新增应用”开始发布。' }}</p></div>
         <div v-else class="table-wrap"><table><thead><tr><th>应用</th><th>分类</th><th>发布版本</th><th>Station 目录</th><th>更新时间</th><th>操作</th></tr></thead>
-          <tbody><tr v-for="app in visibleApps" :key="app.id"><td><strong>{{ app.name }}</strong><small>{{ app.id }}</small></td><td>{{ app.category || '—' }}</td><td>{{ catalogById.get(app.id)?.version || app.publishedVersion || '—' }}</td><td><span class="directory-status" :class="{ ready: catalogById.has(app.id) }">{{ catalogById.has(app.id) ? '已收录' : '未进入目录' }}</span></td><td>{{ app.updatedAt ? new Date(app.updatedAt).toLocaleString('zh-CN') : '—' }}</td><td><button class="btn" @click="openDetail(app.id)">查看详情</button></td></tr></tbody>
+          <tbody><tr v-for="app in visibleApps" :key="app.id"><td><strong>{{ app.name }}</strong><small>{{ app.id }}</small></td><td>{{ app.category || '—' }}</td><td>{{ catalogById.get(app.id)?.version || app.publishedVersion || '—' }}</td><td><span class="directory-status" :class="{ ready: catalogById.has(app.id) }">{{ catalogById.has(app.id) ? '已收录' : '未进入目录' }}</span></td><td>{{ app.updatedAt ? new Date(app.updatedAt).toLocaleString('zh-CN') : '—' }}</td><td><button class="btn small table-action" :aria-label="`查看 ${app.name} 详情`" @click="openDetail(app.id)">查看详情</button></td></tr></tbody>
         </table></div>
         <footer class="table-footer"><span>共 {{ filteredApps.length }} 个应用<span v-if="filteredApps.length"> · 当前显示 {{ (page - 1) * pageSize + 1 }}–{{ Math.min(page * pageSize, filteredApps.length) }}</span></span>
           <div class="pagination"><label>每页 <select v-model.number="pageSize" aria-label="每页条数"><option :value="10">10</option><option :value="20">20</option><option :value="50">50</option></select></label><button class="btn small" :disabled="page <= 1" aria-label="上一页" @click="page--">‹</button><span>{{ page }} / {{ pages }}</span><button class="btn small" :disabled="page >= pages" aria-label="下一页" @click="page++">›</button></div>
@@ -278,6 +278,9 @@ th,td { padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align
 th { color: var(--muted); font-weight: 500; white-space: nowrap; }
 tbody tr:last-child td { border-bottom: 0; }
 td strong,td small { display: block; } td strong { font-size: 13px; font-weight: 600; color: var(--ink); } td small { color: var(--muted); margin-top: 3px; }
+.table-action { min-height: 30px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--shell-panel); color: var(--ink); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.table-action:hover { border-color: var(--accent); }
+.table-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .directory-status { display: inline-flex; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; font-size: 11px; white-space: nowrap; }
 .directory-status.ready { color: var(--accent); border-color: var(--accent); }
 .empty { padding: 48px 20px; text-align: center; color: var(--muted); }.empty h2 { color: var(--ink); }
