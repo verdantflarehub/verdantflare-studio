@@ -39,7 +39,7 @@ function restoreListScroll() {
 const pending = new Set<number>()
 const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark'
 function post(value: object) { frame.value?.contentWindow?.postMessage({ channel: 'vf-studio', ...value }, '*') }
-function failed(text: string) { closePreview(); if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '任务不可用' }); state.value = 'error'; message.value = text; clearTimeout(deadline) }
+function failed(text: string) { closePreview(); if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '任务不可用' }); state.value = 'error'; message.value = text; deadline !== undefined && clearTimeout(deadline) }
 function load(force = false) {
   closePreview()
   const a = adapter.value
@@ -58,7 +58,7 @@ function load(force = false) {
   }
   if (!force && currentBase === base && (currentPath === pathname || props.adapterId === 'image-iframe-v1') && src.value && state.value === 'ready') { post({ type: 'route', path, hash: hash || 'tasks' }); return }
   currentBase = base
-  currentPath = pathname; generation++; controller.abort(); controller = new AbortController(); pending.clear(); clearTimeout(deadline)
+  currentPath = pathname; generation++; controller.abort(); controller = new AbortController(); pending.clear(); deadline !== undefined && clearTimeout(deadline)
   if (props.adapterId === 'video-iframe-v1') emit('taskLabel', { route: props.route, label: '加载中' })
   state.value = 'loading'; message.value = '正在加载应用…'
   src.value = base + (props.adapterId === 'image-iframe-v1' ? '/dashboard' : pathname) + '?embed=1&theme=' + theme() + '&view=' + generation + (hash ? '#' + hash : '')
@@ -81,7 +81,7 @@ async function receive(event: MessageEvent) {
     return
   }
   if (data.type === 'ready') {
-    clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState })
+    deadline !== undefined && clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState })
     if (a.channel === 'vf-image') {
       const path = new URL(props.route, location.origin).searchParams.get(a.query)!
       post({ type: 'route', path, hash: path.split('#')[1] || 'tasks' })
@@ -159,7 +159,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   closePreview()
-  disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive)
+  disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); deadline !== undefined && clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive)
   if (previousScrollRestoration !== undefined && window.history.scrollRestoration === 'manual') window.history.scrollRestoration = previousScrollRestoration
 })
 </script>

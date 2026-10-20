@@ -231,7 +231,16 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 			key = "project_id"
 		}
 		if name == "world.register" {
-			key = "source_project_id"
+			if draft, exists := args["source_draft_id"]; exists {
+				id, ok := draft.(string)
+				_, hasProject := args["source_project_id"]
+				if !ok || !project.ValidID(id) || hasProject || projectHeader != "" {
+					return nil, 400, errors.New("invalid World draft source scope")
+				}
+				projectID = ""
+			} else {
+				key = "source_project_id"
+			}
 		}
 		if key != "" {
 			value, ok := args[key].(string)

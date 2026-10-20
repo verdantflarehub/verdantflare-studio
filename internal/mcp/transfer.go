@@ -23,7 +23,7 @@ func TransferScope(method, path, query string) (string, error) {
 		return "", errors.New("invalid content route")
 	}
 	q, err := url.ParseQuery(query)
-	allowed := map[string]bool{"store_id": true, "artifact_id": true, "project_id": true, "project_revision_id": true, "asset_id": true, "asset_version_id": true}
+	allowed := map[string]bool{"store_id": true, "artifact_id": true, "project_id": true, "project_revision_id": true, "asset_id": true, "asset_version_id": true, "world_draft_id": true, "world_draft_revision_id": true}
 	if err != nil {
 		return "", errors.New("invalid content query")
 	}
@@ -35,8 +35,8 @@ func TransferScope(method, path, query string) (string, error) {
 	if !project.ValidID(q.Get("store_id")) || !project.ValidID(q.Get("artifact_id")) {
 		return "", errors.New("missing content identity")
 	}
-	hasProject, hasAsset := q.Get("project_id") != "", q.Get("asset_id") != ""
-	if hasProject != (q.Get("project_revision_id") != "") || hasAsset != (q.Get("asset_version_id") != "") || (hasProject && hasAsset) {
+	hasProject, hasAsset, hasDraft := q.Get("project_id") != "", q.Get("asset_id") != "", q.Get("world_draft_id") != ""
+	if hasProject != (q.Get("project_revision_id") != "") || hasAsset != (q.Get("asset_version_id") != "") || hasDraft != (q.Get("world_draft_revision_id") != "") || (hasProject && hasAsset) || (hasProject && hasDraft) || (hasAsset && hasDraft) {
 		return "", errors.New("invalid access scope")
 	}
 	return q.Get("project_id"), nil

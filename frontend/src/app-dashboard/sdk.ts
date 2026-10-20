@@ -190,7 +190,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
       const body = jsonCopy(input)
       if (name === 'workspace.local' && body && typeof body === 'object' && !Array.isArray(body)
         && ['openDirectory', 'importFiles'].includes(String(body.operation)) && !adapters.hasUserActivation()) fail('USER_ACTIVATION_REQUIRED')
-      return invoke(signal => adapters.callCapability(name, body, signal), name === 'files.read', options?.signal,
+      return invoke(signal => adapters.callCapability(name, body, signal), name === 'files.read' || name === 'artifact.read', options?.signal,
         name === 'workspace.local' && version !== '1.0.0' ? 30 * 60_000 : 30_000)
     } }),
     app: Object.freeze({ request: async (input: AppRequest, options?: { signal?: AbortSignal }) => {

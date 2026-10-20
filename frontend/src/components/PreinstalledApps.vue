@@ -17,7 +17,7 @@ const permitted = computed(() => canRead.value && host.identity.scopes?.includes
 const intents = () => createPreinstalledIntentStore(sessionStorage)
 const labels: Record<string, string> = { ready: '已安装', pending: '待安装', waiting: '等待依赖', blocked: '暂不可用', upgrade_required: '待升级', suppressed: '已按你的选择卸载', unknown: '正在确认原操作', failed: '安装失败', accepted: '已受理', running: '安装中', confirming: '正在确认安装结果', adoption_required: '待接管已有服务' }
 let generation = 0, pending: AbortController | undefined, timer: ReturnType<typeof setTimeout> | undefined
-function reset() { generation++; pending?.abort(); clearTimeout(timer); status.value = null; pendingIntent.value = null; busy.value = false; error.value = '' }
+function reset() { generation++; pending?.abort(); timer !== undefined && clearTimeout(timer); status.value = null; pendingIntent.value = null; busy.value = false; error.value = '' }
 async function refresh() {
   if (!scope.value || !canRead.value || !props.active || busy.value || document.hidden) return
   const current = ++generation, controller = new AbortController(); pending?.abort(); pending = controller
@@ -26,7 +26,7 @@ async function refresh() {
     if (current !== generation) return
     status.value = value; error.value = ''
     if (value.enabled && value.items.some(item => ['accepted', 'running', 'confirming', 'unknown'].includes(item.state))) {
-      clearTimeout(timer); timer = setTimeout(() => void refresh(), 10000)
+      timer !== undefined && clearTimeout(timer); timer = setTimeout(() => void refresh(), 10000)
     }
     void navigation.refresh()
   } catch { if (current === generation) { status.value = null; error.value = '预装应用状态暂时无法读取，请重试。' } }
@@ -61,8 +61,8 @@ watch([scope, canRead, permitted], () => {
     void refresh()
   }
 }, { immediate: true })
-watch(() => props.active, active => { if (active) void refresh(); else clearTimeout(timer) })
-function onVisibility() { if (document.hidden) clearTimeout(timer); else void refresh() }
+watch(() => props.active, active => { if (active) void refresh(); else timer !== undefined && clearTimeout(timer) })
+function onVisibility() { if (document.hidden) timer !== undefined && clearTimeout(timer); else void refresh() }
 document.addEventListener('visibilitychange', onVisibility)
 onBeforeUnmount(() => { reset(); document.removeEventListener('visibilitychange', onVisibility) })
 </script>

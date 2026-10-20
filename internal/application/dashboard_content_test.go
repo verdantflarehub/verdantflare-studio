@@ -51,7 +51,7 @@ func (g *contentGatewayStub) Transfer(_ context.Context, p project.Principal, me
 		g.t.Fatal("uncontrolled content transfer")
 	}
 	q, _ := url.ParseQuery(query)
-	if q.Get("project_id") != g.input.Access.ProjectID || q.Get("project_revision_id") != g.input.Access.RevisionID || q.Get("store_id") != g.input.Ref.StoreID {
+	if q.Get("project_id") != g.input.Access.ProjectID || q.Get("project_revision_id") != g.input.Access.RevisionID || q.Get("store_id") != g.input.Ref.StoreID || q.Get("world_draft_id") != g.input.Access.WorldDraftID || q.Get("world_draft_revision_id") != g.input.Access.WorldDraftRevisionID {
 		g.t.Fatal("scope changed")
 	}
 	return &http.Response{StatusCode: 200, ContentLength: int64(len(g.text)), Header: http.Header{"Content-Type": {g.version.MIME}}, Body: io.NopCloser(strings.NewReader(g.text))}, 200, nil
@@ -158,5 +158,40 @@ func TestDashboardContentRejectsCrossSubjectHandleAndWrongLength(t *testing.T) {
 	f.identity.UserID = uuid.Must(uuid.NewV7()).String()
 	if _, result := f.service.DownloadContent(context.Background(), "test-session", session, id, g); result.Status == 200 || g.transfers != 1 {
 		t.Fatal("another subject used handle")
+	}
+}
+
+func TestDashboardContentFixedDraftScope(t *testing.T) {
+	f, session, _, g := contentFixture(t)
+	g.input.Access = project.Access{WorldDraftID: uuid.Must(uuid.NewV7()).String(), WorldDraftRevisionID: uuid.Must(uuid.NewV7()).String()}
+	raw, _ := json.Marshal(g.input)
+	if _, err := DecodeDashboardContent(strings.NewReader(string(raw))); err != nil {
+		t.Fatal(err)
+	}
+	out := f.service.ReadContent(context.Background(), "test-session", session, g.input, g)
+	var body struct {
+		Path string `json:"content_path"`
+	}
+	if out.Status != 200 || json.Unmarshal(out.Data, &body) != nil {
+		t.Fatal(out.Status)
+	}
+	handle := body.Path[strings.LastIndex(body.Path, "/")+1:]
+	response, result := f.service.DownloadContent(context.Background(), "test-session", session, handle, g)
+	if result.Status != 200 {
+		t.Fatal(result.Status)
+	}
+	response.Body.Close()
+	for _, scope := range []project.Access{
+		{WorldDraftID: g.input.Access.WorldDraftID},
+		{WorldDraftRevisionID: g.input.Access.WorldDraftRevisionID},
+		{WorldDraftID: g.input.Access.WorldDraftID, WorldDraftRevisionID: g.input.Access.WorldDraftRevisionID, ProjectID: uuid.Must(uuid.NewV7()).String()},
+		{WorldDraftID: g.input.Access.WorldDraftID, WorldDraftRevisionID: g.input.Access.WorldDraftRevisionID, AssetID: uuid.Must(uuid.NewV7()).String()},
+	} {
+		in := g.input
+		in.Access = scope
+		data, _ := json.Marshal(in)
+		if _, err := DecodeDashboardContent(strings.NewReader(string(data))); err == nil {
+			t.Fatal("mixed or incomplete draft scope accepted")
+		}
 	}
 }

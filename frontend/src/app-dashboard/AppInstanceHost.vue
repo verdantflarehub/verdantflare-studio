@@ -17,7 +17,7 @@ function initialize(event: MessageEvent) {
   const channel = new MessageChannel(); port = channel.port1
   port.onmessage = ({data}) => {
     if (data?.kind === 'status') {
-      if (data.state === 'ready' || data.state === 'error') clearTimeout(loading)
+      if (data.state === 'ready' || data.state === 'error') loading !== undefined && clearTimeout(loading)
       message.value = data.state === 'error' ? '实例工作区连接中断，请保存或导出后重新打开。' : ''
     }
     if (data?.requestId === closeId && (data.kind === 'closed' || data.kind === 'close-error')) finishClose?.(data.kind === 'closed')
@@ -29,7 +29,7 @@ function prepareClose(): Promise<boolean> {
   if (pendingClose) return pendingClose
   pendingClose = new Promise<boolean>(resolve => {
     const timer = setTimeout(() => finishClose?.(false), 30000)
-    finishClose = value => { clearTimeout(timer); finishClose = undefined; if (value) closed = true; resolve(value) }
+    finishClose = value => { timer !== undefined && clearTimeout(timer); finishClose = undefined; if (value) closed = true; resolve(value) }
     closeId = crypto.randomUUID()
     port!.postMessage({kind:'close',requestId:closeId})
   }).then(saved => {
@@ -55,7 +55,7 @@ onMounted(async () => {
   } catch { if (!lifetime.signal.aborted) message.value = '实例工作区暂不可用，请返回控制台重新打开。' }
 })
 onBeforeUnmount(() => {
-  lifetime.abort(); clearTimeout(expiry); clearTimeout(loading); observer.disconnect(); port?.close(); finishClose?.(false)
+  lifetime.abort(); expiry !== undefined && clearTimeout(expiry); loading !== undefined && clearTimeout(loading); observer.disconnect(); port?.close(); finishClose?.(false)
   window.removeEventListener('message', initialize)
   void client.closeWorkspace(props.workspaceSessionId, AbortSignal.timeout(5000)).catch(()=>undefined)
 })

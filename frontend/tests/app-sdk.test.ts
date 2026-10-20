@@ -48,6 +48,29 @@ function fixture(overrides: Partial<SDKAdapters> = {}, grants = ['app.request', 
   return { ...createAppSDK(launch, initial, adapters), calls, launch }
 }
 
+test('Artifact reads cancel on hide; writes survive hide but never session revocation', async t => {
+  const pending: Array<{ name: string; signal: AbortSignal; finish: (v: null) => void }> = []
+  const session = fixture({ callCapability: (name, _input, signal) => new Promise(finish => {
+    pending.push({ name, signal, finish })
+  }) }, ['artifact.read', 'artifact.write'])
+  t.after(session.dispose)
+  const read = assert.rejects(session.sdk.capabilities.call('artifact.read', {}), { code: 'REQUEST_CANCELLED' })
+  const write = session.sdk.capabilities.call('artifact.write', {})
+  session.setVisibility(false)
+  await read
+  assert.equal(pending[0].signal.aborted, true)
+  assert.equal(pending[1].signal.aborted, false)
+  pending[1].finish(null)
+  assert.equal(await write, null)
+  await assert.rejects(session.sdk.capabilities.call('artifact.write', {}), { code: 'DASHBOARD_HIDDEN' })
+  session.setVisibility(true)
+  const stale = assert.rejects(session.sdk.capabilities.call('artifact.write', {}), { code: 'REQUEST_CANCELLED' })
+  session.dispose()
+  await stale
+  assert.equal(pending[2].signal.aborted, true)
+  pending[2].finish(null)
+})
+
 test('media display uses existing bytes and closes on navigation, hide and disposal', async t => {
   let opened = 0, closed = 0
   const session = fixture({ previewMedia: async () => { opened++ }, closeMedia: () => { closed++ } }, [])

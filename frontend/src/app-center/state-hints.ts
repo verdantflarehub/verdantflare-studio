@@ -26,7 +26,7 @@ export function subscribeStateHints(notify: (revision?: string) => void, factory
     }
   }
   connect()
-  return () => { stopped = true; clearTimeout(retry); current?.close(); current = undefined }
+  return () => { stopped = true; retry !== undefined && clearTimeout(retry); current?.close(); current = undefined }
 }
 
 /** This clock is independent of ordinary expiry polling and every hint. */
@@ -34,7 +34,7 @@ export function createStateCalibration(read: () => Promise<void>, subscribe?: (n
   let scope: string | null = null, epoch = 0, stop: (() => void) | undefined, timer: ReturnType<typeof setInterval> | undefined
   function activate(next: string | null) {
     if (next === scope) return
-    epoch++; scope = next; clearInterval(timer); stop?.(); stop = undefined
+    epoch++; scope = next; timer !== undefined && clearInterval(timer); stop?.(); stop = undefined
     if (!next) return
     const generation = epoch
     const notify = () => { if (generation === epoch) void read().catch(() => undefined) }

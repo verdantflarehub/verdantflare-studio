@@ -39,15 +39,21 @@ func DecodeDashboardContent(body io.Reader) (DashboardContentInput, error) {
 		return in, dashboard.ErrDenied
 	}
 	a := in.Access
-	projectScope := project.ValidID(a.ProjectID) && project.ValidID(a.RevisionID) && a.AssetID == "" && a.AssetVersionID == ""
-	assetScope := project.ValidID(a.AssetID) && project.ValidID(a.AssetVersionID) && a.ProjectID == "" && a.RevisionID == ""
-	if !projectScope && !assetScope {
+	noDraft := a.WorldDraftID == "" && a.WorldDraftRevisionID == ""
+	projectScope := noDraft && project.ValidID(a.ProjectID) && project.ValidID(a.RevisionID) && a.AssetID == "" && a.AssetVersionID == ""
+	assetScope := noDraft && project.ValidID(a.AssetID) && project.ValidID(a.AssetVersionID) && a.ProjectID == "" && a.RevisionID == ""
+	draftScope := project.ValidID(a.WorldDraftID) && project.ValidID(a.WorldDraftRevisionID) && a.ProjectID == "" && a.RevisionID == "" && a.AssetID == "" && a.AssetVersionID == ""
+	if !projectScope && !assetScope && !draftScope {
 		return in, dashboard.ErrDenied
 	}
 	return in, nil
 }
 
 func (d *Dashboards) contentBegin(ctx context.Context, token, sessionID string) (context.Context, dashboard.Actor, dashboard.Launch, Result) {
+	return d.contentBeginCapability(ctx, token, sessionID, "artifact.read")
+}
+
+func (d *Dashboards) contentBeginCapability(ctx context.Context, token, sessionID, capability string) (context.Context, dashboard.Actor, dashboard.Launch, Result) {
 	ctx, actor, result := d.begin(ctx, token)
 	if result.Status != 200 {
 		return ctx, actor, dashboard.Launch{}, result
@@ -56,7 +62,7 @@ func (d *Dashboards) contentBegin(ctx context.Context, token, sessionID string) 
 	if err != nil {
 		return ctx, actor, launch, dashboardError(err, result.RequestID)
 	}
-	if !slices.Contains(launch.GrantedCapabilities, "artifact.read") {
+	if !slices.Contains(launch.GrantedCapabilities, capability) {
 		return ctx, actor, launch, dashboardError(dashboard.ErrDenied, result.RequestID)
 	}
 	return ctx, actor, launch, result
@@ -191,6 +197,10 @@ func (d *Dashboards) DownloadContent(ctx context.Context, token, sessionID, hand
 	if a.AssetID != "" {
 		q.Set("asset_id", a.AssetID)
 		q.Set("asset_version_id", a.AssetVersionID)
+	}
+	if a.WorldDraftID != "" {
+		q.Set("world_draft_id", a.WorldDraftID)
+		q.Set("world_draft_revision_id", a.WorldDraftRevisionID)
 	}
 	p := project.Principal{OrganizationID: actor.OrganizationID, SubjectID: actor.UserID, RequestID: result.RequestID}
 	resp, status, err := gateway.Transfer(ctx, p, "GET", "/v2/artifacts/"+v.VersionID+"/content", q.Encode(), nil, 0)

@@ -96,7 +96,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     return false
   }
   function schedule() {
-    clearTimeout(timer)
+    timer !== undefined && clearTimeout(timer)
     if (!visible() || !host.connected || !hasPageConsumer()) return
     const hasActiveOp = commandState.value.items.some(item => item.busy || (item.record.operationId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status))))
       || (state.value.value?.items.some(card => card.operation.blocking) ?? false)
@@ -109,7 +109,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     return visible() ? sharedRefresh.refresh() : Promise.resolve()
   }
   function changedVisibility() {
-    clearTimeout(timer)
+    timer !== undefined && clearTimeout(timer)
     syncCalibration()
     if (visible()) void refresh()
     else { sharedRefresh.invalidate(); controller.suspend(); stopReads() }
@@ -120,7 +120,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     if (wasVisible !== visible()) changedVisibility()
     else if (visible()) schedule()
   }
-  function clear() { calibration.activate(null); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); progress.clear(null); openBindings.clear(); controller.clear() }
+  function clear() { calibration.activate(null); timer !== undefined && clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); progress.clear(null); openBindings.clear(); controller.clear() }
   watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
     const who = host.identity
     sharedRefresh.invalidate()
@@ -137,12 +137,12 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   }, { immediate: true, flush: 'sync' })
   watch(() => host.connected, connected => {
     syncCalibration()
-    if (!connected) { clearTimeout(timer); sharedRefresh.invalidate(); controller.suspend(); stopReads() }
+    if (!connected) { timer !== undefined && clearTimeout(timer); sharedRefresh.invalidate(); controller.suspend(); stopReads() }
     else if (visible()) void refresh()
   }, { flush: 'sync' })
   document.addEventListener('visibilitychange', changedVisibility)
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
-  onScopeDispose(() => { navHintListeners.clear(); calibration.dispose(); clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
+  onScopeDispose(() => { navHintListeners.clear(); calibration.dispose(); timer !== undefined && clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
   return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, dismissCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

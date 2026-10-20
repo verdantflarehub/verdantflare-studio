@@ -16,6 +16,10 @@ type dashboardContentService interface {
 	DownloadContent(context.Context, string, string, string, application.DashboardContentGateway) (*http.Response, application.Result)
 }
 
+type dashboardContentWriter interface {
+	WriteContent(context.Context, string, string, application.DashboardTextWrite, application.DashboardContentGateway) application.Result
+}
+
 func (s *Server) enableDashboardContent(r *gin.Engine, dashboards DashboardService, gate func(*gin.Context) (string, bool), result func(*gin.Context, application.Result)) {
 	service, supported := dashboards.(dashboardContentService)
 	gateway := func() application.DashboardContentGateway {
@@ -26,6 +30,23 @@ func (s *Server) enableDashboardContent(r *gin.Engine, dashboards DashboardServi
 		}
 		return s.mcpGateway
 	}
+	r.POST("/studio/dashboards/:session_id/capabilities/artifact.write", func(c *gin.Context) {
+		token, ok := gate(c)
+		if !ok {
+			return
+		}
+		writer, ok := dashboards.(dashboardContentWriter)
+		if !ok {
+			result(c, application.Error(503, "CAPABILITY_UNAVAILABLE"))
+			return
+		}
+		in, err := application.DecodeDashboardTextWrite(c.Request.Body)
+		if err != nil {
+			result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
+			return
+		}
+		result(c, writer.WriteContent(c.Request.Context(), token, c.Param("session_id"), in, gateway()))
+	})
 	r.POST("/studio/dashboards/:session_id/capabilities/artifact.read", func(c *gin.Context) {
 		token, ok := gate(c)
 		if !ok {

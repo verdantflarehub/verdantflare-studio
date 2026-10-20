@@ -188,7 +188,7 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       return call(sessionPath(sessionId) + '/requests', 'POST', input, signal)
     },
     async capability(sessionId: string, name: string, input: Json, signal?: AbortSignal): Promise<Json> {
-      if (name !== 'artifact.read' && name !== 'workspace.local') return failure('CAPABILITY_UNAVAILABLE')
+      if (name !== 'artifact.read' && name !== 'artifact.write' && name !== 'workspace.local') return failure('CAPABILITY_UNAVAILABLE')
       const response = await call(sessionPath(sessionId) + '/capabilities/' + name, 'POST', input, signal)
       if (response.status !== 200) return failure(codeFrom(response.data))
       if (name === 'workspace.local') return response.data

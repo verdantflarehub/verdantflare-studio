@@ -112,6 +112,25 @@ test('Artifact capability rejects foreign session paths and arbitrary capability
   assert.equal(calls, 4)
 })
 
+test('Artifact text write uses the session endpoint and preserves recovery errors without retries', async () => {
+  const input = { mode: 'text', write_id: '01980000-0000-7000-8000-000000000001',
+    source: { kind: 'user_edit', world_draft_id: '01980000-0000-7000-8000-000000000002' },
+    mime: 'text/plain', text: '保存正文' }
+  for (const code of ['', 'IDEMPOTENCY_CONFLICT', 'CONTENT_DENIED', 'CONTENT_NOT_READY']) {
+    let calls = 0
+    const client = createDashboardWebClient('https://studio.invalid', async (url, options) => {
+      calls++
+      assert.equal(url, `https://studio.invalid/studio/dashboards/${sessionId}/capabilities/artifact.write`)
+      assert.equal(options?.method, 'POST')
+      assert.deepEqual(JSON.parse(String(options?.body)), input)
+      return code ? json({ code }, 409) : json({ version: { source: input.source } })
+    })
+    if (code) await assert.rejects(client.capability(sessionId, 'artifact.write', input), { code })
+    else assert.deepEqual(await client.capability(sessionId, 'artifact.write', input), { version: { source: input.source } })
+    assert.equal(calls, 1)
+  }
+})
+
 test('Web client obtains platform context and confines assets to the returned session', async () => {
   const client = createDashboardWebClient('https://studio.invalid', async (url, options) => {
     assert.equal(url, 'https://studio.invalid/studio/dashboards')

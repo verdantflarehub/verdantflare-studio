@@ -31,7 +31,7 @@ func (s *Service) AuthorizeArtifact(ctx context.Context, p Principal, permission
 		if source == nil || permission.Version != nil || permission.Owner != nil || permission.Access != nil {
 			return ErrForbidden
 		}
-		if source.Kind == "asset_manifest" {
+		if source.WorldDraftID != "" || source.WorldDraftRevisionID != "" || source.Kind == "asset_manifest" {
 			return s.authorizeWorldWrite(ctx, p, *source)
 		}
 		if source.Kind != "user_edit" && source.Kind != "user_import" && source.Kind != "legacy_import" {
@@ -42,6 +42,12 @@ func (s *Service) AuthorizeArtifact(ctx context.Context, p Principal, permission
 		v := permission.Version
 		a := permission.Access
 		if v == nil || a == nil || permission.Source != nil || permission.Owner != nil || !v.ContentRef.Valid() || v.OrganizationID != p.OrganizationID {
+			return ErrForbidden
+		}
+		if a.WorldDraftID != "" || a.WorldDraftRevisionID != "" {
+			return ErrForbidden
+		}
+		if (permission.Action == "delete" || *a == (Access{})) && (v.Source.WorldDraftID != "" || v.Source.WorldDraftRevisionID != "") {
 			return ErrForbidden
 		}
 		if permission.Action == "delete" {

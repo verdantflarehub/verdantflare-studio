@@ -62,7 +62,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     if (disposed) return Promise.resolve()
     disposed = true
     scroll.dispose()
-    clearTimeout(timer)
+    timer !== undefined && clearTimeout(timer)
     signal.removeEventListener('abort', cancel)
     unsubscribe()
     themeObserver.disconnect()
@@ -124,7 +124,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
       }),
     ])
     if (disposed) throw new Error('LOAD_CANCELLED')
-    clearTimeout(timer)
+    timer !== undefined && clearTimeout(timer)
   } catch (error) {
     await dispose()
     throw error

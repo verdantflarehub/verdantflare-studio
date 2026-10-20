@@ -62,12 +62,12 @@ export function createFileAccess(options: {
   let generation = 0, timer: ReturnType<typeof setTimeout> | undefined
   const pending = new Set<AbortController>()
   function sweep() {
-    clearTimeout(timer)
+    timer !== undefined && clearTimeout(timer)
     for (const [handle, entry] of entries) if (entry.expires <= now()) entries.delete(handle)
     if (entries.size) timer = setTimeout(sweep, Math.max(1, Math.min(...[...entries.values()].map(entry => entry.expires)) - now()))
   }
   function clear() {
-    generation++; entries.clear(); clearTimeout(timer)
+    generation++; entries.clear(); timer !== undefined && clearTimeout(timer)
     for (const controller of pending) controller.abort()
   }
   async function operation<T>(signal: AbortSignal, fn: (signal: AbortSignal, check: () => void) => Promise<T>) {
