@@ -4,6 +4,13 @@ export const installationPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab]
 export const appIdPattern = /^(?![0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)[a-z0-9][a-z0-9-]{0,63}$/
 const projectCategories = new Set(['image', 'character', 'music', 'video', 'ai_short_drama'])
 
+/** A cached Dashboard from another app must never supply the current root link. */
+export function dashboardAppId(target: string, resolved?: { appId: string; installationId: string }): string | undefined {
+  if (appIdPattern.test(target)) return target
+  if (installationPattern.test(target) && resolved?.installationId === target && appIdPattern.test(resolved.appId)) return resolved.appId
+  return undefined
+}
+
 export function instanceWorkspaceLocation(installationId: string, workspaceSessionId: string) {
   if (!installationPattern.test(installationId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(workspaceSessionId)) throw new Error('INVALID_WORKSPACE')
   return `/apps/${installationId}/instances/${workspaceSessionId}`

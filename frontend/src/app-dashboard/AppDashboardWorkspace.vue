@@ -8,7 +8,7 @@ import AppInstanceHost from './AppInstanceHost.vue'
 import { createDashboardWebClient } from './web-client'
 import type { OpenedDashboard } from './web-client'
 import { DashboardSessions } from './sessions'
-import { appIdPattern, browserDashboardPath, dashboardLocation, dashboardOwnsBreadcrumb, dashboardSdkRoute, installationPattern, instanceWorkspaceLocation } from './routes'
+import { appIdPattern, browserDashboardPath, dashboardAppId, dashboardLocation, dashboardOwnsBreadcrumb, dashboardSdkRoute, installationPattern, instanceWorkspaceLocation } from './routes'
 import type { SDKAdapters } from './types'
 import { openMediaPreview, closeMediaPreview } from '../platform/media-preview'
 import { createNavigationTransport } from '../navigation/transport'
@@ -28,9 +28,9 @@ const props = defineProps<{
 }>()
 const route = useRoute(), router = useRouter(), identity = useHostStore()
 const navigation = useNavigationStore()
-const currentAppId = computed(() => (selection.value?.launch.installationId === props.installationId || selection.value?.context.appId === props.installationId)
-  ? selection.value.context.appId
-  : (appIdPattern.test(props.installationId) && !installationPattern.test(props.installationId) ? props.installationId : undefined))
+const currentAppId = computed(() => dashboardAppId(props.installationId, selection.value ? {
+  appId: selection.value.context.appId, installationId: selection.value.launch.installationId,
+} : undefined))
 const currentAppPath = computed(() => { try { return browserDashboardPath(route, currentAppId.value) } catch { return '/' } })
 const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)?.children, currentAppPath.value))
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
@@ -49,14 +49,17 @@ const actorScope = computed(() => !identity.connected ? '' : JSON.stringify([ide
   identity.identity.session_id, identity.identity.policy_version, identity.identity.revocation_version,
   [...(identity.identity.roles ?? [])].sort(), [...(identity.identity.scopes ?? [])].sort()]))
 const visible = computed(() => props.active && !workspaceId.value && ['resolved', 'ready'].includes(state.value))
-const ownsBreadcrumb = computed(() => visible.value && dashboardOwnsBreadcrumb(selection.value?.context.appId, currentAppPath.value))
-const workspaceAppId = ref(''), workspaceInstanceName = ref('')
-const title = computed(() => {
-  const appId = (selection.value?.launch.installationId === props.installationId || selection.value?.context.appId === props.installationId)
-    ? selection.value.context.appId
-    : workspaceAppId.value || (appIdPattern.test(props.installationId) && !installationPattern.test(props.installationId) ? props.installationId : '')
-  return appId ? (props.titles[appId] ?? appId) : '应用控制台'
-})
+const ownsBreadcrumb = computed(() => visible.value && dashboardOwnsBreadcrumb(currentAppId.value, currentAppPath.value))
+const workspaceIdentity = shallowRef<{ sessionId: string; installationId: string; appId: string; name: string }>()
+const currentWorkspace = computed(() => workspaceId.value && workspaceIdentity.value?.sessionId === workspaceId.value
+  && workspaceIdentity.value.installationId === props.installationId ? workspaceIdentity.value : undefined)
+const workspaceInstanceName = computed(() => currentWorkspace.value?.name ?? '')
+const breadcrumbAppId = computed(() => currentAppId.value ?? dashboardAppId(props.installationId, currentWorkspace.value))
+const breadcrumbLocation = computed(() => breadcrumbAppId.value ? dashboardLocation(breadcrumbAppId.value) : undefined)
+const title = computed(() => breadcrumbAppId.value ? (props.titles[breadcrumbAppId.value] ?? breadcrumbAppId.value) : '应用控制台')
+function workspaceLoaded(info: { appId: string; instanceName: string }) {
+  workspaceIdentity.value = { sessionId: workspaceId.value, installationId: props.installationId, appId: info.appId, name: info.instanceName }
+}
 const confirmDiscard = async () => window.confirm('控制台有未保存的修改，确定放弃并关闭吗？')
 const messages: Record<string, string> = {
   UNAUTHENTICATED: '请先登录，再打开应用控制台。',
@@ -136,8 +139,8 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       const launch = await client!.openInstance(id, opened.launch.installationId, input, signal)
       try {
         if (signal.aborted || opened.context.contextRevision !== selection.value?.context.contextRevision) throw new Error('REQUEST_CANCELLED')
-        workspaceAppId.value = launch.appId
-        workspaceInstanceName.value = launch.instanceName || launch.instanceId
+        workspaceIdentity.value = { sessionId: launch.workspaceSessionId, installationId: launch.installationId,
+          appId: launch.appId, name: launch.instanceName || launch.instanceId }
         const failed = await router.push(instanceWorkspaceLocation(launch.installationId, launch.workspaceSessionId))
         if (failed) throw new Error('NAVIGATION_CANCELLED')
       } catch (cause) {
@@ -162,7 +165,7 @@ watch([() => props.active, () => props.installationId, () => route.fullPath, wor
   if (!props.active) { state.value = 'idle'; return }
   if (!scope) { showError(new Error('UNAUTHENTICATED')); return }
   if (workspaceId.value) { state.value = 'idle'; error.value = ''; return }
-  workspaceInstanceName.value = ''
+  workspaceIdentity.value = undefined
   // Rechecking a route in the same authorized session must not hide its surface:
   // hiding clamps the outer scroll and makes the app save that zero as its return position.
   if ((selection.value?.launch.installationId !== props.installationId && selection.value?.context.appId !== props.installationId) || !['ready', 'resolved'].includes(state.value)) state.value = 'resolving'
@@ -218,7 +221,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
       <div v-if="workspaceId || (navigationChild && !ownsBreadcrumb)" class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
-        <a v-if="workspaceId || navigationChild" :href="router.resolve(dashboardLocation(selection?.context.appId || workspaceAppId || installationId)).href" @click.prevent="router.push(dashboardLocation(selection?.context.appId || workspaceAppId || installationId))">{{ title }}</a>
+        <a v-if="breadcrumbLocation" :href="router.resolve(breadcrumbLocation).href" @click.prevent="router.push(breadcrumbLocation)">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>
         <template v-if="!workspaceId && navigationChild"><span aria-hidden="true" class="breadcrumb-sep"> / </span><span class="breadcrumb-current" aria-current="page">{{ navigationChild.title }}</span></template>
         <template v-if="workspaceId && workspaceInstanceName">
@@ -238,7 +241,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
         @ready="ready" @error="dashboardError" @cancelled="cancelled" @retry="retry++" />
       <AppInstanceHost v-if="workspaceId && actorScope" :key="actorScope + workspaceId" ref="instanceHost"
         :workspace-session-id="workspaceId" :installation-id="installationId"
-        @loaded="info => { workspaceAppId = info.appId; workspaceInstanceName = info.instanceName }" />
+        @loaded="workspaceLoaded" />
     </div>
   </main>
 </template>
