@@ -46,7 +46,33 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": request.ID, "result": map[string]any{"structuredContent": []any{}}})
 	}))
 	defer server.Close()
-	t.Setenv("STUDIO_APP_PUBLISH_ENDPOINT", server.URL+"/api/control/internal/studio-publish/mcp")
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/readyz" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/mcp" {
+			http.NotFound(w, r)
+			return
+		}
+		forward, err := http.NewRequestWithContext(r.Context(), http.MethodPost, server.URL+"/api/control/internal/studio-publish/mcp", r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		forward.Header = r.Header.Clone()
+		response, err := server.Client().Do(forward)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer response.Body.Close()
+		w.WriteHeader(response.StatusCode)
+		_, _ = io.Copy(w, response.Body)
+	}))
+	defer relay.Close()
+	t.Setenv("STUDIO_APP_PUBLISH_ENDPOINT", "https://hub.verdantflarehub.com/api/control/internal/studio-publish/mcp")
+	t.Setenv("STUDIO_APP_PUBLISH_RELAY_URL", relay.URL+"/mcp")
 	t.Setenv("STUDIO_APP_PUBLISH_HMAC_KEY", key)
 	gateway := NewGatewayWithClient(nil)
 	gateway.httpClient = server.Client()
@@ -58,5 +84,12 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 	}
 	if _, status, err := gateway.CallVerified(context.Background(), "app_publish.organizations", map[string]any{}, p, ""); status != http.StatusOK || err != nil {
 		t.Fatalf("verified publishing call failed: %d %v", status, err)
+	}
+	relay.Close()
+	if len(gateway.ListTools()) != 0 {
+		t.Fatal("stopped publishing app still advertised tools")
+	}
+	if _, status, err := gateway.CallVerified(context.Background(), "app_publish.organizations", map[string]any{}, p, ""); status != http.StatusBadGateway || err == nil {
+		t.Fatalf("stopped publishing app was callable: %d %v", status, err)
 	}
 }

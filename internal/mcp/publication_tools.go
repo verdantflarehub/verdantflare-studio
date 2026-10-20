@@ -1,13 +1,42 @@
 package mcp
 
 import (
+	"net/http"
 	"net/url"
 	"os"
+	"time"
 )
 
-func publishingConfigured() bool {
+func publishingControlEndpoint() (*url.URL, bool) {
 	u, err := url.Parse(os.Getenv("STUDIO_APP_PUBLISH_ENDPOINT"))
-	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && u.RawQuery == "" && u.Fragment == "" && len(os.Getenv("STUDIO_APP_PUBLISH_HMAC_KEY")) >= 32
+	return u, err == nil && u.Scheme == "https" && u.Host == "hub.verdantflarehub.com" && u.Path == "/api/control/internal/studio-publish/mcp" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
+}
+
+func publishingRelayEndpoint() (*url.URL, bool) {
+	u, err := url.Parse(os.Getenv("STUDIO_APP_PUBLISH_RELAY_URL"))
+	return u, err == nil && u.Scheme == "http" && u.Host != "" && u.Path == "/mcp" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
+}
+
+func publishingConfigured() bool {
+	_, controlOK := publishingControlEndpoint()
+	_, relayOK := publishingRelayEndpoint()
+	return controlOK && relayOK && len(os.Getenv("STUDIO_APP_PUBLISH_HMAC_KEY")) >= 32
+}
+
+func publishingReady() bool {
+	if !publishingConfigured() {
+		return false
+	}
+	u, _ := publishingRelayEndpoint()
+	ready := *u
+	ready.Path = "/readyz"
+	client := &http.Client{Timeout: 750 * time.Millisecond, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := client.Get(ready.String())
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	return response.StatusCode == http.StatusNoContent
 }
 
 func publicationTools() []ToolDefinition {

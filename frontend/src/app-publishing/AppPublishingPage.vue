@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useHostStore } from '../platform/hostStore'
+import { useAppCenterStore } from '../app-center/store'
 
 type Organization = { id: string; name: string }
 type PublishedApp = {
@@ -20,7 +21,9 @@ type AppDetail = { app: PublishedApp; published?: {
 } }
 const router = useRouter()
 const host = useHostStore()
+const appCenter = useAppCenterStore()
 const canOpen = computed(() => Boolean(host.connected && host.identity.roles?.includes('admin') && host.identity.scopes?.includes('app:manage')))
+const appReady = computed(() => !appCenter.state.stale && Boolean(appCenter.state.value?.items.some(card => card.appId === 'app-publishing' && card.installation?.state === 'installed' && card.statusCode === 'READY')))
 const view = ref<'list' | 'detail' | 'create'>('list')
 const apps = ref<PublishedApp[]>([])
 const catalogApps = ref<CatalogApp[]>([])
@@ -45,6 +48,7 @@ const pages = computed(() => Math.max(1, Math.ceil(filteredApps.value.length / p
 const visibleApps = computed(() => filteredApps.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
 watch([search, statusFilter, pageSize], () => { page.value = 1 })
 watch(pages, value => { if (page.value > value) page.value = value })
+watch(appReady, ready => { if (ready && canOpen.value && !readAt.value) void refreshDirectory() })
 const organizations = ref<Organization[]>([])
 const selectedOrganizations = ref<string[]>([])
 const busy = ref(false)
@@ -140,7 +144,13 @@ async function submit() {
   } catch (cause) { error.value = cause instanceof Error ? cause.message : '发布失败；请先回读应用状态，避免重复提交。' }
   finally { busy.value = false }
 }
-onMounted(async () => { if (!host.connected) await host.init(); if (canOpen.value) await refreshDirectory() })
+onMounted(async () => {
+  appCenter.setVisible('app-publishing', true)
+  if (!host.connected) await host.init()
+  await appCenter.refresh()
+  if (canOpen.value && appReady.value) await refreshDirectory()
+})
+onBeforeUnmount(() => appCenter.setVisible('app-publishing', false))
 </script>
 
 <template>
@@ -161,6 +171,7 @@ onMounted(async () => { if (!host.connected) await host.init(); if (canOpen.valu
       </div>
     </header>
     <p v-if="!canOpen" class="feedback error">需要 Station 管理员身份；Control 还会核对绑定的应用运营角色。</p>
+    <p v-else-if="!appReady" class="feedback error">应用发布尚未安装或运行就绪。请返回应用中心查看状态、安装或启动。</p>
     <template v-else>
     <p v-if="error" class="feedback error" role="alert">{{ error }}</p>
     <p v-if="message" class="feedback" role="status">{{ message }}</p>

@@ -8,7 +8,6 @@ import { directoryLocation, directoryView } from './directory-route'
 import { actionLabels, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
-import AppIcon from './AppIcon.vue'
 import AppCommandConfirm from './AppCommandConfirm.vue'
 import { versionLabel } from './card-actions'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
@@ -21,11 +20,10 @@ import ComfyUIBookmarkWorkspace from './ComfyUIBookmarkWorkspace.vue'
 import { comfyuiBookmark } from './comfyui-bookmark'
 import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
-import studioPackage from '../../package.json'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 const canPublish = computed(() => Boolean(host.connected && host.identity.roles?.includes('admin') && host.identity.scopes?.includes('app:manage')))
-const nativePublishingVisible = computed(() => canPublish.value && ['all', 'system'].includes(group.value) && (!query.value.trim() || '应用发布 app publishing'.includes(query.value.trim().toLowerCase())))
+const canOpenPublishing = (card: AppCenterCard) => canPublish.value && !store.state.stale && card.appId === 'app-publishing' && card.installation?.state === 'installed' && card.statusCode === 'READY'
 store.setVisible('directory', true)
 const query = ref(''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
 watch(() => [route.path, route.query.view] as const, ([path, view]) => {
@@ -126,15 +124,17 @@ const visibleSections = computed(() => {
       items: cardList
     })
   }
-	if (nativePublishingVisible.value && !sections.some(section => section.id === 'system')) {
-		sections.push({ id: 'system', title: '系统应用', subtitle: 'System', order: groupOrder.get('system') ?? 999, items: [] })
-	}
   sections.sort((a, b) => a.order - b.order)
   return sections
 })
 let listScroll = 0
 function back() { void router.replace(returnLocation.value) }
 async function perform(card: AppCenterCard, actionId: string) {
+  if (actionId === 'native-open') {
+    if (!canOpenPublishing(card)) { message.value = '应用发布尚未就绪，请刷新安装状态。'; return }
+    await router.push('/apps/app-publishing/')
+    return
+  }
   const action = card.actions.find(item => item.id === actionId)
   if (actionId === 'detail' || action?.kind === 'progress' && action.enabled) {
     await router.push({ query: { ...route.query, card: card.cardKey } }); return
@@ -234,7 +234,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
       <p v-if="store.commandState.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.commandState.error) }}</p>
       <AppCommandRecovery v-if="!selectedKey" :state="store.commandState" :titles="titles" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
       <template v-if="selectedKey">
-        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
+        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :native-open="canOpenPublishing(selected)" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
           <AppCommandRecovery :state="store.commandState" :titles="titles" :app-id="selected.appId" :except-operation-id="store.operationState.value?.operation_id" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
         </AppInstallDetail>
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
@@ -254,30 +254,16 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
           </div>
         </div>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
-        <p v-else-if="store.state.value && !result.items.length && !nativePublishingVisible" class="panel appcenter-message">没有符合筛选条件的应用。</p>
+        <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
         <div v-else class="catalog-groups">
           <section v-for="sec in visibleSections" :key="sec.id" class="group-section">
             <div class="section-title">
               <h2>{{ sec.title }}</h2>
-              <small>{{ sec.subtitle }} · {{ sec.items.length + (sec.id === 'system' && nativePublishingVisible ? 1 : 0) }}</small>
+              <small>{{ sec.subtitle }} · {{ sec.items.length }}</small>
               <span class="line" aria-hidden="true"></span>
             </div>
             <div class="appcenter-grid">
-              <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" />
-              <article v-if="sec.id === 'system' && nativePublishingVisible" class="app-card">
-                <div class="card-top">
-                  <button class="appcenter-icon-button" aria-label="打开应用发布" @click="router.push('/apps/app-publishing/')"><AppIcon icon-ref="brand:vf" /></button>
-                  <div>
-                    <button class="app-title" @click="router.push('/apps/app-publishing/')">应用发布</button>
-                    <div class="brand-version"><span>VerdantFlare</span><span>{{ studioPackage.version }}</span></div>
-                  </div>
-                </div>
-                <p class="card-desc">填写 Hub 应用资料，登记固定 OCI 版本并发布到 Station 目录。</p>
-                <div class="card-foot">
-                  <span class="status running"><i class="dot on" />已就绪</span>
-                  <div class="card-actions"><button class="btn" @click="router.push('/apps/app-publishing/')">打开</button></div>
-                </div>
-              </article>
+              <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" :native-open="canOpenPublishing(card)" @menu="menuKey = $event" @action="perform" />
             </div>
           </section>
         </div>

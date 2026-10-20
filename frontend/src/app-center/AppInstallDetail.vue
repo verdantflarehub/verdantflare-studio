@@ -8,7 +8,7 @@ import AppOperationStatus from './AppOperationStatus.vue'
 import type { OperationProgress } from './operation-progress'
 import { computed } from 'vue'
 import { useNavigationStore } from '../platform/navigationStore'
-const props = defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string; operationProgress: OperationProgress }>()
+const props = defineProps<{ card: AppCenterCard; stale: boolean; groupLabel: string; operationProgress: OperationProgress; nativeOpen?: boolean }>()
 const navigation = useNavigationStore()
 const hasNavigation = computed(() => props.card.installation?.state === 'installed' && navigation.entries.some(entry => entry.installationId === props.card.installation?.installationId && entry.appId === props.card.appId))
 const emit = defineEmits<{ back: []; action: [card: AppCenterCard, id: string]; refreshOperation: [] }>()
@@ -29,7 +29,7 @@ function actionTip(action: CommonAction) {
       <div class="detail-title"><AppIcon :icon-ref="card.display.iconRef" /><div><h2>{{ card.display.name }}</h2><p class="muted">{{ publisherLabel(card.display.publisherId) }} · {{ groupLabel }}</p></div></div>
       <p class="detail-description">{{ card.display.description || '应用说明待补充' }}</p>
       <p class="detail-state">{{ stale ? '信息已过期 · 请刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</p>
-      <div class="action-row"><span v-for="action in card.actions.filter(item => item.kind !== 'detail')" :key="action.id" class="detail-action" :tabindex="actionTip(action) ? 0 : undefined">
+      <div class="action-row"><button v-if="nativeOpen" class="btn" @click="emit('action', card, 'native-open')">打开</button><span v-for="action in card.actions.filter(item => item.kind !== 'detail')" :key="action.id" class="detail-action" :tabindex="actionTip(action) ? 0 : undefined">
         <button class="btn" :disabled="actionDisabled(action)" @click="emit('action', card, action.id)">{{ actionLabels[action.kind] }}</button>
         <span v-if="actionTip(action)" class="action-tip" role="tooltip">{{ actionTip(action) }}</span>
       </span></div>
