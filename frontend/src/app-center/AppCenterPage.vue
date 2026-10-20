@@ -8,6 +8,7 @@ import { directoryLocation, directoryView } from './directory-route'
 import { actionLabels, reasonLabel } from './labels'
 import type { AppCenterCard } from './schema.generated'
 import AppCard from './AppCard.vue'
+import AppIcon from './AppIcon.vue'
 import AppCommandConfirm from './AppCommandConfirm.vue'
 import { versionLabel } from './card-actions'
 import AppDashboardWorkspace from '../app-dashboard/AppDashboardWorkspace.vue'
@@ -20,6 +21,7 @@ import ComfyUIBookmarkWorkspace from './ComfyUIBookmarkWorkspace.vue'
 import { comfyuiBookmark } from './comfyui-bookmark'
 import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
+import studioPackage from '../../package.json'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 const canPublish = computed(() => Boolean(host.connected && host.identity.roles?.includes('admin') && host.identity.scopes?.includes('app:manage')))
@@ -262,11 +264,19 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
             </div>
             <div class="appcenter-grid">
               <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" />
-              <article v-if="sec.id === 'system' && nativePublishingVisible" class="native-publishing-card">
-                <div class="native-publishing-icon" aria-hidden="true">发</div>
-                <div><h3>应用发布</h3><small>VerdantFlare · 系统内置</small></div>
-                <p>填写 Hub 应用资料，登记固定 OCI 版本并发布到 Station 目录。</p>
-                <button class="btn" @click="router.push('/apps/app-publishing/')">打开</button>
+              <article v-if="sec.id === 'system' && nativePublishingVisible" class="app-card">
+                <div class="card-top">
+                  <button class="appcenter-icon-button" aria-label="打开应用发布" @click="router.push('/apps/app-publishing/')"><AppIcon icon-ref="brand:vf" /></button>
+                  <div>
+                    <button class="app-title" @click="router.push('/apps/app-publishing/')">应用发布</button>
+                    <div class="brand-version"><span>VerdantFlare</span><span>{{ studioPackage.version }}</span></div>
+                  </div>
+                </div>
+                <p class="card-desc">填写 Hub 应用资料，登记固定 OCI 版本并发布到 Station 目录。</p>
+                <div class="card-foot">
+                  <span class="status running"><i class="dot on" />已就绪</span>
+                  <div class="card-actions"><button class="btn" @click="router.push('/apps/app-publishing/')">打开</button></div>
+                </div>
               </article>
             </div>
           </section>
@@ -291,11 +301,6 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
 .appcenter-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
 .search-box input { min-width: 160px; }
-.native-publishing-card { min-height: 210px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--vf-shadow-card); }
-.native-publishing-card h3 { margin: 0; font-size: 18px; }
-.native-publishing-card small { color: var(--muted); }
-.native-publishing-card p { color: var(--muted); font-size: 13px; line-height: 1.5; flex: 1; }
-.native-publishing-card button { align-self: flex-end; }
-.native-publishing-icon { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-glow); color: var(--accent); font-weight: 700; }
+.appcenter-icon-button { padding: 0; border: 0; background: none; cursor: pointer; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>
