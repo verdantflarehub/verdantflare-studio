@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -102,6 +103,29 @@ func (f *registeredFixture) write(t *testing.T) {
 	t.Helper()
 	if err := os.WriteFile(f.source.path, marshalFixture(t, f.registry), 0600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRegistryAcceptsAccumulatedReleasesAndStillEnforcesCap(t *testing.T) {
+	f := newRegisteredFixture(t)
+	base := f.registry.Releases[0]
+	fill := func(n int) {
+		t.Helper()
+		f.registry.Releases = make([]RegisteredRelease, n)
+		for i := range f.registry.Releases {
+			item := base
+			item.AppVersion = fmt.Sprintf("1.0.%d", i)
+			f.registry.Releases[i] = item
+		}
+		f.write(t)
+	}
+	fill(129)
+	if _, _, err := f.source.registry(); err != nil {
+		t.Fatal("accumulated releases rejected", err)
+	}
+	fill(maxRegistryReleases + 1)
+	if _, _, err := f.source.registry(); !errors.Is(err, ErrInvalid) {
+		t.Fatal("release cap not enforced", err)
 	}
 }
 

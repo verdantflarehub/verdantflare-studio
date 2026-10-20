@@ -1,7 +1,7 @@
 {
   "name": "verdantflare-studio-frontend",
   "private": true,
-  "version": "0.5.185",
+  "version": "0.5.186",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
