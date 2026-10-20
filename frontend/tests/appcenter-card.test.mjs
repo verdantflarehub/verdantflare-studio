@@ -44,6 +44,7 @@ const renderer = createRenderer({
   patchProp(node, key, _old, value) { node.props[key] = value },
 })
 const find = (root, predicate) => predicate(root) ? root : root.children.map(child => find(child, predicate)).find(Boolean)
+const findAll = (root, predicate) => [...(predicate(root) ? [root] : []), ...root.children.flatMap(child => findAll(child, predicate))]
 const action = (id, kind, enabled = true) => ({ id, kind, enabled, reasonCode: enabled ? null : 'PERMISSION_DENIED', entryId: null, confirmation: 'none' })
 
 test('uninstalled card shows disabled install and visible denial, then enables the same server action', async () => {
@@ -121,6 +122,32 @@ test('card menu dispatches exact server actions, supports focus navigation, deni
   } finally {
     app.unmount()
     assert.ok([...listeners.values()].every(set => set.size === 0))
+    globalThis.document = originalDocument
+  }
+})
+
+test('native application card shows one Open primary while keeping detail and lifecycle menu', async () => {
+  const originalDocument = globalThis.document
+  globalThis.document = { activeElement: null, addEventListener() {}, removeEventListener() {} }
+  const AppCard = await component('AppCard')
+  const card = { cardKey: 'installation:app-publishing', appId: 'app-publishing',
+    display: { name: '应用发布', publisherId: null, iconRef: null, description: '', resourceTags: [] },
+    installation: { state: 'installed' }, installedVersion: '0.1.0', primaryActionId: 'detail', statusCode: 'READY',
+    actions: [action('detail', 'detail'), action('service.stop', 'stop'), action('installation.remove', 'delete')] }
+  const root = new Element('root'), emitted = []
+  const app = renderer.createApp({ setup: () => () => h(AppCard, { card, stale: false, menuOpen: false, nativeOpen: true,
+    onAction: (_card, id) => emitted.push(id) }) })
+  try {
+    app.mount(root)
+    const buttons = findAll(root, node => node.tag === 'button')
+    assert.equal(buttons.filter(node => node.text === '打开').length, 1)
+    assert.equal(buttons.filter(node => node.text === '查看').length, 0)
+    assert.ok(buttons.some(node => node.props['aria-haspopup'] === 'menu'))
+    buttons.find(node => node.text === '打开').props.onClick()
+    buttons.find(node => node.text === '应用发布').props.onClick()
+    assert.deepEqual(emitted, ['native-open', 'detail'])
+  } finally {
+    app.unmount()
     globalThis.document = originalDocument
   }
 })
