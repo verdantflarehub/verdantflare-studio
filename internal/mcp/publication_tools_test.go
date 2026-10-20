@@ -50,7 +50,7 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 	t.Setenv("STUDIO_APP_PUBLISH_HMAC_KEY", key)
 	gateway := NewGatewayWithClient(nil)
 	gateway.httpClient = server.Client()
-	if len(gateway.ListTools()) != 4 {
+	if len(gateway.ListTools()) != 5 {
 		t.Fatal("publishing tools were not discovered")
 	}
 	if _, status, err := gateway.CallTool(context.Background(), "app_publish.organizations", map[string]any{}, nil); status != http.StatusForbidden || err == nil {

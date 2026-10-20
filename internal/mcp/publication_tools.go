@@ -34,6 +34,7 @@ func publicationTools() []ToolDefinition {
 		"organizationIds": stringsField, "expectedRevision": map[string]any{"type": "integer"},
 	}, "required": []string{"appId", "name", "groupId", "category", "summary", "description", "developer", "showcase", "version", "organizationIds"}}
 	return []ToolDefinition{
+		{Name: "app_publish.list", Description: "列出 Control 中的应用资料及当前 Station 目录回读，用于管理员查看发布状态与详情。", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}},
 		{Name: "app_publish.organizations", Description: "列出当前可选择的目标组织及其 Control ID；需要应用运营管理员权限。", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}},
 		{Name: "app_publish.get", Description: "按应用 ID 读取 Hub/Control 的现有目录资料和修订；更新前先读取。", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"app_id": stringField}, "required": []string{"app_id"}}},
 		{Name: "app_publish.readiness", Description: "查询当前应用的上架必填字段缺口。", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"app_id": stringField}, "required": []string{"app_id"}}},
