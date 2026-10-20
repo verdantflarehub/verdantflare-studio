@@ -141,7 +141,20 @@ async function submit() {
     message.value = '已发布到 Station 目录；用户可自行安装。'
     await refreshDirectory()
     await openDetail(result.app.id)
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : '发布失败；请先回读应用状态，避免重复提交。' }
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '发布失败；请先回读应用状态，避免重复提交。'
+    // A failure after Control created the draft leaves a real app revision.
+    // Refresh it before the operator retries; never repeat a create with 0.
+    if (form.appId.trim()) {
+      try {
+        const current = await callTool('app_publish.get', { app_id: form.appId.trim() }) as AppDetail
+        if (current?.app?.id === form.appId.trim() && Number.isInteger(current.app.revision) && (current.app.revision || 0) > 0) {
+          form.expectedRevision = current.app.revision!
+          message.value = `已回读应用修订 ${form.expectedRevision}。请检查错误后重新提交。`
+        }
+      } catch { /* No persisted app yet; the next attempt remains a create. */ }
+    }
+  }
   finally { busy.value = false }
 }
 onMounted(async () => {
