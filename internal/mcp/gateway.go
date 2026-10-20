@@ -3,14 +3,20 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -161,19 +167,25 @@ func (g *Gateway) watch(ctx context.Context, revision int64) {
 }
 func Managed(name string) bool {
 	domain := strings.SplitN(name, ".", 2)[0]
-	return domain == "project" || domain == "world" || domain == "artifact" || domain == "speech"
+	return domain == "project" || domain == "world" || domain == "artifact" || domain == "speech" || domain == "app_publish"
 }
 func (g *Gateway) ListTools() []ToolDefinition {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	out := []ToolDefinition{}
 	for _, r := range g.services {
+		if r.Domain == "app_publish" {
+			continue
+		}
 		for _, tool := range r.Tools {
 			if archiveGuidanceDomain(r.Domain) {
 				tool.Description += "\n\n" + projectArchiveToolHint
 			}
 			out = append(out, tool)
 		}
+	}
+	if publishingConfigured() {
+		out = append(out, publicationTools()...)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -267,6 +279,10 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	g.mu.RLock()
 	svc, ok := g.services[domain]
 	g.mu.RUnlock()
+	if domain == "app_publish" && publishingConfigured() {
+		svc = ServiceRegistration{Domain: domain, Endpoint: os.Getenv("STUDIO_APP_PUBLISH_ENDPOINT"), Version: "v0.1.0", Tools: publicationTools()}
+		ok = true
+	}
 	if !ok {
 		return nil, 404, errors.New("tool service unavailable")
 	}
@@ -287,7 +303,7 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		return nil, 503, errors.New("invalid registered endpoint")
 	}
 	token := g.resolveToken(domain)
-	if Managed(name) && token == "" {
+	if Managed(name) && token == "" && domain != "app_publish" {
 		return nil, 503, errors.New("internal service credential unavailable")
 	}
 	payload := map[string]any{"jsonrpc": "2.0", "id": headers["X-Request-Id"], "method": "tools/call", "params": map[string]any{"name": name, "arguments": args}}
@@ -308,6 +324,31 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if domain == "app_publish" {
+		key := os.Getenv("STUDIO_APP_PUBLISH_HMAC_KEY")
+		if len(key) < 32 || headers["X-User-Id"] == "" || headers["X-Organization-Id"] == "" {
+			return nil, 503, errors.New("publishing identity delegation unavailable")
+		}
+		if req.URL.Scheme != "https" {
+			return nil, 503, errors.New("publishing endpoint requires HTTPS")
+		}
+		nonceBytes := make([]byte, 16)
+		if _, e := rand.Read(nonceBytes); e != nil {
+			return nil, 503, errors.New("publishing nonce unavailable")
+		}
+		// The wire contract uses Unix seconds, never a client-provided timestamp.
+		ts := strconv.FormatInt(time.Now().Unix(), 10)
+		nonce := hex.EncodeToString(nonceBytes)
+		digest := sha256.Sum256(b)
+		message := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%x", req.Method, req.URL.Path, ts, nonce, headers["X-User-Id"], headers["X-Organization-Id"], digest)
+		mac := hmac.New(sha256.New, []byte(key))
+		_, _ = mac.Write([]byte(message))
+		req.Header.Set("X-App-Publish-User", headers["X-User-Id"])
+		req.Header.Set("X-App-Publish-Organization", headers["X-Organization-Id"])
+		req.Header.Set("X-App-Publish-Timestamp", ts)
+		req.Header.Set("X-App-Publish-Nonce", nonce)
+		req.Header.Set("X-App-Publish-Signature", hex.EncodeToString(mac.Sum(nil)))
 	}
 	client := g.httpClient
 	if name == "music.generate" {

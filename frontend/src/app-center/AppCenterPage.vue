@@ -22,6 +22,8 @@ import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
+const canPublish = computed(() => Boolean(host.connected && host.identity.roles?.includes('admin') && host.identity.scopes?.includes('app:manage')))
+const nativePublishingVisible = computed(() => canPublish.value && ['all', 'system'].includes(group.value) && (!query.value.trim() || '应用发布 app publishing'.includes(query.value.trim().toLowerCase())))
 store.setVisible('directory', true)
 const query = ref(''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
 watch(() => [route.path, route.query.view] as const, ([path, view]) => {
@@ -122,6 +124,9 @@ const visibleSections = computed(() => {
       items: cardList
     })
   }
+	if (nativePublishingVisible.value && !sections.some(section => section.id === 'system')) {
+		sections.push({ id: 'system', title: '系统应用', subtitle: 'System', order: groupOrder.get('system') ?? 999, items: [] })
+	}
   sections.sort((a, b) => a.order - b.order)
   return sections
 })
@@ -247,16 +252,22 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
           </div>
         </div>
         <p v-else-if="store.state.status === 'empty'" class="panel appcenter-message">当前没有可见应用。</p>
-        <p v-else-if="store.state.value && !result.items.length" class="panel appcenter-message">没有符合筛选条件的应用。</p>
+        <p v-else-if="store.state.value && !result.items.length && !nativePublishingVisible" class="panel appcenter-message">没有符合筛选条件的应用。</p>
         <div v-else class="catalog-groups">
           <section v-for="sec in visibleSections" :key="sec.id" class="group-section">
             <div class="section-title">
               <h2>{{ sec.title }}</h2>
-              <small>{{ sec.subtitle }} · {{ sec.items.length }}</small>
+              <small>{{ sec.subtitle }} · {{ sec.items.length + (sec.id === 'system' && nativePublishingVisible ? 1 : 0) }}</small>
               <span class="line" aria-hidden="true"></span>
             </div>
             <div class="appcenter-grid">
               <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" />
+              <article v-if="sec.id === 'system' && nativePublishingVisible" class="native-publishing-card">
+                <div class="native-publishing-icon" aria-hidden="true">发</div>
+                <div><h3>应用发布</h3><small>VerdantFlare · 系统内置</small></div>
+                <p>填写 Hub 应用资料，登记固定 OCI 版本并发布到 Station 目录。</p>
+                <button class="btn" @click="router.push('/apps/app-publishing/')">打开</button>
+              </article>
             </div>
           </section>
         </div>
@@ -280,5 +291,11 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
 .appcenter-message { padding: 20px; margin: 16px 0; color: var(--muted); }
 .appcenter-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
 .search-box input { min-width: 160px; }
+.native-publishing-card { min-height: 210px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--vf-shadow-card); }
+.native-publishing-card h3 { margin: 0; font-size: 18px; }
+.native-publishing-card small { color: var(--muted); }
+.native-publishing-card p { color: var(--muted); font-size: 13px; line-height: 1.5; flex: 1; }
+.native-publishing-card button { align-self: flex-end; }
+.native-publishing-icon { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-glow); color: var(--accent); font-weight: 700; }
 @media (max-width: 640px) { .appcenter-grid { grid-template-columns: 1fr; } }
 </style>
