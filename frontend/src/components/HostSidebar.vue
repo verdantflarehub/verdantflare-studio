@@ -185,12 +185,12 @@ onBeforeUnmount(() => {
              :href="router.resolve(item).href" @click.prevent="router.push(item)"><NavigationIcon :name="item.icon" /><span class="label">{{ item.title }}</span></a>
         </template>
         <template v-else v-for="entry in navigation.pinned" :key="branchKey(entry)">
-          <button v-if="entry.children?.length" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
+          <button v-if="entry.children?.length && !(entry.appId === 'world' && entry.route === '/')" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
                   :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))">
             <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span><NavigationIcon name="chevron" />
           </button>
           <a v-else class="nav-row" :href="router.resolve(entryLocation(entry)).href" :title="entry.title" :aria-label="entry.title"
-             :aria-current="entrySelected(entry) ? 'page' : undefined" @click.prevent="openEntry(entry)">
+             :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && (!entry.children?.length || appPath === entry.route) ? 'page' : undefined" @click.prevent="openEntry(entry)">
             <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span>
           </a>
           <div v-if="entry.children?.length" v-show="expanded.has(branchKey(entry))" :id="'children-' + entry.installationId" class="children">
