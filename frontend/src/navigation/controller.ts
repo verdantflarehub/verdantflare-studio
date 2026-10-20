@@ -43,7 +43,7 @@ export function validChildRoute(value: unknown): value is string {
 function normalizeChildUrl(u: URL): URL {
   if (u.pathname === '/projects') {
     const cat = u.searchParams.get('category')
-    if (cat && ['character', 'music', 'video', 'ai_short_drama'].includes(cat)) {
+    if (cat && ['image', 'character', 'music', 'video', 'ai_short_drama'].includes(cat)) {
       u.pathname = '/' + cat
       u.searchParams.delete('category')
     }

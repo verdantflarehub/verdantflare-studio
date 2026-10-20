@@ -2,7 +2,7 @@ import { assertAppPath } from './sdk.ts'
 
 export const installationPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 export const appIdPattern = /^(?![0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$)[a-z0-9][a-z0-9-]{0,63}$/
-const projectCategories = new Set(['character', 'music', 'video', 'ai_short_drama'])
+const projectCategories = new Set(['image', 'character', 'music', 'video', 'ai_short_drama'])
 
 export function instanceWorkspaceLocation(installationId: string, workspaceSessionId: string) {
   if (!installationPattern.test(installationId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(workspaceSessionId)) throw new Error('INVALID_WORKSPACE')

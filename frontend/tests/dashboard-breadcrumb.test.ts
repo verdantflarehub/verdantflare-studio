@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { dashboardOwnsBreadcrumb } from '../src/app-dashboard/routes.ts'
 
 test('Project lists, searches and fixed objects own one complete breadcrumb', () => {
-  for (const path of ['/character', '/video?q=abc', '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero', '/projects?category=character', '/projects?category=video&q=abc']) {
+  for (const path of ['/image', '/image?project=id&revision=fixed', '/character', '/video?q=abc', '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero', '/projects?category=character', '/projects?category=video&q=abc']) {
     assert.equal(dashboardOwnsBreadcrumb('project', path), true)
   }
 })

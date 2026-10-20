@@ -117,3 +117,9 @@ test('overlapping opens retain only the latest selection and close the older res
   assert.deepEqual(closed, [opened(1).launch.dashboardSessionId])
   assert.equal((await sessions.select(installation, signal)).launch.dashboardSessionId, opened(2).launch.dashboardSessionId)
 })
+
+
+test('image category uses a pure host path while retaining fixed project and revision', () => {
+  assert.deepEqual(dashboardLocation('project', '/projects?category=image&project=poster&revision=fixed'), { path: '/apps/project/image', query: { project: 'poster', revision: 'fixed' } })
+  assert.equal(dashboardSdkRoute('project', '/image?project=poster&revision=fixed'), '/projects?category=image&project=poster&revision=fixed')
+})
