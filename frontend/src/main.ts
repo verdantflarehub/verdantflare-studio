@@ -4,7 +4,6 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import LegacyMarket from './pages/Market.vue'
 import AppCenterPage from './app-center/AppCenterPage.vue'
-import AppPublishingPage from './app-publishing/AppPublishingPage.vue'
 import LegacyAppEntry from './pages/LegacyAppEntry.vue'
 import './theme/market.css'
 
@@ -21,7 +20,6 @@ const router = createRouter({
     { path: '/workbench', redirect: '/market' },
     { path: '/projects', component: LegacyAppEntry, props: { kind: 'project' } },
     { path: '/market', component: Market },
-    { path: '/apps/app-publishing/:subpath*', name: 'app-publishing', component: AppPublishingPage },
     { path: '/apps/:installationId/dashboard', name: 'app-dashboard-legacy', component: Market },
     { path: '/apps/:installationId/instances/:workspaceSessionId', name: 'app-instance', component: Market },
     { path: '/apps/:appId', strict: true, redirect: to => ({ path: `/apps/${String(to.params.appId)}/`, query: to.query }) },

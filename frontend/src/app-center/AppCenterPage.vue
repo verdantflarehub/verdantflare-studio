@@ -22,8 +22,6 @@ import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
 import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
-const canPublish = computed(() => Boolean(host.connected && host.identity.roles?.includes('admin') && host.identity.scopes?.includes('app:manage')))
-const canOpenPublishing = (card: AppCenterCard) => canPublish.value && !store.state.stale && card.appId === 'app-publishing' && card.installation?.state === 'installed' && card.statusCode === 'READY'
 store.setVisible('directory', true)
 const query = ref(''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
 watch(() => [route.path, route.query.view] as const, ([path, view]) => {
@@ -130,11 +128,6 @@ const visibleSections = computed(() => {
 let listScroll = 0
 function back() { void router.replace(returnLocation.value) }
 async function perform(card: AppCenterCard, actionId: string) {
-  if (actionId === 'native-open') {
-    if (!canOpenPublishing(card)) { message.value = '应用发布尚未就绪，请刷新安装状态。'; return }
-    await router.push('/apps/app-publishing/')
-    return
-  }
   const action = card.actions.find(item => item.id === actionId)
   if (actionId === 'detail' || action?.kind === 'progress' && action.enabled) {
     await router.push({ query: { ...route.query, card: card.cardKey } }); return
@@ -234,7 +227,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
       <p v-if="store.commandState.error" class="panel appcenter-message" role="alert">{{ reasonLabel(store.commandState.error) }}</p>
       <AppCommandRecovery v-if="!selectedKey" :state="store.commandState" :titles="titles" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
       <template v-if="selectedKey">
-        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :native-open="canOpenPublishing(selected)" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
+        <AppInstallDetail v-if="selected" :card="selected" :stale="store.state.stale" :operation-progress="store.operationState" @refresh-operation="store.refresh(true)" :group-label="groups.find(item => item.id === selected?.display.groupId)?.label ?? '未分类'" @back="back" @action="perform">
           <AppCommandRecovery :state="store.commandState" :titles="titles" :app-id="selected.appId" :except-operation-id="store.operationState.value?.operation_id" @resume="store.resumeCommand" @dismiss="store.dismissCommand" />
         </AppInstallDetail>
         <div v-else class="panel appcenter-message"><p>此应用已不在当前列表中，请返回后刷新。</p><button class="btn" @click="back">返回应用中心</button></div>
@@ -263,7 +256,7 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
               <span class="line" aria-hidden="true"></span>
             </div>
             <div class="appcenter-grid">
-              <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" :native-open="canOpenPublishing(card)" @menu="menuKey = $event" @action="perform" />
+              <AppCard v-for="card in sec.items" :key="card.cardKey" :card="card" :stale="store.state.stale" :menu-open="menuKey === card.cardKey" @menu="menuKey = $event" @action="perform" />
             </div>
           </section>
         </div>

@@ -5,7 +5,7 @@ import { actionLabels, statusLabels, reasonLabel } from './labels'
 import AppIcon from './AppIcon.vue'
 import { publisherLabel, resourceLabel } from './presentation'
 import { managementActions, versionLabel } from './card-actions'
-const props = defineProps<{ card: AppCenterCard; stale: boolean; menuOpen: boolean; nativeOpen?: boolean }>()
+const props = defineProps<{ card: AppCenterCard; stale: boolean; menuOpen: boolean }>()
 const emit = defineEmits<{ action: [card: AppCenterCard, actionId: string]; menu: [key: string] }>()
 const menuId = useId(), root = ref<HTMLElement>(), trigger = ref<HTMLButtonElement>(), menu = ref<HTMLElement>()
 const management = computed(() => managementActions(props.card, props.stale))
@@ -35,7 +35,6 @@ function manage(item: ReturnType<typeof managementActions>[number]) {
   close(true); emit('action', props.card, item.id)
 }
 const primary = computed(() => props.card.actions.find(action => action.id === props.card.primaryActionId))
-const showPrimary = computed(() => primary.value && !(props.nativeOpen && ['detail', 'open'].includes(primary.value.kind)))
 const upgradeAction = computed(() => props.card.actions.find(action => action.kind === 'upgrade'))
 const local = computed(() => ['detail', 'progress', 'refresh'].includes(primary.value?.kind ?? ''))
 const disabled = computed(() => !primary.value?.enabled || props.stale && !local.value)
@@ -59,8 +58,7 @@ const installRestriction = computed(() => props.card.statusCode === 'NOT_INSTALL
       <span class="status" :class="{ running: card.statusCode === 'READY' && !stale }"><i class="dot" :class="{ on: card.statusCode === 'READY' && !stale }" />{{ stale ? '待刷新' : statusLabels[card.statusCode] ?? '状态待确认' }}</span>
       <div ref="root" class="card-actions">
         <button v-if="upgradeAction && primary?.id !== upgradeAction.id" class="btn upgrade-btn" :disabled="!upgradeAction.enabled || stale" :title="stale ? '当前信息已过期，请刷新' : reasonLabel(upgradeAction.reasonCode)" @click="emit('action', card, upgradeAction.id)">{{ actionLabels.upgrade }}</button>
-        <button v-if="nativeOpen" class="btn" @click="emit('action', card, 'native-open')">打开</button>
-        <button v-if="showPrimary && primary" class="btn" :disabled="disabled" :title="hint" @click="emit('action', card, primary.id)">{{ actionLabels[primary.kind] }}</button>
+        <button v-if="primary" class="btn" :disabled="disabled" :title="hint" @click="emit('action', card, primary.id)">{{ actionLabels[primary.kind] }}</button>
         <button v-if="management.length" ref="trigger" class="btn menu-trigger" :aria-label="`${card.display.name} 管理操作`" aria-haspopup="menu" :aria-expanded="menuOpen" :aria-controls="menuId" @click="menuOpen ? close(true) : open()" @keydown.down.prevent="open()" @keydown.up.prevent="open(true)" @keydown.esc.prevent="close(true)">▾</button>
         <div v-if="menuOpen && management.length" :id="menuId" ref="menu" class="management-menu" role="menu" :aria-label="`${card.display.name} 管理操作`" @keydown="menuKey">
           <button v-for="item in management" :key="item.kind" role="menuitem" :aria-disabled="!item.enabled" :title="item.reason" @click="manage(item)"><span>{{ actionLabels[item.kind] }}</span><small v-if="!item.enabled">{{ item.reason }}</small></button>
