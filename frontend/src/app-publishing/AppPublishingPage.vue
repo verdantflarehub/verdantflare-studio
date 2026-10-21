@@ -55,6 +55,8 @@ const busy = ref(false)
 const message = ref('')
 const error = ref('')
 const published = ref<{ appId: string; version: string; catalogETag: string } | null>(null)
+const existingApp = ref<AppDetail | null>(null)
+const confirmedAppId = ref('')
 const emptyForm = () => ({
   appId: '', name: '', groupId: 'desktop', category: '', summary: '', description: '', developer: '',
   brand: '', iconRef: '', publicIconUrl: '', sortOrder: 1000,
@@ -102,11 +104,29 @@ async function openDetail(appId: string) {
 
 async function openCreate() {
   Object.assign(form, emptyForm()); selectedOrganizations.value = []; published.value = null
+  existingApp.value = null; confirmedAppId.value = ''
   error.value = ''; message.value = ''; view.value = 'create'
   await loadOrganizations()
 }
 
-function backToList() { view.value = 'list'; detail.value = null; selectedAppId.value = ''; error.value = '' }
+watch(() => form.appId, (appId, previous) => {
+  if (appId.trim() === previous.trim()) return
+  existingApp.value = null
+  confirmedAppId.value = ''
+  form.expectedRevision = 0
+})
+
+function confirmExistingApp() {
+  const current = existingApp.value?.app
+  if (!current || current.id !== form.appId.trim() || !Number.isInteger(current.revision) || (current.revision || 0) <= 0) return
+  form.expectedRevision = current.revision!
+  confirmedAppId.value = current.id
+  existingApp.value = null
+  error.value = ''
+  message.value = `已确认更新应用 ${current.id}（修订 ${current.revision}）。请核对表单后再次点击发布。`
+}
+
+function backToList() { view.value = 'list'; detail.value = null; selectedAppId.value = ''; existingApp.value = null; confirmedAppId.value = ''; error.value = '' }
 
 async function loadOrganizations() {
   try {
@@ -116,11 +136,16 @@ async function loadOrganizations() {
 }
 
 async function submit() {
-  if (busy.value) return
+  if (busy.value || existingApp.value) return
+  const submittedAppId = form.appId.trim()
+  if (form.expectedRevision > 0 && confirmedAppId.value !== submittedAppId) {
+    error.value = '应用 ID 或资料修订已变化，请重新检查现有应用。'
+    return
+  }
   busy.value = true; error.value = ''; message.value = ''; published.value = null
   try {
     const result = await callTool('app_publish.publish', {
-      appId: form.appId.trim(), name: form.name.trim(), groupId: form.groupId, category: form.category.trim(),
+      appId: submittedAppId, name: form.name.trim(), groupId: form.groupId, category: form.category.trim(),
       summary: form.summary.trim(), description: form.description.trim(), developer: form.developer.trim(),
       brand: form.brand.trim(), iconRef: form.iconRef.trim(), publicIconUrl: form.publicIconUrl.trim(), sortOrder: form.sortOrder,
       showcase: {
@@ -143,16 +168,17 @@ async function submit() {
     await openDetail(result.app.id)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '发布失败；请先回读应用状态，避免重复提交。'
-    // A failure after Control created the draft leaves a real app revision.
-    // Refresh it before the operator retries; never repeat a create with 0.
-    if (form.appId.trim()) {
+    confirmedAppId.value = ''
+    // A failed create may have persisted a draft, but an existing app may also
+    // belong to someone else. Never advance the CAS revision without review.
+    if (submittedAppId && form.appId.trim() === submittedAppId) {
       try {
-        const current = await callTool('app_publish.get', { app_id: form.appId.trim() }) as AppDetail
-        if (current?.app?.id === form.appId.trim() && Number.isInteger(current.app.revision) && (current.app.revision || 0) > 0) {
-          form.expectedRevision = current.app.revision!
-          message.value = `已回读应用修订 ${form.expectedRevision}。请检查错误后重新提交。`
+        const current = await callTool('app_publish.get', { app_id: submittedAppId }) as AppDetail
+        if (form.appId.trim() === submittedAppId && current?.app?.id === submittedAppId && Number.isInteger(current.app.revision) && (current.app.revision || 0) > 0) {
+          existingApp.value = current
+          message.value = '检测到同 ID 应用。请先核对现有资料，再明确确认是否覆盖。'
         }
-      } catch { /* No persisted app yet; the next attempt remains a create. */ }
+      } catch { /* No readable app; retain the original revision and error. */ }
     }
   }
   finally { busy.value = false }
@@ -231,6 +257,18 @@ onBeforeUnmount(() => appCenter.setVisible('app-publishing', false))
     </template>
     <template v-else>
     <p class="notice">第一版接收已由 Market Actions 发行的 OCI Chart。Chart 源码上传与自动发行尚未接入；临时 .tgz 预检不能作为可安装制品。</p>
+    <section v-if="existingApp" class="panel existing-app" role="alert" aria-label="同 ID 应用资料冲突">
+      <h2>此应用 ID 已有资料</h2>
+      <p>可能是本次失败留下的草稿，也可能原本属于其他发布者。下面的表单是完整资料快照；继续发布会用表单内容更新现有应用，并追加所选组织的安装权益。</p>
+      <dl class="detail-fields">
+        <div><dt>应用 ID／修订</dt><dd>{{ existingApp.app.id }} · {{ existingApp.app.revision }}</dd></div>
+        <div><dt>现有名称</dt><dd>{{ existingApp.app.name }}</dd></div>
+        <div><dt>当前版本</dt><dd>{{ existingApp.app.publishedVersion || '未发布' }}</dd></div>
+        <div><dt>现有简介</dt><dd>{{ existingApp.app.summary || '—' }}</dd></div>
+      </dl>
+      <details><summary>查看现有完整资料</summary><pre>{{ JSON.stringify(existingApp.app, null, 2) }}</pre></details>
+      <div class="existing-actions"><button type="button" class="btn" @click="confirmExistingApp">确认以表单覆盖现有资料</button><button type="button" class="btn" @click="backToList">取消并返回列表</button></div>
+    </section>
     <form @submit.prevent="submit">
       <section class="panel"><h2>1. 应用目录资料</h2><p>与 Hub 发布字段一致；标 * 的字段为发布必填。</p>
         <div class="grid"><label>应用 ID * <input v-model="form.appId" required pattern="[a-z0-9][a-z0-9-]{0,61}[a-z0-9]" placeholder="my-app" /></label>
@@ -266,7 +304,7 @@ onBeforeUnmount(() => appCenter.setVisible('app-publishing', false))
         <div v-if="organizations.length" class="orgs"><label v-for="org in organizations" :key="org.id"><input v-model="selectedOrganizations" type="checkbox" :value="org.id" /> {{ org.name }} <small>{{ org.id }}</small></label></div>
         <p v-else>当前没有可选择的组织；请检查应用运营权限与 Control 连接。</p>
       </section>
-      <footer><button type="submit" :disabled="busy || !selectedOrganizations.length">{{ busy ? '正在核验并发布…' : '发布到 Station 目录' }}</button><span>不会自动安装到 Station。</span></footer>
+      <footer><button type="submit" :disabled="busy || !!existingApp || !selectedOrganizations.length">{{ busy ? '正在核验并发布…' : '发布到 Station 目录' }}</button><span>不会自动安装到 Station。</span></footer>
     </form>
     <aside v-if="published" class="result"><h2>目录回读通过</h2><p>应用 {{ published.appId }} · 版本 {{ published.version }}</p><small>目录 ETag：{{ published.catalogETag }}</small></aside>
     </template>
@@ -285,6 +323,7 @@ h2 { font-size: 17px; margin: 0 0 12px; } h3 { font-size: 13px; margin: 18px 0 6
 p { color: var(--muted); line-height: 1.55; }.eyebrow { font-size: 11px; color: var(--accent); letter-spacing: .08em; }
 .notice,.feedback,.result { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 15px 18px; margin: 16px 0; }
 .notice { border-color: var(--amber); }.feedback { color: var(--accent); }.error { color: var(--danger); }
+.existing-app { border-color: var(--amber); margin-bottom: 18px; }.existing-app pre { overflow: auto; max-height: 320px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-size: 11px; }.existing-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .publish-metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
 .publish-metrics article { padding: 16px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--shell-panel); }
 .publish-metrics span { display: block; color: var(--muted); font-size: 12px; }
