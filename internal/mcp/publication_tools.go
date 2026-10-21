@@ -4,12 +4,22 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 )
 
+var publishingReadinessCache = struct {
+	sync.Mutex
+	endpoint string
+	until    time.Time
+	ready    bool
+}{}
+
+var publishingProbeClient = &http.Client{Timeout: 750 * time.Millisecond, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
 func publishingControlEndpoint() (*url.URL, bool) {
 	u, err := url.Parse(os.Getenv("STUDIO_APP_PUBLISH_ENDPOINT"))
-	return u, err == nil && u.Scheme == "https" && u.Host == "hub.verdantflarehub.com" && u.Path == "/api/control/internal/studio-publish/mcp" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
+	return u, err == nil && u.Scheme == "https" && u.Hostname() != "" && u.Path == "/api/control/internal/studio-publish/mcp" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
 }
 
 func publishingRelayEndpoint() (*url.URL, bool) {
@@ -30,13 +40,19 @@ func publishingReady() bool {
 	u, _ := publishingRelayEndpoint()
 	ready := *u
 	ready.Path = "/readyz"
-	client := &http.Client{Timeout: 750 * time.Millisecond, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	response, err := client.Get(ready.String())
+	publishingReadinessCache.Lock()
+	defer publishingReadinessCache.Unlock()
+	if publishingReadinessCache.endpoint == ready.String() && time.Now().Before(publishingReadinessCache.until) {
+		return publishingReadinessCache.ready
+	}
+	response, err := publishingProbeClient.Get(ready.String())
 	if err != nil {
+		publishingReadinessCache.endpoint, publishingReadinessCache.ready, publishingReadinessCache.until = ready.String(), false, time.Now().Add(3*time.Second)
 		return false
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusNoContent
+	publishingReadinessCache.endpoint, publishingReadinessCache.ready, publishingReadinessCache.until = ready.String(), response.StatusCode == http.StatusNoContent, time.Now().Add(3*time.Second)
+	return publishingReadinessCache.ready
 }
 
 func publicationTools() []ToolDefinition {

@@ -72,6 +72,7 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<an
     body: JSON.stringify({ jsonrpc: '2.0', id: crypto.randomUUID(), method: 'tools/call', params: { name, arguments: args } }),
   })
   const payload = await response.json().catch(() => null)
+  if (response.status === 413) throw new Error('发布资料超过 5 MiB，请缩短介绍或减少截图 URL 后重试。')
   if (!response.ok || !payload?.result) throw new Error(payload?.error?.message || `请求失败（${response.status}）`)
   const result = payload.result
   if (result.isError) throw new Error(result.structuredContent?.Message || result.structuredContent?.message || '发布检查失败')

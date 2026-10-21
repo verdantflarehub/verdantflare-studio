@@ -27,7 +27,7 @@ type relay struct {
 
 func newRelay(raw string, client *http.Client) (*relay, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Host != "hub.verdantflarehub.com" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/api/control/internal/studio-publish/mcp" {
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/api/control/internal/studio-publish/mcp" {
 		return nil, errors.New("invalid control endpoint")
 	}
 	if client == nil {

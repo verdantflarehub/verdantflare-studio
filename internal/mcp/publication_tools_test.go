@@ -12,7 +12,9 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
@@ -46,8 +48,10 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": request.ID, "result": map[string]any{"structuredContent": []any{}}})
 	}))
 	defer server.Close()
+	var probes atomic.Int32
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/readyz" {
+			probes.Add(1)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -79,6 +83,9 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 	if len(gateway.ListTools()) != 5 {
 		t.Fatal("publishing tools were not discovered")
 	}
+	if len(gateway.ListTools()) != 5 || probes.Load() != 1 {
+		t.Fatalf("tools/list repeated readiness probe: %d", probes.Load())
+	}
 	if _, status, err := gateway.CallTool(context.Background(), "app_publish.organizations", map[string]any{}, nil); status != http.StatusForbidden || err == nil {
 		t.Fatalf("unverified call was accepted: %d %v", status, err)
 	}
@@ -86,6 +93,9 @@ func TestAppPublishingUsesSignedVerifiedIdentity(t *testing.T) {
 		t.Fatalf("verified publishing call failed: %d %v", status, err)
 	}
 	relay.Close()
+	publishingReadinessCache.Lock()
+	publishingReadinessCache.until = time.Time{}
+	publishingReadinessCache.Unlock()
 	if len(gateway.ListTools()) != 0 {
 		t.Fatal("stopped publishing app still advertised tools")
 	}

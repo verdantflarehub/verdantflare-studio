@@ -171,7 +171,6 @@ func Managed(name string) bool {
 }
 func (g *Gateway) ListTools() []ToolDefinition {
 	g.mu.RLock()
-	defer g.mu.RUnlock()
 	out := []ToolDefinition{}
 	for _, r := range g.services {
 		if r.Domain == "app_publish" {
@@ -184,6 +183,7 @@ func (g *Gateway) ListTools() []ToolDefinition {
 			out = append(out, tool)
 		}
 	}
+	g.mu.RUnlock()
 	if publishingReady() {
 		out = append(out, publicationTools()...)
 	}

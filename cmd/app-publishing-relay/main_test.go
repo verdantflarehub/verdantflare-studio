@@ -53,6 +53,27 @@ func TestRelayForwardsOnlySignedMCPToFixedControlPath(t *testing.T) {
 	}
 }
 
+func TestRelayControlEndpointIsConfiguredButPathConstrained(t *testing.T) {
+	for _, raw := range []string{
+		"https://hub.dev.example.test/api/control/internal/studio-publish/mcp",
+		"https://private.example.test:8443/api/control/internal/studio-publish/mcp",
+	} {
+		if _, err := newRelay(raw, nil); err != nil {
+			t.Fatalf("valid configured endpoint %q: %v", raw, err)
+		}
+	}
+	for _, raw := range []string{
+		"http://private.example.test/api/control/internal/studio-publish/mcp",
+		"https://private.example.test/api/control/ops/apps",
+		"https://user@private.example.test/api/control/internal/studio-publish/mcp",
+		"https://private.example.test/api/control/internal/studio-publish/mcp?target=other",
+	} {
+		if _, err := newRelay(raw, nil); err == nil {
+			t.Fatalf("unsafe endpoint %q accepted", raw)
+		}
+	}
+}
+
 type rewriteTransport struct {
 	base   http.RoundTripper
 	target string
