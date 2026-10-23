@@ -186,18 +186,19 @@ func TestDashboardWebRejectsUntrustedRequestsBeforeService(t *testing.T) {
 	id := uuid.NewString()
 	installation := uuid.Must(uuid.NewV7()).String()
 	for name, change := range map[string]func(*http.Request){
-		"missing origin":   func(r *http.Request) { r.Header.Del("Origin") },
-		"foreign origin":   func(r *http.Request) { r.Header.Set("Origin", "https://other.invalid") },
-		"duplicate origin": func(r *http.Request) { r.Header.Add("Origin", "https://studio.invalid") },
-		"cross site":       func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "cross-site") },
-		"missing cookie":   func(r *http.Request) { r.Header.Del("Cookie") },
-		"duplicate cookie": func(r *http.Request) { r.AddCookie(&http.Cookie{Name: cookieName, Value: "browser-session"}) },
-		"forged bearer":    func(r *http.Request) { r.Header.Set("Authorization", "Bearer browser-input") },
-		"wrong mime":       func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") },
-		"duplicate mime":   func(r *http.Request) { r.Header.Add("Content-Type", "application/json") },
-		"encoded body":     func(r *http.Request) { r.Header.Set("Content-Encoding", "gzip") },
-		"query":            func(r *http.Request) { r.URL.RawQuery = "organization=other" },
-		"empty query":      func(r *http.Request) { r.URL.ForceQuery = true },
+		"missing origin":       func(r *http.Request) { r.Header.Del("Origin") },
+		"foreign origin":       func(r *http.Request) { r.Header.Set("Origin", "https://other.invalid") },
+		"duplicate origin":     func(r *http.Request) { r.Header.Add("Origin", "https://studio.invalid") },
+		"cross site":           func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "cross-site") },
+		"missing cookie":       func(r *http.Request) { r.Header.Del("Cookie") },
+		"duplicate cookie":     func(r *http.Request) { r.AddCookie(&http.Cookie{Name: cookieName, Value: "browser-session"}) },
+		"forged bearer":        func(r *http.Request) { r.Header.Set("Authorization", "Bearer browser-input") },
+		"forged review origin": func(r *http.Request) { r.Header.Set("X-Review-Origin", "human_interactive") },
+		"wrong mime":           func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") },
+		"duplicate mime":       func(r *http.Request) { r.Header.Add("Content-Type", "application/json") },
+		"encoded body":         func(r *http.Request) { r.Header.Set("Content-Encoding", "gzip") },
+		"query":                func(r *http.Request) { r.URL.RawQuery = "organization=other" },
+		"empty query":          func(r *http.Request) { r.URL.ForceQuery = true },
 	} {
 		t.Run(name, func(t *testing.T) {
 			r, stub := dashboardWebFixture(t)

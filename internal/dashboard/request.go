@@ -129,6 +129,13 @@ func (s *RegisteredSource) requestBound(ctx context.Context, actor Actor, bindin
 		return nil, 0, err
 	}
 	req.Header.Set("X-Request-Id", requestID)
+	if reviewOperation(binding.AppID, in.Method, in.Path) && path == in.Path {
+		origin := "agent"
+		if interactive, _ := ctx.Value(interactiveReviewKey{}).(bool); interactive {
+			origin = "human_interactive"
+		}
+		req.Header.Set("X-Review-Origin", origin)
+	}
 	client := *s.client
 	client.Timeout = timeout
 	resp, err := client.Do(req)

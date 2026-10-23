@@ -89,6 +89,7 @@ func (r *Remote) request(ctx context.Context, method, path, contentType string, 
 func (r *Remote) Call(ctx context.Context, name string, args any, out any) error {
 	switch name {
 	case "project.create", "project.list", "project.open", "project.commit", "project.commit_status", "project.use_asset",
+		"project.review_open", "project.review_append", "project.review_status", "world.review_open", "world.review_append", "world.review_status",
 		"world.register", "world.list", "world.get", "world.grant", "world.revoke", "world.commit_status",
 		"artifact.read", "artifact.write":
 	default:

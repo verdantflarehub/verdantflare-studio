@@ -227,7 +227,16 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 			}
 		}
 		key := ""
-		if strings.HasPrefix(name, "project.") && name != "project.create" && name != "project.list" {
+		nestedReview := name == "project.review_open" || name == "project.review_append"
+		if nestedReview {
+			locator, ok := args["target_locator"].(map[string]any)
+			value, valid := locator["project_id"].(string)
+			_, topLevel := args["project_id"]
+			if !ok || !valid || locator["kind"] != "project" || !project.ValidID(value) || topLevel || (projectHeader != "" && projectHeader != value) {
+				return nil, 400, errors.New("project scope mismatch")
+			}
+			projectID = value
+		} else if strings.HasPrefix(name, "project.") && name != "project.create" && name != "project.list" {
 			key = "project_id"
 		}
 		if name == "world.register" {
@@ -248,7 +257,7 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 				return nil, 400, errors.New("project scope mismatch")
 			}
 			projectID = value
-		} else if name != "artifact.read" && name != "artifact.write" && projectHeader != "" {
+		} else if !nestedReview && name != "artifact.read" && name != "artifact.write" && projectHeader != "" {
 			return nil, 400, errors.New("unexpected project scope")
 		}
 	} else if projectID == "" {
@@ -305,6 +314,12 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		if headers[key] != "" {
 			req.Header.Set(key, headers[key])
 		}
+	}
+	if name == "project.review_open" || name == "project.review_append" || name == "project.review_status" ||
+		name == "world.review_open" || name == "world.review_append" || name == "world.review_status" {
+		// MCP is always an agent channel, including callers with valid user
+		// identity. Never forward a caller-supplied interactive origin.
+		req.Header.Set("X-Review-Origin", "agent")
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
