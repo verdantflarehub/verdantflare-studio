@@ -23,7 +23,7 @@ test('legacy installation links wait for their own resolved identity rather than
 })
 
 test('Project lists, searches and fixed objects own one complete breadcrumb', () => {
-  for (const path of ['/image', '/image?project=id&revision=fixed', '/character', '/video?q=abc', '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero', '/projects?category=character', '/projects?category=video&q=abc']) {
+  for (const path of ['/image', '/image?project=id&revision=fixed', '/character', '/video?q=abc', '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero', '/ai_short_drama/00000000-0000-7000-8000-000000000001/materials/location/bathroom/lights_on', '/projects?category=character', '/projects?category=video&q=abc']) {
     assert.equal(dashboardOwnsBreadcrumb('project', path), true)
   }
 })

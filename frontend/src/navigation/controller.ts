@@ -84,7 +84,7 @@ export function selectedNavigationChild(children: NavigationChild[] | undefined,
   const current = normalizeChildUrl(rawCurrent)
   const candidates = children.flatMap(child => {
     const declared = normalizeChildUrl(new URL(child.route, 'https://app.invalid'))
-    if (declared.pathname !== current.pathname) return []
+    if (declared.pathname !== current.pathname && !(declared.pathname === '/ai_short_drama' && current.pathname.startsWith('/ai_short_drama/'))) return []
     const keys: string[] = []
     declared.searchParams.forEach((_value, key) => keys.push(key))
     if (!keys.every(key => declared.searchParams.get(key) === current.searchParams.get(key))) return []

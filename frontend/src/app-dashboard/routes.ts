@@ -115,6 +115,6 @@ export function dashboardOwnsBreadcrumb(appId: string | undefined, value: unknow
   try {
     const pathname = new URL(dashboardRoutePath(value), 'https://app.invalid').pathname
     if (appId === 'world') return ['/', '/learn', '/character', '/scene', '/sound', '/music', '/shot', '/script', '/knowledge'].includes(pathname)
-    return pathname === '/projects' || projectCategories.has(pathname.slice(1))
+    return pathname === '/projects' || projectCategories.has(pathname.slice(1)) || pathname.startsWith('/ai_short_drama/')
   } catch { return false }
 }
