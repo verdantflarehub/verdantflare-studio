@@ -1,5 +1,5 @@
 import type {
-  AppContext, AppRequest, AppRoute, AppSDK, DashboardLaunch, Json, Lifecycle, SDKAdapters, Theme,
+  AppContext, AppRequest, AppRoute, AppSDK, DashboardLaunch, Json, Lifecycle, SDKAdapters, SDKContentPreferences, Theme,
 } from './types'
 import { validateMediaPreview } from '../platform/media-preview.ts'
 
@@ -66,8 +66,10 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
   const contextListeners = new Set<(context: Readonly<AppContext>) => void>()
   const lifecycleListeners = new Set<(event: Lifecycle) => void>()
   const themeListeners = new Set<(theme: Theme) => void>()
+  const contentPrefListeners = new Set<(value: Readonly<SDKContentPreferences>) => void>()
   const routeListeners = new Set<(route: Readonly<AppRoute>) => void>()
   let theme: Theme = 'light'
+  let contentPreferences: Readonly<SDKContentPreferences> = Object.freeze({ includeNsfw: false, expiresAt: null })
   let route: Readonly<AppRoute> = Object.freeze({ path: '/', revision: 0 })
   const inflight = new Map<AbortController, boolean>()
   let expiryTimer: ReturnType<typeof setTimeout>
@@ -98,6 +100,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
     contextListeners.clear()
     lifecycleListeners.clear()
     themeListeners.clear()
+    contentPrefListeners.clear()
     routeListeners.clear()
   }
   function live() {
@@ -164,6 +167,10 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
       get: () => { live(); return theme },
       subscribe: (listener: (value: Theme) => void) => subscribe(themeListeners, listener),
     }),
+    contentPreferences: Object.freeze({
+      get: () => { live(); return contentPreferences },
+      subscribe: (listener: (value: Readonly<SDKContentPreferences>) => void) => subscribe(contentPrefListeners, listener),
+    }),
     navigation: Object.freeze({
       get: () => { live(); return route },
       subscribe: (listener: (value: Readonly<AppRoute>) => void) => subscribe(routeListeners, listener),
@@ -221,6 +228,20 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
       if (next === theme) return
       theme = next
       emit(themeListeners, theme)
+    },
+    setContentPreferences(next: SDKContentPreferences) {
+      live()
+      if (!next || typeof next.includeNsfw !== 'boolean' || (next.expiresAt !== null && typeof next.expiresAt !== 'string')) {
+        fail('INVALID_CONTENT_PREFERENCES')
+      }
+      const nextFrozen = Object.freeze({ includeNsfw: next.includeNsfw, expiresAt: next.includeNsfw ? next.expiresAt : null })
+      if (nextFrozen.includeNsfw === contentPreferences.includeNsfw && nextFrozen.expiresAt === contentPreferences.expiresAt) return
+      const wasEnabled = contentPreferences.includeNsfw
+      contentPreferences = nextFrozen
+      if (wasEnabled && !nextFrozen.includeNsfw) {
+        adapters.closeMedia?.()
+      }
+      emit(contentPrefListeners, contentPreferences)
     },
     setRoute(next: AppRoute) {
       live()

@@ -43,6 +43,7 @@ export interface SelectedFile { handle: string; name: string; size: number; mime
 export interface FileSelection { purpose: string; multiple?: boolean }
 export interface InstanceEntry { instanceId: string; entryId: string }
 export interface Navigation { path: string; target: 'app' | 'appcenter' }
+export interface SDKContentPreferences { includeNsfw: boolean; expiresAt: string | null }
 
 export interface AppSDK {
   readonly version: string
@@ -53,6 +54,10 @@ export interface AppSDK {
   readonly theme: {
     get(): Theme
     subscribe(listener: (theme: Theme) => void): Unsubscribe
+  }
+  readonly contentPreferences: {
+    get(): Readonly<SDKContentPreferences>
+    subscribe(listener: (value: Readonly<SDKContentPreferences>) => void): Unsubscribe
   }
   readonly navigation: {
     get(): Readonly<AppRoute>

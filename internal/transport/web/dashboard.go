@@ -73,7 +73,8 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 			return "", false
 		}
 		if req.URL.RawQuery != "" || req.URL.ForceQuery || strings.Contains(req.URL.EscapedPath(), "%") || strings.Contains(req.URL.Path, "\\") ||
-			len(req.Header.Values("Authorization")) != 0 || len(req.Header.Values("Content-Encoding")) != 0 || len(req.Header.Values("X-Review-Origin")) != 0 {
+			len(req.Header.Values("Authorization")) != 0 || len(req.Header.Values("Content-Encoding")) != 0 || len(req.Header.Values("X-Review-Origin")) != 0 ||
+			len(req.Header.Values("X-VF-Include-NSFW")) > 1 || (req.Header.Get("X-VF-Include-NSFW") != "" && req.Header.Get("X-VF-Include-NSFW") != "1") {
 			return fail(400, "INVALID_DASHBOARD_REQUEST")
 		}
 		origins := req.Header.Values("Origin")
@@ -177,7 +178,9 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 				return
 			}
 		}
-		out := service.Request(dashboard.WithInteractiveReview(c.Request.Context()), token, c.Param("session_id"), input)
+		reqCtx := dashboard.WithInteractiveReview(c.Request.Context())
+		reqCtx = dashboard.WithIncludeNSFW(reqCtx, c.GetHeader("X-VF-Include-NSFW") == "1")
+		out := service.Request(reqCtx, token, c.Param("session_id"), input)
 		if input.Path == "/api/v1/workspaces" && input.Method == "GET" && out.Status == 200 {
 			out.Data = s.enrichWorkspaces(c.Request.Context(), token, out.Data)
 		}
@@ -236,7 +239,8 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 			result(c, application.Error(400, "INVALID_WORKSPACE_REQUEST"))
 			return
 		}
-		result(c, service.WorkspaceRequest(c.Request.Context(), token, c.Param("session_id"), input))
+		reqCtx := dashboard.WithIncludeNSFW(c.Request.Context(), c.GetHeader("X-VF-Include-NSFW") == "1")
+		result(c, service.WorkspaceRequest(reqCtx, token, c.Param("session_id"), input))
 	})
 	r.DELETE("/studio/instance-workspaces/:session_id", func(c *gin.Context) {
 		token, ok := gate(c)

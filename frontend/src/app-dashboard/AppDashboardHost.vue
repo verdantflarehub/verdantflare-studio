@@ -7,6 +7,7 @@ import type { AppContext, SDKAdapters } from './types'
 import { createAppSDK } from './sdk'
 import { mountWujieDashboard } from './wujie-adapter'
 import type { WujieDashboard } from './wujie-adapter'
+import { hostContentPreferences } from '../platform/contentPreferences'
 
 interface Selection {
   launch: unknown
@@ -47,11 +48,17 @@ watch([() => props.selection, surface, () => props.visible], async ([selection, 
     if (activeKey !== key || state.value !== 'ready') state.value = 'loading'
     await cache.activate(key, async signal => {
       const session = createAppSDK(launch, selection.context, selection.adapters)
+      const prefSnap = hostContentPreferences.get()
+      session.setContentPreferences({ includeNsfw: prefSnap.includeNsfw, expiresAt: prefSnap.expiresAt })
+      const unsubPref = hostContentPreferences.subscribe(next => {
+        try { session.setContentPreferences({ includeNsfw: next.includeNsfw, expiresAt: next.expiresAt }) } catch { /* ignore if disposed */ }
+      })
       session.setRoute({ path: selection.route ?? '/', revision: current })
       let released = false
       const releaseSession = async () => {
         if (released) return
         released = true
+        unsubPref()
         await selection.releaseSession?.()
       }
       try {

@@ -3,12 +3,28 @@ package dashboard
 import "context"
 
 type interactiveReviewKey struct{}
+type includeNSFWKey struct{}
 
 // WithInteractiveReview is set only after the browser transport verifies the
 // existing session, same-origin request and dashboard envelope. It is never
 // populated from App JSON, caller headers or an MCP token.
 func WithInteractiveReview(ctx context.Context) context.Context {
 	return context.WithValue(ctx, interactiveReviewKey{}, true)
+}
+
+// WithIncludeNSFW records whether an authenticated browser UI request opted into
+// displaying 18+ (NSFW) content via the local 24h preference header.
+func WithIncludeNSFW(ctx context.Context, include bool) context.Context {
+	if !include {
+		return ctx
+	}
+	return context.WithValue(ctx, includeNSFWKey{}, true)
+}
+
+// IncludeNSFW reports whether the request context carries a verified UI NSFW opt-in.
+func IncludeNSFW(ctx context.Context) bool {
+	v, _ := ctx.Value(includeNSFWKey{}).(bool)
+	return v
 }
 
 func reviewOperation(appID, method, path string) bool {

@@ -323,6 +323,9 @@ func (s *RegisteredSource) internalRequest(ctx context.Context, actor Actor, bac
 	req.Header.Set("X-Station-Id", actor.StationID)
 	req.Header.Set("X-Request-Id", uuid.Must(uuid.NewV7()).String())
 	req.Header.Set("Accept", mime)
+	if IncludeNSFW(ctx) {
+		req.Header.Set("X-VF-Include-NSFW", "1")
+	}
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}

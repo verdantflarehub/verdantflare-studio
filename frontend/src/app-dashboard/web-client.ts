@@ -2,6 +2,7 @@ import { validateLaunch } from './launch.ts'
 import type { LaunchPolicy } from './launch'
 import type { AppContext, AppRequest, AppResponse, DashboardLaunch, Json } from './types'
 import { responseClock } from '../pages/response-clock.js'
+import { hostContentPreferences } from '../platform/contentPreferences.ts'
 
 export class DashboardTransportError extends Error {
   constructor(readonly code: string) { super(code); this.name = 'DashboardTransportError' }
@@ -47,7 +48,13 @@ async function readJSON(response: Response, maximum: number): Promise<Json> {
 }
 
 /** Host-owned Web transport. Never inject this client or its fetcher into App code. */
-export function createDashboardWebClient(origin: string, fetcher: typeof fetch = fetch, monotonic = () => performance.now()) {
+export function createDashboardWebClient(
+  origin: string,
+  fetcher: typeof fetch = fetch,
+  monotonic = () => performance.now(),
+  includeNsfw?: () => boolean,
+) {
+  const resolveIncludeNsfw = includeNsfw ?? (fetcher === fetch ? () => hostContentPreferences.get().includeNsfw : () => false)
   const base = new URL(origin)
   if (!['https:', 'http:'].includes(base.protocol) || base.origin !== origin) failure('INVALID_DASHBOARD_ORIGIN')
   let clock: (() => number) | undefined
@@ -80,12 +87,14 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       || !value.entryUrl.endsWith('.html')) return failure('INVALID_WORKSPACE_RESPONSE')
     return Object.freeze({ ...value, now }) as unknown as InstanceWorkspaceLaunch
   }
-  async function call(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<AppResponse> {
+  async function call(path: string, method: string, body: unknown, signal?: AbortSignal, extraHeaders?: Record<string, string>): Promise<AppResponse> {
     if (signal?.aborted) return failure('REQUEST_CANCELLED')
     try {
       const started = monotonic()
+      const headers: Record<string, string> = body === undefined ? {} : { 'Content-Type': 'application/json' }
+      if (extraHeaders) Object.assign(headers, extraHeaders)
       const response = await fetcher(new URL(path, base).href, { method, credentials: 'same-origin', cache: 'no-store',
-        redirect: 'error', signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+        redirect: 'error', signal, headers,
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       const data = await readJSON(response, 4 << 20)
@@ -185,7 +194,8 @@ export function createDashboardWebClient(origin: string, fetcher: typeof fetch =
       return result
     },
     request(sessionId: string, input: AppRequest, signal?: AbortSignal): Promise<AppResponse> {
-      return call(sessionPath(sessionId) + '/requests', 'POST', input, signal)
+      const extraHeaders = resolveIncludeNsfw() ? { 'X-VF-Include-NSFW': '1' } : undefined
+      return call(sessionPath(sessionId) + '/requests', 'POST', input, signal, extraHeaders)
     },
     async capability(sessionId: string, name: string, input: Json, signal?: AbortSignal): Promise<Json> {
       if (name !== 'artifact.read' && name !== 'artifact.write' && name !== 'workspace.local') return failure('CAPABILITY_UNAVAILABLE')

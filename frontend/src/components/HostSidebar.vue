@@ -16,6 +16,7 @@ import { selectCards } from '../app-center/controller'
 import { hostTheme } from '../theme/hostTheme'
 import { themeLabels } from '../theme/preference'
 import type { ThemeMode } from '../theme/preference'
+import { formatRemainingTime, hostContentPreferences } from '../platform/contentPreferences'
 import NavigationIcon from './NavigationIcon.vue'
 
 const host = useHostStore(), navigation = useNavigationStore(), router = useRouter(), route = useRoute()
@@ -75,8 +76,15 @@ function legacySelected(item: typeof legacyEntries[number]) { return route.path 
 
 function refreshNavigation() { if (host.connected) { void navigation.refresh(); void host.fetchCluster() } }
 function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
+const nsfwSnap = ref(hostContentPreferences.get())
+const nsfwStatusText = computed(() => nsfwSnap.value.includeNsfw ? `已开启，${formatRemainingTime(nsfwSnap.value.remainingMs)}` : '关闭')
+let unsubNsfw: (() => void) | undefined
+
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
   const identity = host.identity
+  nsfwSnap.value = hostContentPreferences.setSessionIdentity(
+    identity.user_id && identity.organization_id ? { userId: identity.user_id, organizationId: identity.organization_id } : null,
+  )
   navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
   expanded.value = new Set(['directory']); feedback.value = ''
   refreshNavigation()
@@ -91,7 +99,16 @@ const dialog = ref<HTMLDialogElement>()
 const dialogKind = ref<'account' | 'help' | 'station' | 'logout'>('help')
 const dialogTitle = computed(() => ({ account: '账号详情', help: '帮助', station: 'Station 状态', logout: '退出登录？' })[dialogKind.value])
 const logoutBusy = ref(false), logoutError = ref('')
-function showDialog(kind: typeof dialogKind.value) { dialogKind.value = kind; logoutError.value = ''; dialog.value?.showModal() }
+function showDialog(kind: typeof dialogKind.value) {
+  dialogKind.value = kind
+  logoutError.value = ''
+  nsfwSnap.value = hostContentPreferences.get()
+  dialog.value?.showModal()
+}
+function openSettings() {
+  dialog.value?.close()
+  void router.push('/settings')
+}
 async function account() {
   if (host.connected) showDialog('account')
   else if (host.sessionStatus === 'error') await host.init()
@@ -106,6 +123,7 @@ function station() {
 async function logout() {
   if (logoutBusy.value) return
   logoutBusy.value = true; logoutError.value = ''
+  nsfwSnap.value = hostContentPreferences.disable('logout')
   try {
     const result = await request({ path: 'logout', method: 'POST' }, { realOnly: true })
     if (!result.ok && result.status !== 401) throw new Error('logout')
@@ -149,6 +167,7 @@ function themeKeys(event: KeyboardEvent) {
 function resized() { measureSidebar(); positionTheme() }
 onMounted(() => {
   void host.init()
+  unsubNsfw = hostContentPreferences.subscribe(next => { nsfwSnap.value = next })
   window.addEventListener('studio:logout', clearNavigation)
   window.addEventListener('resize', resized)
   window.addEventListener('scroll', positionTheme, { passive: true })
@@ -157,6 +176,7 @@ onMounted(() => {
   measureSidebar()
 })
 onBeforeUnmount(() => {
+  unsubNsfw?.()
   appcenter?.setVisible('directory-menu', false); resizeObserver?.disconnect()
   window.removeEventListener('studio:logout', clearNavigation)
   window.removeEventListener('resize', resized)
@@ -233,7 +253,8 @@ onBeforeUnmount(() => {
       <div class="dialog-head"><h2 id="navigation-dialog-title">{{ dialogTitle }}</h2><button class="small-button" :disabled="logoutBusy" aria-label="关闭" @click="dialog?.close()">关闭</button></div>
       <template v-if="dialogKind === 'account'">
         <p>用户：{{ host.displayName }}</p><p>组织：{{ host.identity.organization_name || '未配置组织' }}</p><p>登录状态：{{ loginStatus }}</p>
-        <div class="dialog-actions"><button class="small-button" @click="dialogKind = 'logout'">退出登录</button></div>
+        <p>NSFW 显示：{{ nsfwStatusText }}</p>
+        <div class="dialog-actions"><button class="small-button" @click="openSettings">设置</button><button class="small-button" @click="dialogKind = 'logout'">退出登录</button></div>
       </template>
       <template v-else-if="dialogKind === 'logout'">
         <p>确认退出当前账号？</p><p v-if="logoutError" role="alert">{{ logoutError }}</p>

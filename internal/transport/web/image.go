@@ -36,6 +36,9 @@ func (s *Server) EnableImage(r *gin.Engine, cfg ImageConfig) {
 	if cfg.URL == "" {
 		return
 	}
+	s.mu.Lock()
+	s.imageConfig = cfg
+	s.mu.Unlock()
 	r.Any("/apps/image/*path", func(c *gin.Context) { s.image(c, cfg) })
 	r.Any("/studio/apps/image/*path", func(c *gin.Context) { s.image(c, cfg) })
 }
@@ -118,6 +121,9 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 	}
 	if !static {
 		req.Header.Set("Authorization", "Bearer "+cfg.Token)
+		if c.GetHeader("Authorization") == "" && c.GetHeader("X-VF-Include-NSFW") == "1" {
+			req.Header.Set("X-VF-Include-NSFW", "1")
+		}
 	}
 	if c.Request.Method == "POST" {
 		contentType := c.GetHeader("Content-Type")

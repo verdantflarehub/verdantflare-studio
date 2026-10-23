@@ -38,6 +38,8 @@ type Server struct {
 	mcpGateway      *mcp.Gateway
 	blenderEndpoint func() (string, bool)
 	comfyuiEndpoint func() (string, bool)
+	imageConfig     ImageConfig
+	videoConfig     VideoConfig
 }
 
 func (s *Server) SetEtcdClient(cli *clientv3.Client) {
@@ -150,6 +152,7 @@ func NewServer(station *application.Station, origin string, assets fs.FS, video 
 	r.Any("/api/*path", s.api)
 	r.Any("/studio/api/*path", s.api)
 	if len(video) > 0 {
+		s.videoConfig = video[0]
 		r.Any("/apps/video/*path", func(c *gin.Context) { s.video(c, video[0]) })
 		r.Any("/studio/apps/video/*path", func(c *gin.Context) { s.video(c, video[0]) })
 	}
@@ -195,6 +198,10 @@ func (s *Server) api(c *gin.Context) {
 		return
 	}
 	path := strings.TrimPrefix(c.Param("path"), "/")
+	if strings.HasPrefix(path, "v1/content-ratings/") {
+		s.handleContentRatingAction(c, path)
+		return
+	}
 	var body []byte
 	if c.Request.Method == "POST" || c.Request.Method == "PUT" {
 		if path != "logout" && strings.Split(c.GetHeader("Content-Type"), ";")[0] != "application/json" {

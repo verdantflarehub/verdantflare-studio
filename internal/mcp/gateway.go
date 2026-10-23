@@ -202,10 +202,20 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 		projectID = ""
 		if name != "speech.capabilities" {
 			value, ok := args["project_id"].(string)
-			if !ok || !project.ValidID(value) || (projectHeader != "" && projectHeader != value) {
+			if name == "speech.rate_content" && (!ok || value == "") {
+				if projectHeader != "" {
+					if !project.ValidID(projectHeader) {
+						return nil, 400, errors.New("project scope mismatch")
+					}
+					projectID = projectHeader
+				} else {
+					projectID = "prj_studio_default"
+				}
+			} else if !ok || !project.ValidID(value) || (projectHeader != "" && projectHeader != value) {
 				return nil, 400, errors.New("project scope mismatch")
+			} else {
+				projectID = value
 			}
-			projectID = value
 		} else if projectHeader != "" {
 			return nil, 400, errors.New("unexpected project scope")
 		}
@@ -310,6 +320,8 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
+	// MCP calls must never expose or forward X-VF-Include-NSFW.
+	req.Header.Del("X-VF-Include-NSFW")
 	for _, key := range []string{"X-User-Id", "X-Organization-Id", "X-Project-Id", "X-Request-Id"} {
 		if headers[key] != "" {
 			req.Header.Set(key, headers[key])

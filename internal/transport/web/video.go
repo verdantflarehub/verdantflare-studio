@@ -111,6 +111,9 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		req.Header.Set("X-User-Id", principal.SubjectID)
 		req.Header.Set("X-Organization-Id", principal.OrganizationID)
 		req.Header.Set("X-Request-Id", principal.RequestID)
+		if c.GetHeader("X-VF-Include-NSFW") == "1" {
+			req.Header.Set("X-VF-Include-NSFW", "1")
+		}
 	}
 	if c.Request.Method == "POST" {
 		if strings.HasSuffix(path, "/title") {

@@ -15,6 +15,8 @@ func (s *Server) SetMCPGateway(gw *mcp.Gateway) { s.mu.Lock(); defer s.mu.Unlock
 func (s *Server) mcpHandler(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Content-Type-Options", "nosniff")
+	// Unconditionally strip X-VF-Include-NSFW on MCP routes so MCP never exposes NSFW content.
+	c.Request.Header.Del("X-VF-Include-NSFW")
 	var empty mcprpc.Request
 	mt, _, e := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if e != nil || mt != "application/json" || c.Request.URL.RawQuery != "" || c.GetHeader("Content-Encoding") != "" {

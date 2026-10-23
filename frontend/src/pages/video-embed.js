@@ -1,4 +1,5 @@
 // Opaque-origin iframe; all data access stays on the authenticated host.
+import { hostContentPreferences } from '../platform/contentPreferences.ts';
 export function mountVideo({listen, api, notice, login}) {
  const host=document.getElementById('videoHost'), frame=document.getElementById('videoFrame');
  const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
@@ -116,7 +117,7 @@ export function mountVideo({listen, api, notice, login}) {
  listen(window,'message',async e=>{
   if(!active||e.source!==frame.contentWindow||e.origin!=='null'||!e.data||e.data.channel!=='vf-video')return;
   const d=e.data;if(d.view!==String(generation))return;
-  if(d.type==='ready'){hideLoader();document.getElementById('videoMessage').textContent='';frame.contentWindow.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*');frame.contentWindow.postMessage({channel:'vf-studio',type:'restore',state:viewState},'*');return}
+  if(d.type==='ready'){hideLoader();document.getElementById('videoMessage').textContent='';frame.contentWindow.postMessage({channel:'vf-studio',type:'theme',theme:theme()},'*');const pref=hostContentPreferences.get();frame.contentWindow.postMessage({channel:'vf-studio',type:'contentPreferences',includeNsfw:pref.includeNsfw,expiresAt:pref.expiresAt},'*');frame.contentWindow.postMessage({channel:'vf-studio',type:'restore',state:viewState},'*');return}
   if(d.type==='navigate'&&typeof d.path==='string'&&/^\/dashboard(?:\/tasks\/[a-zA-Z0-9_-]+)?(?:#(?:tasks|models|mcp))?$/.test(d.path)){if(d.state && typeof d.state==='object')viewState=d.state;navigate(d.path);return}
   if(d.type==='resize'&&typeof d.height==='number'){if(frame)frame.style.height=Math.max(d.height,600)+'px';return}
   if(d.type==='wheel'&&typeof d.deltaY==='number'){window.scrollBy({top:d.deltaY,behavior:'auto'});return}
@@ -126,7 +127,8 @@ export function mountVideo({listen, api, notice, login}) {
   if(!['GET','POST'].includes(method)||!pathPattern.test(d.path.split('?')[0])||d.path.split('?')[0].includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
   pending.add(d.id);
   try {
-   const r=await fetch('/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers:method==='POST'?{'Content-Type':'application/json'}:{},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)});
+   const headers=method==='POST'?{'Content-Type':'application/json'}:{};if(hostContentPreferences.get().includeNsfw)headers['X-VF-Include-NSFW']='1';
+   const r=await fetch('/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)});
    if(r.status===401){close();login();return}
    reply({status:r.status,contentType:r.headers.get('Content-Type')||'application/octet-stream',body:await r.arrayBuffer()});
   }catch{reply({status:502,body:new ArrayBuffer(0)})}finally{if(epoch===generation)pending.delete(d.id)}

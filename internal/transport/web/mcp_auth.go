@@ -10,6 +10,7 @@ import (
 )
 
 func (s *Server) authenticateMCP(c *gin.Context) (project.Principal, bool) {
+	c.Request.Header.Del("X-VF-Include-NSFW")
 	var empty mcprpc.Request
 	for _, key := range []string{"Authorization", "Origin", "Sec-Fetch-Site", "X-User-Id", "X-Organization-Id", "X-Project-Id", "X-Request-Id"} {
 		if len(c.Request.Header.Values(key)) > 1 {

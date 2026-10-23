@@ -1,4 +1,6 @@
 // Opaque-origin iframe; all data access stays on the authenticated host.
+import { hostContentPreferences } from '../platform/contentPreferences.ts';
+
 export function mountImage({ listen, api, notice, login }) {
   const host = document.getElementById('imageHost'), frame = document.getElementById('imageFrame');
   const getMarket = () => document.getElementById('marketView') || document.getElementById('marketContent');
@@ -158,6 +160,8 @@ export function mountImage({ listen, api, notice, login }) {
       const msg = document.getElementById('imageMessage');
       if (msg) msg.textContent = '';
       frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'theme', theme: theme() }, '*');
+      const pref = hostContentPreferences.get();
+      frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'contentPreferences', includeNsfw: pref.includeNsfw, expiresAt: pref.expiresAt }, '*');
       frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'restore', state: viewState }, '*');
       return;
     }
@@ -191,10 +195,12 @@ export function mountImage({ listen, api, notice, login }) {
     }
     pending.add(d.id);
     try {
+      const headers = method === 'POST' ? { 'Content-Type': 'application/json' } : {};
+      if (hostContentPreferences.get().includeNsfw) headers['X-VF-Include-NSFW'] = '1';
       const r = await fetch('/apps/image' + d.path, {
         method,
         body: method === 'POST' ? d.body : undefined,
-        headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {},
+        headers,
         credentials: 'same-origin',
         cache: 'no-store',
         signal: AbortSignal.timeout(90000)

@@ -5,6 +5,7 @@ import App from './App.vue'
 import LegacyMarket from './pages/Market.vue'
 import AppCenterPage from './app-center/AppCenterPage.vue'
 import LegacyAppEntry from './pages/LegacyAppEntry.vue'
+import StudioSettings from './pages/StudioSettings.vue'
 import './theme/market.css'
 
 // One explicit release mode selects the whole AppCenter. A request failure
@@ -27,6 +28,7 @@ const router = createRouter({
     { path: '/models', redirect: '/market' },
     { path: '/resources', component: LegacyAppEntry, props: { kind: 'resources' } },
     { path: '/station/proxies', component: LegacyAppEntry, props: { kind: 'network' } },
+    { path: '/settings', name: 'studio-settings', component: StudioSettings },
     { path: '/:pathMatch(.*)*', redirect: '/market' }
   ]
 })
