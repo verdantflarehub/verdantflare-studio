@@ -7,7 +7,7 @@ test('World root stays in World while the prior Project dashboard is cached or i
   for (const previous of [undefined, project, { ...project, appId: 'resources' }]) {
     const appId = dashboardAppId('world', previous)
     assert.equal(dashboardLocation(appId!).path, '/apps/world/')
-    assert.equal(dashboardOwnsBreadcrumb(appId, '/music'), false)
+    assert.equal(dashboardOwnsBreadcrumb(appId, '/music'), true)
   }
   assert.equal(dashboardLocation(dashboardAppId('project', { ...project, appId: 'world' })!).path, '/apps/project/')
 })
@@ -31,4 +31,9 @@ test('Project lists, searches and fixed objects own one complete breadcrumb', ()
 test('other applications, fallback routes and invalid navigation keep host breadcrumb', () => {
   for (const app of [undefined, 'resources', 'world']) assert.equal(dashboardOwnsBreadcrumb(app, '/projects'), false)
   for (const path of [undefined, '/', '/workspace', '/create', '//outside.invalid/projects', '/projects#fragment', '/projects-extra', ['projects']]) assert.equal(dashboardOwnsBreadcrumb('project', path), false)
+})
+
+test('World owns complete result trails while other pages retain the host trail', () => {
+  for (const path of ['/', '/character', '/scene?asset=id&version=fixed', '/sound', '/music', '/shot', '/script', '/knowledge', '/learn?task=id']) assert.equal(dashboardOwnsBreadcrumb('world', path), true)
+  for (const path of ['/collections', '/collections/id', '/publish', '/learn-extra', '//outside.invalid/learn', '/learn#fragment']) assert.equal(dashboardOwnsBreadcrumb('world', path), false)
 })

@@ -185,7 +185,11 @@ onBeforeUnmount(() => {
              :href="router.resolve(item).href" @click.prevent="router.push(item)"><NavigationIcon :name="item.icon" /><span class="label">{{ item.title }}</span></a>
         </template>
         <template v-else v-for="entry in navigation.pinned" :key="branchKey(entry)">
-          <button v-if="entry.children?.length && !(entry.appId === 'world' && entry.route === '/')" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
+          <div v-if="entry.appId === 'world' && entry.route === '/' && entry.children?.length" class="branch-row">
+            <a class="nav-row" :href="router.resolve(entryLocation(entry)).href" :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && appPath === '/' ? 'page' : undefined" @click.prevent="openEntry(entry)"><NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span></a>
+            <button class="branch-toggle" :aria-label="(expanded.has(branchKey(entry)) ? '收起' : '展开') + entry.title" :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))"><span aria-hidden="true">{{ expanded.has(branchKey(entry)) ? '▾' : '▸' }}</span></button>
+          </div>
+          <button v-else-if="entry.children?.length" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
                   :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))">
             <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span><NavigationIcon name="chevron" />
           </button>
@@ -193,7 +197,7 @@ onBeforeUnmount(() => {
              :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && (!entry.children?.length || appPath === entry.route) ? 'page' : undefined" @click.prevent="openEntry(entry)">
             <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span>
           </a>
-          <div v-if="entry.children?.length" v-show="expanded.has(branchKey(entry))" :id="'children-' + entry.installationId" class="children">
+          <div v-if="entry.children?.length" :hidden="!expanded.has(branchKey(entry))" :inert="!expanded.has(branchKey(entry))" :id="'children-' + entry.installationId" class="children">
             <a v-for="child in entry.children" :key="child.entryId" class="nav-row" :href="router.resolve(entryLocation(entry, child.route)).href"
                :aria-current="childSelected(entry, child.route) ? 'page' : undefined" @click.prevent="openEntry(entry, child.route)"><span class="label">{{ child.title }}</span></a>
           </div>
@@ -267,6 +271,12 @@ onBeforeUnmount(() => {
 .nav-row>.chevron { transition:transform var(--vf-dur-Spring, 340ms) var(--vf-ease-spring); }
 .nav-row[aria-expanded=true]>.chevron { transform:rotate(180deg); }
 .label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.children[hidden] { display:none; }
+.branch-row { display:flex; align-items:center; min-width:0; }
+.branch-row>.nav-row { flex:1; min-width:0; }
+.branch-toggle { flex:0 0 30px; height:40px; border-radius:6px; color:var(--muted); font-size:15px; }
+.branch-toggle:hover { background:var(--shell-button); color:var(--ink); }
+.branch-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 .children { padding:2px 0 7px; }
 .children .nav-row { display:flex; justify-content:space-between; min-height:35px; padding:6px 12px 6px 42px; font-size:13px; position:relative; }
 .children .nav-row[aria-current=page]:before { content:""; position:absolute; width:4px; height:4px; left:24px; border-radius:50%; background:var(--accent); }
@@ -301,6 +311,8 @@ onBeforeUnmount(() => {
 .navigation-dialog h3 { font-size:13px; margin:20px 0 5px; }
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
 @media(max-width:700px) {
+ .branch-toggle { flex-basis:20px; }
+ .branch-row>.nav-row { padding:10px 0; }
  .host-sidebar { padding:22px 7px 12px; }
  .brand { display:flex; padding:0; justify-content:center; margin-bottom:28px; }
  .brand img { width:28px; height:34px; }

@@ -111,9 +111,10 @@ export function browserDashboardPath(route: { params?: Record<string, unknown>; 
 
 /** Project owns its complete category → object trail on the browser route. */
 export function dashboardOwnsBreadcrumb(appId: string | undefined, value: unknown): boolean {
-  if (appId !== 'project') return false
+  if (appId !== 'project' && appId !== 'world') return false
   try {
     const pathname = new URL(dashboardRoutePath(value), 'https://app.invalid').pathname
+    if (appId === 'world') return ['/', '/learn', '/character', '/scene', '/sound', '/music', '/shot', '/script', '/knowledge'].includes(pathname)
     return pathname === '/projects' || projectCategories.has(pathname.slice(1))
   } catch { return false }
 }
