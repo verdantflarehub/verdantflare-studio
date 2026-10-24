@@ -21,8 +21,9 @@ const legacyJSONLimit = 4 << 20
 const legacyMediaLimit = 1 << 30
 
 var legacyImageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
+var legacyImageWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
 var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
-var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
+var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title|delete|content-rating)|artifacts/import)$`)
 var legacyVideoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 var legacyBinaryPath = regexp.MustCompile(`^/(artifacts/[a-zA-Z0-9_-]+/content|api/tasks/[a-zA-Z0-9_-]+/(thumbnail|content))$`)
 var legacyRange = regexp.MustCompile(`^bytes=([0-9]+)-([0-9]*)$|^bytes=-([0-9]+)$`)
@@ -72,7 +73,7 @@ func legacyRoute(adapter, method, target string) (legacyMediaRoute, error) {
 					kind = "application/json"
 				}
 			}
-		} else if method == "POST" && (u.Path == "/api/tasks" || u.Path == "/api/artifacts/upload") {
+		} else if method == "POST" && legacyImageWrite.MatchString(u.Path) {
 			kind = "application/json"
 		}
 	case "video-iframe-v1":
@@ -154,7 +155,7 @@ func (s *Session) LegacyMedia(ctx context.Context, adapter, method, target strin
 		return nil, ErrInvalid
 	}
 	if method == "POST" {
-		if strings.HasSuffix(route.path, "/title") && !videotitle.ValidBody(body) {
+		if adapter == "video-iframe-v1" && strings.HasSuffix(route.path, "/title") && !videotitle.ValidBody(body) {
 			return nil, ErrInvalid
 		}
 		kind, params, err := mime.ParseMediaType(contentType)

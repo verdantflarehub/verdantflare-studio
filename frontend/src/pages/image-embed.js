@@ -6,7 +6,7 @@ export function mountImage({ listen, api, notice, login }) {
   const getMarket = () => document.getElementById('marketView') || document.getElementById('marketContent');
   const getVideo = () => document.getElementById('videoHost');
   let active = false, generation = 0, pending = new Set(), viewState = null, currentUrl = null;
-  const pathPattern = /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+)?|tasks\/stats|artifacts\/upload|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
+  const pathPattern = /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+(?:\/(?:title|delete|content-rating))?)?|tasks\/stats|artifacts\/upload|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
   const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark';
 
   function route() {
@@ -189,7 +189,7 @@ export function mountImage({ listen, api, notice, login }) {
         frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'response', id: d.id, ...value }, '*');
       }
     };
-    if (!['GET', 'POST'].includes(method) || !pathPattern.test(d.path.split('?')[0]) || d.path.split('?')[0].includes('%') || d.path.includes('#') || (d.body != null && (typeof d.body !== 'string' || d.body.length > 1048576))) {
+    if (!['GET', 'POST', 'DELETE'].includes(method) || !pathPattern.test(d.path.split('?')[0]) || d.path.split('?')[0].includes('%') || d.path.includes('#') || (d.body != null && (typeof d.body !== 'string' || d.body.length > 1048576))) {
       reply({ status: 403, body: new ArrayBuffer(0) });
       return;
     }

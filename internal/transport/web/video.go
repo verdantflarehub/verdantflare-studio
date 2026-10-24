@@ -21,7 +21,7 @@ import (
 type VideoConfig struct{ URL, Token string }
 
 var videoRead = regexp.MustCompile(`^/(api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)|artifacts/[a-zA-Z0-9_-]+/content)$`)
-var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title)|artifacts/import)$`)
+var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title|delete|content-rating)|artifacts/import)$`)
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 var videoMemberRead = regexp.MustCompile(`^/api/higgsfield/(projects|capabilities|assets|assets/art_[a-zA-Z0-9_-]+/content|tasks|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)$`)
 var videoMemberWrite = regexp.MustCompile(`^/api/higgsfield/(preflight|tasks|attempt|imports/(prepare|chunk|status|commit)|tasks/[a-zA-Z0-9_-]+/result)$`)

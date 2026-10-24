@@ -4,7 +4,7 @@ export function mountVideo({listen, api, notice, login}) {
  const host=document.getElementById('videoHost'), frame=document.getElementById('videoFrame');
  const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
  let active=false, generation=0, pending=new Set(), viewState=null, currentUrl=null;
- const pathPattern=/^\/(api\/(dashboard|capabilities|model-catalog|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/content|\/result)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
+ const pathPattern=/^\/(api\/(dashboard|capabilities|model-catalog|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/content|\/result|\/title|\/delete|\/content-rating)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
  const theme=()=>document.body.dataset.theme==='light'?'light':'dark';
  function route(){
   const params=new URLSearchParams(location.hash.split('?')[1]||'');
@@ -124,7 +124,7 @@ export function mountVideo({listen, api, notice, login}) {
   if(d.type!=='request'||!Number.isSafeInteger(d.id)||typeof d.path!=='string'||d.path.length>2048||pending.has(d.id)||pending.size>=32)return;
   const epoch=generation,method=d.method||'GET';
   const reply=value=>{if(epoch===generation&&active)frame.contentWindow.postMessage({channel:'vf-studio',type:'response',id:d.id,...value},'*')};
-  if(!['GET','POST'].includes(method)||!pathPattern.test(d.path.split('?')[0])||d.path.split('?')[0].includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
+  if(!['GET','POST','DELETE'].includes(method)||!pathPattern.test(d.path.split('?')[0])||d.path.split('?')[0].includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
   pending.add(d.id);
   try {
    const headers=method==='POST'?{'Content-Type':'application/json'}:{};if(hostContentPreferences.get().includeNsfw)headers['X-VF-Include-NSFW']='1';
