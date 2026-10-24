@@ -8,7 +8,7 @@
     "dev:mock": "vite --host 127.0.0.1 --mode mock",
     "build": "vue-tsc --noEmit && vite build",
     "test:project-content": "node --test tests/project-content.test.mjs tests/drama-publication.test.mjs tests/drama-publication-draft.test.mjs tests/project-reads.test.mjs",
-    "test:dashboard": "node --experimental-transform-types --test tests/app-sdk.test.ts tests/dashboard-host.test.ts tests/dashboard-scroll.test.ts tests/dashboard-breadcrumb.test.ts tests/dashboard-web-client.test.ts tests/dashboard-sessions.test.ts tests/dashboard-files.test.ts tests/content-preferences.test.ts"
+    "test:dashboard": "node --experimental-transform-types --test tests/app-sdk.test.ts tests/dashboard-host.test.ts tests/dashboard-scroll.test.ts tests/dashboard-layout.test.ts tests/dashboard-breadcrumb.test.ts tests/dashboard-web-client.test.ts tests/dashboard-sessions.test.ts tests/dashboard-files.test.ts tests/content-preferences.test.ts"
   },
   "dependencies": {
     "vue": "3.5.30",

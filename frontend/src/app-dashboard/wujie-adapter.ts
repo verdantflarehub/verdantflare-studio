@@ -3,6 +3,7 @@ import type { AppContext, AppRoute, DashboardLaunch } from './types'
 import type { CachedDashboard } from './cache'
 import { installDashboardRuntime } from './runtime'
 import { createDashboardScrollBridge } from './scroll'
+import { createDashboardLayoutBridge } from './layout'
 
 export interface DashboardMountOptions {
   container: HTMLElement
@@ -42,6 +43,14 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     schedule: listener => requestAnimationFrame(listener),
     cancel: handle => cancelAnimationFrame(handle),
   })
+  const layout = createDashboardLayoutBridge({
+    surfaceTop: () => element.getBoundingClientRect().top + window.scrollY,
+    viewportHeight: () => window.innerHeight,
+    setHeight: height => { element.style.height = height === null ? '' : `${height}px` },
+    setFillClass: active => { element.closest('.main')?.classList.toggle('dashboard-fill', active); element.classList.toggle('app-dashboard-surface--fill', active) },
+    scrollToTop: () => window.scrollTo(0, 0),
+    subscribeResize(listener) { window.addEventListener('resize', listener, { passive: true }); return () => window.removeEventListener('resize', listener) },
+  })
   let cleanup: Promise<void> | undefined
   let clearRuntime = () => {}
   let settleReady!: () => void
@@ -62,6 +71,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     if (disposed) return Promise.resolve()
     disposed = true
     scroll.dispose()
+    layout.dispose()
     timer !== undefined && clearTimeout(timer)
     signal.removeEventListener('abort', cancel)
     unsubscribe()
@@ -95,10 +105,10 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
       if (!disposed && ready && typeof value === 'boolean') dirty = value
     },
     resize(height: number) {
-      if (!disposed && Number.isSafeInteger(height) && height >= 0 && height <= 1_000_000) {
-        element.style.height = `${height}px`
-      }
+      if (!disposed && Number.isSafeInteger(height) && height >= 0 && height <= 1_000_000) layout.resize(height)
     },
+    // AppDashboard contract §3: `fill` pins trusted canvas workbenches to the viewport; unknown modes are ignored.
+    setLayout(mode: unknown) { if (!disposed) layout.setLayout(mode) },
     getScroll() { return scroll.get() },
     restoreScroll(top: number) { scroll.restore(top) },
   })
@@ -130,8 +140,8 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
     throw error
   }
   return {
-    show() { if (disposed) throw new Error('DASHBOARD_DISPOSED'); element.hidden = false; scroll.show(); session.setVisibility(true) },
-    hide() { if (!disposed) { scroll.hide(); session.setVisibility(false); element.hidden = true } },
+    show() { if (disposed) throw new Error('DASHBOARD_DISPOSED'); element.hidden = false; scroll.show(); layout.show(); session.setVisibility(true) },
+    hide() { if (!disposed) { scroll.hide(); layout.hide(); session.setVisibility(false); element.hidden = true } },
     async prepareClose() { return !dirty || await options.confirmDiscard() },
     async updateContext(context: AppContext) {
       const previous = session.sdk.context.get()

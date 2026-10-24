@@ -1726,6 +1726,17 @@
   display: block;
 }
 
+/* Canvas workbench exception (design spec §4.5, AppDashboard contract §3 `fill`):
+   the surface equals the visible viewport, so neither the page nor the surface scrolls. */
+.main.embed-active.dashboard-fill {
+  min-height: 0;
+  padding: 0;
+}
+
+.main.embed-active.dashboard-fill .app-dashboard-surface--fill {
+  overflow: hidden;
+}
+
 .main.embed-active .heading,
 .main.embed-active .video-host-bar {
   padding-right: 0;
