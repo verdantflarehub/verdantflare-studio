@@ -21,11 +21,23 @@ var blenderVersionPath = regexp.MustCompile(`^/artifact/versions/([0-9a-f-]{36})
 // BlenderContentHandler is mounted ONLY on the private content listener, never
 // on the public Gin router. It grants no MCP route or arbitrary target URL.
 func (s *Server) BlenderContentHandler() http.Handler {
-	return blenderContentHandler(func(domain string) (string, bool) {
+	var call producerCall
+	if s.mcpGateway != nil {
+		call = s.mcpGateway.CallVerified
+	}
+	producer := worldProducerHandler(call)
+	blender := blenderContentHandler(func(domain string) (string, bool) {
 		if s.mcpGateway == nil {
 			return "", false
 		}
 		return s.mcpGateway.BusinessEndpoint(domain)
+	})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/world/") {
+			producer.ServeHTTP(w, r)
+			return
+		}
+		blender.ServeHTTP(w, r)
 	})
 }
 
