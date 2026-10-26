@@ -94,6 +94,37 @@ func RemoteAssetHandler(s *Service, fallback http.Handler) http.Handler {
 				return
 			}
 		}
+		if strings.HasPrefix(r.URL.Path, "/studio/media/") {
+			if !studioremote.Allowed(r.Method, r.URL.Path) || r.ContentLength != 0 {
+				failure(studioremote.ErrInvalid)
+				return
+			}
+			session, err := s.remote.Session()
+			if err != nil {
+				failure(err)
+				return
+			}
+			out, err := session.Media(r.Context(), r.Method, r.URL.Path, r.Header)
+			if err != nil {
+				failure(err)
+				return
+			}
+			defer out.Body.Close()
+			if out.StatusCode != 200 && out.StatusCode != 206 && out.StatusCode != 304 && out.StatusCode != 416 {
+				failure(studioremote.ErrUnavailable)
+				return
+			}
+			for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "X-VF-Media-Cache", "Cache-Control", "ETag", "Content-Disposition", "Content-Security-Policy", "Date"} {
+				if value := out.Header.Get(key); value != "" {
+					w.Header().Set(key, value)
+				}
+			}
+			w.WriteHeader(out.StatusCode)
+			if r.Method != "HEAD" && out.StatusCode != 304 {
+				_, _ = io.Copy(w, out.Body)
+			}
+			return
+		}
 		if strings.Contains(r.URL.Path, "/content/") {
 			if r.Method != "GET" || r.ContentLength != 0 || r.Header.Get("Range") != "" {
 				failure(studioremote.ErrInvalid)

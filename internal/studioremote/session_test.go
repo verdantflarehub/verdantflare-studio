@@ -118,3 +118,57 @@ type ownedSource struct {
 }
 
 func (s *ownedSource) Close() error { s.closed = true; return nil }
+
+func TestRemoteStableMediaRangeAndConditionalHeaders(t *testing.T) {
+	path := "/studio/media/" + strings.Repeat("a", 64) + "/" + strings.Repeat("b", 64) + "/original-v1"
+	calls := 0
+	c := fixture(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Header.Get("Range") != "bytes=1-3" || r.Header.Get("If-Range") != `"hash"` || r.Header.Get("X-Unsafe") != "" {
+			t.Fatal("media request headers", r.Header)
+		}
+		return &http.Response{StatusCode: 206, ContentLength: 3, Header: http.Header{"Content-Type": {"video/mp4"}, "Content-Range": {"bytes 1-3/5"}, "Cache-Control": {"private, max-age=2592000, immutable"}, "Etag": {`"hash"`}}, Body: io.NopCloser(strings.NewReader("ell"))}, nil
+	})
+	login(t, c)
+	s, _ := c.Session()
+	headers := http.Header{"Range": {"bytes=1-3"}, "If-Range": {`"hash"`}, "X-Unsafe": {"skip"}}
+	response, err := s.Media(context.Background(), "GET", path, headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || string(body) != "ell" || response.StatusCode != 206 || response.Header.Get("Content-Range") != "bytes 1-3/5" || response.Header.Get("Cache-Control") == "" {
+		t.Fatal("range response", err, response)
+	}
+	headers["Range"] = []string{"bytes=0-1", "bytes=2-3"}
+	if _, err = s.Media(context.Background(), "GET", path, headers); !errors.Is(err, ErrInvalid) {
+		t.Fatal("duplicate range accepted")
+	}
+	login(t, c)
+	if _, err = s.Media(context.Background(), "GET", path, nil); !errors.Is(err, ErrChanged) {
+		t.Fatal("stale media used new identity")
+	}
+	if calls != 1 {
+		t.Fatal("unexpected network", calls)
+	}
+}
+func TestRemoteStableMedia304IsNotRedirect(t *testing.T) {
+	path := "/studio/media/" + strings.Repeat("a", 64) + "/" + strings.Repeat("b", 64) + "/thumbnail-320-v1"
+	c := fixture(t, func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("If-None-Match") != `"hash"` {
+			t.Fatal("condition lost")
+		}
+		return &http.Response{StatusCode: 304, Header: http.Header{"Etag": {`"hash"`}, "Cache-Control": {"private, max-age=2592000, immutable"}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+	})
+	login(t, c)
+	s, _ := c.Session()
+	r, err := s.Media(context.Background(), "GET", path, http.Header{"If-None-Match": {`"hash"`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode != 304 || r.Header.Get("ETag") != `"hash"` {
+		t.Fatal("conditional response lost")
+	}
+}

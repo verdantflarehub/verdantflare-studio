@@ -3,11 +3,13 @@ module github.com/verdantflarehub/verdantflare-studio
 go 1.26.0
 
 require (
+	github.com/HugoSmits86/nativewebp v1.0.0
+	golang.org/x/image v0.41.0
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/wailsapp/wails/v3 v3.0.0-beta.22
 )
 

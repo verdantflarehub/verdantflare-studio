@@ -100,7 +100,25 @@ func (s *Session) Content(ctx context.Context, path string) (*http.Response, err
 	return s.stream(ctx, "GET", path, "", nil, 0, 1<<30)
 }
 
+func (s *Session) Media(ctx context.Context, method, path string, headers http.Header) (*http.Response, error) {
+	if !stableMediaPath.MatchString(path) || (method != "GET" && method != "HEAD") {
+		return nil, ErrInvalid
+	}
+	selected := http.Header{}
+	for _, key := range []string{"Range", "If-Range", "If-None-Match"} {
+		if len(headers.Values(key)) > 1 || len(headers.Get(key)) > 1024 {
+			return nil, ErrInvalid
+		}
+		if value := headers.Get(key); value != "" {
+			selected.Set(key, value)
+		}
+	}
+	return s.streamHeaders(ctx, method, path, "", nil, 0, 1<<30, selected)
+}
 func (s *Session) stream(ctx context.Context, method, path, query string, body io.Reader, length, maxBytes int64) (*http.Response, error) {
+	return s.streamHeaders(ctx, method, path, query, body, length, maxBytes, nil)
+}
+func (s *Session) streamHeaders(ctx context.Context, method, path, query string, body io.Reader, length, maxBytes int64, headers http.Header) (*http.Response, error) {
 	c := s.client
 	c.mu.Lock()
 	if c.epoch != s.epoch || !c.authenticated {
@@ -130,6 +148,9 @@ func (s *Session) stream(ctx context.Context, method, path, query string, body i
 		finish()
 		return nil, ErrInvalid
 	}
+	for key, values := range headers {
+		req.Header[key] = values
+	}
 	req.ContentLength = length
 	req.Header.Set("Origin", c.base)
 	req.Header.Set("Content-Type", "application/octet-stream")
@@ -158,12 +179,12 @@ func (s *Session) stream(ctx context.Context, method, path, query string, body i
 		finish()
 		return nil, ErrDenied
 	}
-	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 && !(stableMediaPath.MatchString(path) && resp.StatusCode == 304) {
 		resp.Body.Close()
 		finish()
 		return nil, ErrDenied
 	}
-	if resp.StatusCode == 200 {
+	if resp.StatusCode == 200 || resp.StatusCode == 206 {
 		mediaType, _, mimeErr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 		invalid := mimeErr != nil || resp.Header.Get("Content-Encoding") != "" || resp.ContentLength < 0 || resp.ContentLength > maxBytes
 		if method == "PUT" {

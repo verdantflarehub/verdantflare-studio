@@ -28,14 +28,18 @@ type DashboardContentGateway interface {
 }
 
 type DashboardContentInput struct {
-	Mode   string             `json:"mode"`
-	Ref    project.ContentRef `json:"content_ref"`
-	Access project.Access     `json:"access"`
+	Representation string             `json:"representation,omitempty"`
+	Mode           string             `json:"mode"`
+	Ref            project.ContentRef `json:"content_ref"`
+	Access         project.Access     `json:"access"`
 }
 
 func DecodeDashboardContent(body io.Reader) (DashboardContentInput, error) {
 	var in DashboardContentInput
 	if strictjson.Decode(body, 4096, &in) != nil || !in.Ref.Valid() || !slices.Contains([]string{"metadata", "text", "download"}, in.Mode) {
+		return in, dashboard.ErrDenied
+	}
+	if in.Representation != "" && (in.Mode != "download" || !validRepresentation(in.Representation)) {
 		return in, dashboard.ErrDenied
 	}
 	a := in.Access
@@ -79,6 +83,12 @@ func contentFailure(status int, requestID string) Result {
 		code = "CONTENT_NOT_FOUND"
 	case 409:
 		code = "CONTENT_NOT_READY"
+	case 415:
+		code = "UNSUPPORTED_MEDIA"
+	case 429:
+		code = "RATE_LIMITED"
+	case 422:
+		code = "CONTENT_TOO_LARGE"
 	case 413:
 		code = "CONTENT_TOO_LARGE"
 	default:
@@ -98,6 +108,9 @@ func (d *Dashboards) ReadContent(ctx context.Context, token, sessionID string, i
 	}
 	if _, err := DecodeDashboardContent(bytes.NewReader(encoded)); err != nil {
 		return Error(400, "INVALID_CONTENT_REQUEST")
+	}
+	if in.Representation != "" {
+		return d.DescribeMedia(ctx, token, sessionID, in, gateway)
 	}
 	ctx, actor, launch, result := d.contentBegin(ctx, token, sessionID)
 	if result.Status != 200 {

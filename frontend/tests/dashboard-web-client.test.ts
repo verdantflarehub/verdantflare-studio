@@ -246,3 +246,17 @@ test('Web client rejects duplicate or private entry metadata and substituted ins
   const client = createDashboardWebClient('https://studio.invalid', async () => json(other))
   await assert.rejects(client.inspect(sessionId, installationId), { code: 'INVALID_DASHBOARD_RESPONSE' })
 })
+
+
+test('stable content paths require an explicitly matching representation and remain same-origin', async () => {
+  const stable = `/studio/media/${'a'.repeat(64)}/${'b'.repeat(64)}/thumbnail-320-v1`
+  let path = stable
+  const client = createDashboardWebClient('https://studio.invalid', async () => json({ mode: 'download', content_path: path }))
+  const input = { mode: 'download', representation: 'thumbnail-320-v1' }
+  assert.equal((await client.capability(sessionId, 'artifact.read', input) as any).content_path, stable)
+  await assert.rejects(client.capability(sessionId, 'artifact.read', { mode: 'download' }), { code: 'INVALID_CONTENT_RESPONSE' })
+  for (const invalid of [stable+'?token=x', 'https://elsewhere.invalid'+stable, stable.replace('320','640'), stable.replace('v1','v2')]) {
+    path = invalid
+    await assert.rejects(client.capability(sessionId, 'artifact.read', input), { code: 'INVALID_CONTENT_RESPONSE' })
+  }
+})

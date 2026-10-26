@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/verdantflarehub/verdantflare-studio/internal/contentcache"
 	"net/http"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,11 +20,15 @@ import (
 // Dashboards is the server-side boundary. Desktop transports must use the
 // controlled Studio service, never connect directly to internal App origins.
 type Dashboards struct {
-	station    *Station
-	source     *dashboard.RegisteredSource
-	resolver   *dashboard.Resolver
-	workspaces *dashboard.Workspaces
-	content    dashboard.ContentHandles
+	mediaOnce    sync.Once
+	media        *contentcache.Cache
+	mediaIndex   *contentcache.Cache
+	mediaDerived *contentcache.Cache
+	station      *Station
+	source       *dashboard.RegisteredSource
+	resolver     *dashboard.Resolver
+	workspaces   *dashboard.Workspaces
+	content      dashboard.ContentHandles
 }
 
 type DashboardContext struct {
@@ -58,6 +64,7 @@ type dashboardCredentials struct {
 	token, requestID string
 	actor            dashboard.Actor
 	canManage        bool
+	mediaScope       string
 }
 
 func (d *Dashboards) begin(ctx context.Context, token string) (context.Context, dashboard.Actor, Result) {
@@ -79,7 +86,7 @@ func (d *Dashboards) begin(ctx context.Context, token string) (context.Context, 
 		return ctx, dashboard.Actor{}, Error(403, "DASHBOARD_DENIED")
 	}
 	actor := dashboardActorFromIdentity(identity)
-	credentials := dashboardCredentials{service: d, token: token, requestID: id, actor: actor, canManage: slices.Contains(identity.Scopes, "app:manage")}
+	credentials := dashboardCredentials{mediaScope: mediaIdentityScope(identity), service: d, token: token, requestID: id, actor: actor, canManage: slices.Contains(identity.Scopes, "app:manage")}
 	return context.WithValue(ctx, dashboardCredentialsKey{}, credentials), actor, Result{Status: 200, RequestID: id}
 }
 

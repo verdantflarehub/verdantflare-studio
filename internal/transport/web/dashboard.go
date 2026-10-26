@@ -78,7 +78,7 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 			return fail(400, "INVALID_DASHBOARD_REQUEST")
 		}
 		origins := req.Header.Values("Origin")
-		if len(origins) > 1 || (len(origins) == 1 && origins[0] != s.origin) || (req.Method != "GET" && len(origins) != 1) {
+		if len(origins) > 1 || (len(origins) == 1 && origins[0] != s.origin) || (req.Method != "GET" && req.Method != "HEAD" && len(origins) != 1) {
 			return fail(403, "DASHBOARD_DENIED")
 		}
 		if site := req.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
@@ -194,6 +194,7 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 		result(c, service.Close(c.Request.Context(), token, c.Param("session_id")))
 	})
 	s.enableDashboardContent(r, service, gate, result)
+	s.enableDashboardMedia(r, service, gate, result)
 	r.POST("/studio/dashboards/:session_id/instances/open", func(c *gin.Context) {
 		token, ok := gate(c)
 		if !ok {

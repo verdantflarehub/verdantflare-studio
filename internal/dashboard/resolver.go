@@ -395,3 +395,23 @@ func (r *Resolver) Close(actor Actor, sessionID string) error {
 	delete(r.sessions, sessionID)
 	return nil
 }
+
+// Authorize checks the current installation and capability without allocating
+// or depending on a short-lived Dashboard session.
+func (r *Resolver) Authorize(ctx context.Context, actor Actor, installationID, capability string) error {
+	if r.source == nil {
+		return ErrUnavailable
+	}
+	binding, err := r.source.Lookup(ctx, actor, installationID)
+	if err != nil {
+		return err
+	}
+	grants, err := validate(actor, binding, installationID)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(grants, capability) {
+		return ErrDenied
+	}
+	return nil
+}

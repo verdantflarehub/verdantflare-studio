@@ -30,6 +30,7 @@ var workspacePath = regexp.MustCompile(`^/studio/instance-workspaces/[0-9a-f]{8}
 var publicInstanceAsset = regexp.MustCompile(`^/studio/instance-assets/[a-f0-9]{64}/[a-zA-Z0-9._/-]+$`)
 var apiDetail = regexp.MustCompile(`^/api/(apps/[a-z0-9-]+|installations/[0-9a-f-]+|operations/[0-9a-f-]+|proxies/[0-9a-f-]+(/test)?)$`)
 var contentCapabilityPath = regexp.MustCompile(`^/studio/dashboards/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/capabilities/artifact\.read$`)
+var stableMediaPath = regexp.MustCompile(`^/studio/media/[a-f0-9]{64}/[a-f0-9]{64}/(?:original-v1|thumbnail-(?:320|640)-v1|poster-(?:320|640)-v1)$`)
 var contentHandlePath = regexp.MustCompile(`^/studio/dashboards/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/content/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 type Response struct {
@@ -94,6 +95,9 @@ func Allowed(method, path string) bool {
 			return method == "GET" || method == "PUT" || method == "DELETE"
 		}
 		return method == "GET"
+	}
+	if stableMediaPath.MatchString(path) {
+		return method == "GET" || method == "HEAD"
 	}
 	if contentCapabilityPath.MatchString(path) {
 		return method == "POST"
