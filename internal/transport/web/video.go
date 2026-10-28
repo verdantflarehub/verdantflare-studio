@@ -160,7 +160,10 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		}
 	}
 	if static {
-		c.Header("Content-Security-Policy", "default-src 'none'; script-src "+s.origin+"; style-src "+s.origin+" 'unsafe-inline'; img-src blob: data:; media-src blob:; connect-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
+		// The sandbox deliberately gives the document an opaque origin. Bind
+		// embedding to the configured Studio origin instead of that document's
+		// 'self'; scripts still use the isolated postMessage request bridge.
+		c.Header("Content-Security-Policy", "default-src 'none'; script-src "+s.origin+"; style-src "+s.origin+" 'unsafe-inline'; img-src blob: data:; media-src blob:; connect-src 'none'; frame-ancestors "+s.origin+"; base-uri 'none'; form-action 'none'")
 	}
 	c.Status(resp.StatusCode)
 	_, _ = io.Copy(c.Writer, resp.Body)

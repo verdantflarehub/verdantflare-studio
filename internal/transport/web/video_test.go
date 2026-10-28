@@ -183,7 +183,7 @@ func TestVideoIsolation(t *testing.T) {
 		t.Fatal("revoked session")
 	}
 	w = call("GET", "/apps/video/dashboard", "", nil)
-	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'none'") {
+	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "frame-ancestors https://studio.example;") {
 		t.Fatal("static CSP")
 	}
 	w = call("GET", "/apps/video/dashboard/frontend/studio-embed.js", "", nil)
