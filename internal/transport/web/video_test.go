@@ -19,6 +19,7 @@ func TestVideoIsolation(t *testing.T) {
 	user, org := id(), id()
 	revoked := false
 	calls := 0
+	upstreamStatus, upstreamType, upstreamBody := 200, "application/json", `{"ok":true}`
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/identity/login" {
@@ -51,9 +52,10 @@ func TestVideoIsolation(t *testing.T) {
 		if r.Header.Get("Cookie") != "" {
 			t.Error("host cookie leaked")
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", upstreamType)
 		w.Header().Set("ETag", `"video-fixture"`)
-		w.Write([]byte(`{"ok":true}`))
+		w.WriteHeader(upstreamStatus)
+		w.Write([]byte(upstreamBody))
 	}))
 	defer upstream.Close()
 	station, _ := application.NewStation(core.URL)
@@ -151,6 +153,31 @@ func TestVideoIsolation(t *testing.T) {
 		t.Fatal("nonadmin access")
 	}
 	role = "admin"
+	for _, code := range []string{"authorization_required", "limits_unavailable", "account_unavailable"} {
+		upstreamStatus = 503
+		upstreamBody = `{"error":{"code":"` + code + `","message":"Specific channel failure","source":"higgsfield","retryable":true,"accepted":false,"http_status":503},"debug":"private provider body"}`
+		out := call("POST", "/apps/video/api/higgsfield/preflight", "https://studio.example", cookie)
+		if out.Code != 503 || !strings.Contains(out.Body.String(), code) || !strings.Contains(out.Body.String(), `"accepted":false`) || strings.Contains(out.Body.String(), "private provider body") {
+			t.Fatal("channel business error was lost or leaked", out.Code, out.Body.String())
+		}
+	}
+	upstreamBody = `{"error":{"code":"submission_unknown","message":"Recover original task; Authorization=Bearer-secret HTTPS://provider.example/result?key=secret /var/private/key C:\\private\\key","source":"grok","retryable":false,"accepted":true,"http_status":502,"task_id":"video_task_original","debug":"secret"}}`
+	out := call("POST", "/apps/video/api/tasks", "https://studio.example", cookie)
+	if out.Code != 503 || !strings.Contains(out.Body.String(), `"accepted":true`) || !strings.Contains(out.Body.String(), "video_task_original") || strings.Contains(out.Body.String(), "private") || strings.Contains(out.Body.String(), "secret") || strings.Contains(out.Body.String(), "provider.example") {
+		t.Fatal("recovery identity lost or unsafe diagnostic exposed", out.Body.String())
+	}
+	for _, body := range []string{`<html>private proxy failure</html>`, `{"error":{"code":"provider_failed","message":"private","source":"unknown","retryable":false}}`, strings.Repeat("x", 65537)} {
+		upstreamBody = body
+		out := call("POST", "/apps/video/api/tasks", "https://studio.example", cookie)
+		if out.Code != 502 || out.Body.Len() != 0 {
+			t.Fatal("unrecognized upstream body crossed boundary", out.Code)
+		}
+	}
+	upstreamBody, upstreamType = `{"error":{"code":"provider_failed","message":"private","source":"grok","retryable":false}}`, "text/html"
+	if out := call("POST", "/apps/video/api/tasks", "https://studio.example", cookie); out.Code != 502 || out.Body.Len() != 0 {
+		t.Fatal("non-JSON upstream body crossed boundary")
+	}
+	upstreamStatus, upstreamType, upstreamBody = 200, "application/json", `{"ok":true}`
 	revoked = true
 	if call("GET", "/apps/video/api/dashboard", "", cookie).Code != 401 {
 		t.Fatal("revoked session")

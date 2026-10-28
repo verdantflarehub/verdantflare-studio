@@ -146,6 +146,11 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 		return
 	}
 	if resp.StatusCode >= 500 {
+		// Video owns channel-error sanitization. Preserve its bounded public
+		// envelope, never an arbitrary provider response or proxy error page.
+		if !static && writeVideoChannelError(c, resp) {
+			return
+		}
 		c.Status(502)
 		return
 	}
