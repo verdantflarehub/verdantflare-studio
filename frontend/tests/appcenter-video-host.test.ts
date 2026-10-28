@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { openMediaPreview, closeMediaPreview, validateMediaPreview, subscribeMediaPreview } from '../src/platform/media-preview.ts'
-import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
+import { mediaAdapter, validMediaRequest, isVideoChannelFailure } from '../src/app-center/legacy-media.ts'
 import { videoPath } from '../src/app-center/legacy.ts'
 import { videoPage, videoTaskLabel, videoTaskName } from '../src/app-center/legacy-video-navigation.ts'
 
@@ -42,7 +42,7 @@ function host(fetcher: typeof fetch = async () => Response.json({})) {
   const doc = { body: { dataset: { theme: 'light' } }, documentElement: { scrollHeight: 5000 } }
   const deps = { defineProps: () => props, defineEmits: () => (name: string, data: any) => events.push([name, data]),
     ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: (fn: () => void) => { mount = fn }, onBeforeUnmount: (fn: () => void) => { dispose = fn },
-    mediaAdapter, validMediaRequest, videoPath, videoPage, videoTaskLabel, videoTaskName, openMediaPreview, closeMediaPreview, validateMediaPreview, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
+    mediaAdapter, validMediaRequest, isVideoChannelFailure, videoPath, videoPage, videoTaskLabel, videoTaskName, openMediaPreview, closeMediaPreview, validateMediaPreview, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
     window: win, document: doc, location: { origin: 'https://studio.invalid' }, innerHeight: 1000, fetch: fetcher,
     MutationObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame: (fn: FrameRequestCallback) => { callbacks.set(++next, fn); return next }, cancelAnimationFrame: (id: number) => callbacks.delete(id) }
@@ -134,4 +134,44 @@ test('rename proxy accepts only its exact method, path and body', () => {
     ['POST', '/api/tasks/A/title', JSON.stringify({title:'纸船', expected_title_revision:true})],
     ['POST', '/api/tasks/A/title', JSON.stringify({title:'纸船', expected_title_revision:0, route:'other'})],
   ]) assert.equal(validMediaRequest(adapter, method as string, path as string, input), false)
+})
+
+test('channel 401 keeps its exact diagnostic inside the active Video workspace', async () => {
+  for (const source of ['higgsfield', 'fal', 'grok', 'google']) {
+    const error = { code: 'authorization_required', message: 'Membership authorization expired.', source, retryable: false, accepted: false, http_status: 401 }
+    const h = host(async () => Response.json({ error }, { status: 401 }))
+    try {
+      h.load(); await h.receive({ type: 'ready' })
+      await h.receive({ type: 'request', id: 1, method: 'POST', path: '/api/higgsfield/preflight', body: '{}' })
+      assert.equal(h.posts.at(-1).status, 401)
+      assert.deepEqual(JSON.parse(new TextDecoder().decode(h.posts.at(-1).body)), { error })
+      assert.ok(!h.events.some(e => e[0] === 'error'))
+      await h.receive({ type: 'request', id: 2, path: '/api/dashboard' })
+      assert.equal(h.posts.at(-1).id, 2)
+    } finally { h.dispose() }
+  }
+})
+
+test('host 401 and revoked 410 still invalidate the workspace', async () => {
+  for (const [status, body] of [[401, {}], [401, { error: { source: 'video', code: 'unauthorized', message: 'Host authorization failed.', retryable: false } }],
+      [410, { error: { source: 'grok', code: 'authorization_required', message: 'Expired.', retryable: false } }]] as const) {
+    const h = host(async () => Response.json(body, { status }))
+    try {
+      h.load(); await h.receive({ type: 'ready' })
+      await h.receive({ type: 'request', id: 1, path: '/api/dashboard' })
+      assert.ok(h.events.some(e => e[0] === 'error'))
+    } finally { h.dispose() }
+  }
+})
+
+test('malformed, oversized and non-JSON 401 bodies cannot masquerade as channel diagnostics', () => {
+  const error = { source: 'grok', code: 'unauthorized', message: 'Credential rejected.', retryable: false }
+  const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).buffer
+  for (const value of [{}, { error: 'unauthorized' }, { error: { ...error, source: 'studio' } },
+      { error: { ...error, code: '/private/credential' } }, { error: { ...error, retryable: 'false' } },
+      { error: { ...error, accepted: 'false' } }, { error: { ...error, http_status: 200 } },
+      { error: { ...error, message: 'x'.repeat(513) } }]) assert.equal(isVideoChannelFailure('application/json', bytes(value)), false)
+  assert.equal(isVideoChannelFailure('text/html', bytes({ error })), false)
+  assert.equal(isVideoChannelFailure('application/json', new ArrayBuffer(65537)), false)
+  assert.equal(isVideoChannelFailure('application/json', new TextEncoder().encode('{').buffer), false)
 })

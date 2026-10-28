@@ -33,3 +33,19 @@ export function validMediaRequest(adapter: NonNullable<ReturnType<typeof mediaAd
   }
   return method === 'GET' ? adapter.read.test(pathname) && body == null : method === 'POST' && adapter.write.test(pathname)
 }
+
+/** A channel credential failure does not revoke the Studio workspace session.
+ * Classification is bounded and does not grant access or expose response text. */
+export function isVideoChannelFailure(contentType: string | null, body: ArrayBuffer): boolean {
+  if (contentType?.split(';')[0].trim().toLowerCase() !== 'application/json' || body.byteLength > 65536) return false
+  try {
+    const value = JSON.parse(new TextDecoder().decode(body)), error = value?.error
+    return !!error && typeof error === 'object' && !Array.isArray(error)
+      && ['higgsfield', 'fal', 'grok', 'google'].includes(error.source)
+      && typeof error.code === 'string' && /^[a-z][a-z0-9_]{0,95}$/.test(error.code)
+      && typeof error.message === 'string' && error.message.length > 0 && error.message.length <= 512
+      && typeof error.retryable === 'boolean'
+      && (error.accepted === undefined || typeof error.accepted === 'boolean')
+      && (error.http_status === undefined || Number.isInteger(error.http_status) && error.http_status >= 400 && error.http_status <= 599)
+  } catch { return false }
+}

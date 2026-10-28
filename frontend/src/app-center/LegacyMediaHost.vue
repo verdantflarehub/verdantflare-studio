@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
 import { videoPath } from './legacy'
-import { mediaAdapter, validMediaRequest } from './legacy-media'
+import { mediaAdapter, validMediaRequest, isVideoChannelFailure } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
 import { videoPage, videoTaskLabel, videoTaskName } from './legacy-video-navigation'
 import { openMediaPreview, closeMediaPreview, validateMediaPreview } from '../platform/media-preview'
@@ -140,7 +140,8 @@ async function receive(event: MessageEvent) {
     const titleEdit = props.adapterId === 'video-iframe-v1' && method === 'POST' && /^\/api\/tasks\/[a-zA-Z0-9_-]+\/title$/.test(data.path)
     // Video project denials and quote conflicts are business errors. Keep the
     // workspace open so members can select another project or refresh a quote.
-    if ([401, 410].includes(response.status) || a.channel !== 'vf-video' && !titleEdit && [403, 409].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
+    const channelDenied = a.channel === 'vf-video' && response.status === 401 && isVideoChannelFailure(response.headers.get('Content-Type'), body)
+    if (response.status === 410 || response.status === 401 && !channelDenied || a.channel !== 'vf-video' && !titleEdit && [403, 409].includes(response.status)) { failed('当前应用访问权限或入口已失效，请返回后重新打开。'); emit('error', message.value) }
     reply({ status: response.status, contentType: response.headers.get('Content-Type') || 'application/octet-stream', body })
   } catch {
     if (!disposed && epoch === generation && !signal.aborted && props.adapterId === 'video-iframe-v1' && data.path === `/api/tasks/${videoPage(props.route).taskId}`) emit('taskLabel', { route: props.route, label: '任务不可用' })
