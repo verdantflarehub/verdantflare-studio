@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createLegacyClient, legacyAppLocation, legacyLocation, legacyTarget, selectLegacyCard } from '../src/app-center/legacy.ts'
-import { mediaAdapter, validMediaRequest } from '../src/app-center/legacy-media.ts'
+import { mediaAdapter, validMediaRequest, isImmutableMediaRequest } from '../src/app-center/legacy-media.ts'
 import { createBlenderFetcher, validStudioOrigin, blenderMCPAddress } from '../src/app-center/legacy-blender.ts'
 import type { AppCenterCard, AppCenterView } from '../src/app-center/schema.generated.ts'
 
@@ -144,6 +144,13 @@ test('iframe requests stay within the old finite API and do not select arbitrary
   const image = mediaAdapter('image-iframe-v1')!, video = mediaAdapter('video-iframe-v1')!
   assert.equal(mediaAdapter('blender-host-v1'), null)
   assert.equal(validMediaRequest(image, 'GET', '/api/tasks?limit=20', undefined), true)
+  assert.equal(validMediaRequest(image, 'GET', '/artifacts/art-0123456789abcdef/thumbnail?edge=320', undefined), true)
+  assert.equal(validMediaRequest(image, 'GET', '/artifacts/art-0123456789abcdef/content', undefined), true)
+  assert.equal(isImmutableMediaRequest('GET', '/artifacts/art-0123456789abcdef/thumbnail?edge=320'), true)
+  assert.equal(isImmutableMediaRequest('GET', '/artifacts/art-0123456789abcdef/content'), true)
+  assert.equal(isImmutableMediaRequest('GET', '/api/tasks/video_task_1/thumbnail'), true)
+  assert.equal(isImmutableMediaRequest('GET', '/api/tasks?limit=20'), false)
+  assert.equal(isImmutableMediaRequest('POST', '/api/tasks'), false)
   assert.equal(validMediaRequest(image, 'POST', '/api/tasks', '{}'), true)
   assert.equal(validMediaRequest(video, 'GET', '/api/models/test/instances/worker/gpus/0', undefined), true)
   assert.equal(validMediaRequest(video, 'POST', '/api/tasks/task123/result', '{}'), true)

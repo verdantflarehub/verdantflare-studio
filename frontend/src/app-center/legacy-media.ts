@@ -3,7 +3,7 @@ import type { LegacyAdapterID } from './legacy'
 export const mediaAdapters = {
   'image-iframe-v1': {
     prefix: '/apps/image', channel: 'vf-image', query: 'image',
-    read: /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+)?|tasks\/stats|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/content)$/,
+    read: /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+)?|tasks\/stats|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/(content|thumbnail))$/,
     write: /^\/api\/(tasks|artifacts\/upload)$/,
   },
   'video-iframe-v1': {
@@ -12,6 +12,11 @@ export const mediaAdapters = {
     write: /^\/api\/(tasks|tasks\/[a-zA-Z0-9_-]+\/(result|title)|artifacts\/import)$/,
   },
 } as const
+
+const immutableMediaPath = /^\/(artifacts\/[a-zA-Z0-9_-]+\/(content|thumbnail)|api\/tasks\/[a-zA-Z0-9_-]+\/(thumbnail|content)|api\/higgsfield\/(assets\/art_[a-zA-Z0-9_-]+\/content|tasks\/[a-zA-Z0-9_-]+\/(thumbnail|content)))$/
+export function isImmutableMediaRequest(method: string, path: string): boolean {
+  return method === 'GET' && immutableMediaPath.test(path.split('?')[0])
+}
 export function mediaAdapter(id: LegacyAdapterID) { return id === 'blender-host-v1' ? null : mediaAdapters[id] }
 export function validMediaRequest(adapter: NonNullable<ReturnType<typeof mediaAdapter>>, method: string, path: string, body: unknown): boolean {
   if (path.length > 2048 || /[#\\\u0000-\u001f\u007f]/.test(path) || path.split('?')[0].includes('%') || !path.startsWith('/')

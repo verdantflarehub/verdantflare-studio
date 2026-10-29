@@ -42,6 +42,17 @@ func TestImageIsolation(t *testing.T) {
 		if r.Header.Get("Cookie") != "" {
 			t.Error("host cookie leaked")
 		}
+		if r.URL.Path == "/artifacts/art-0123456789abcdef/thumbnail" {
+			w.Header().Set("Content-Type", "image/webp")
+			w.Header().Set("Cache-Control", "private, max-age=2592000, immutable")
+			w.Header().Set("ETag", `"thumb-320-v1"`)
+			if r.Header.Get("If-None-Match") == `"thumb-320-v1"` {
+				w.WriteHeader(304)
+				return
+			}
+			w.Write([]byte("RIFFxxxxWEBPVP8 "))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("ETag", `"image-fixture"`)
 		w.Write([]byte(`{"ok":true}`))
@@ -84,7 +95,22 @@ func TestImageIsolation(t *testing.T) {
 	if w := call("GET", "/apps/image/api/tasks", "https://studio.example", cookie); w.Code != 200 {
 		t.Fatalf("expected 200 for authenticated API, got %d", w.Code)
 	}
-	if w := call("GET", "/studio/apps/image/api/tasks", "https://studio.example", cookie); w.Header().Get("ETag") != `"image-fixture"` {
-		t.Fatal("gateway dropped the upstream entity validator")
+	if w := call("GET", "/studio/apps/image/api/tasks", "https://studio.example", cookie); w.Header().Get("ETag") != `"image-fixture"` || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatal("gateway dropped the upstream entity validator or failed to enforce no-store on dynamic API")
+	}
+
+	// 4. Thumbnail route preserves immutable Cache-Control, ETag, and 304 Not Modified
+	wThumb := call("GET", "/apps/image/artifacts/art-0123456789abcdef/thumbnail?edge=320", "https://studio.example", cookie)
+	if wThumb.Code != 200 || wThumb.Header().Get("Cache-Control") != "private, max-age=2592000, immutable" || wThumb.Header().Get("ETag") != `"thumb-320-v1"` {
+		t.Fatalf("unexpected thumbnail response: code=%d cc=%q etag=%q", wThumb.Code, wThumb.Header().Get("Cache-Control"), wThumb.Header().Get("ETag"))
+	}
+	r304 := httptest.NewRequest("GET", "/apps/image/artifacts/art-0123456789abcdef/thumbnail?edge=320", nil)
+	r304.Header.Set("Origin", "https://studio.example")
+	r304.Header.Set("If-None-Match", `"thumb-320-v1"`)
+	r304.AddCookie(cookie)
+	w304 := httptest.NewRecorder()
+	router.ServeHTTP(w304, r304)
+	if w304.Code != 304 || w304.Header().Get("Cache-Control") != "private, max-age=2592000, immutable" || w304.Header().Get("ETag") != `"thumb-320-v1"` || w304.Body.Len() != 0 {
+		t.Fatalf("expected 304 for matching If-None-Match, got %d body=%d", w304.Code, w304.Body.Len())
 	}
 }

@@ -1,7 +1,7 @@
 import { AppCenterError } from './controller.ts'
 
 const chunkBytes = 4 << 20, mediaBytes = 1 << 30
-const binaryPath = /^\/(?:artifacts\/[a-zA-Z0-9_-]+\/content|api\/tasks\/[a-zA-Z0-9_-]+\/(?:thumbnail|content))$/
+const binaryPath = /^\/(?:artifacts\/[a-zA-Z0-9_-]+\/(?:content|thumbnail)|api\/tasks\/[a-zA-Z0-9_-]+\/(?:thumbnail|content))$/
 const mediaTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'application/octet-stream'])
 const invalid = (): never => { throw new AppCenterError(502, 'INVALID_LEGACY_RESPONSE') }
 const cancelled = (signal?: AbortSignal) => { if (signal?.aborted) throw new AppCenterError(408, 'REQUEST_CANCELLED') }
@@ -28,7 +28,7 @@ async function readChunk(response: Response, expected: number, signal?: AbortSig
 /** Windows Wails buffers each response. Assemble bounded ranges in the parent
  * WebView, retaining the same local workspace and immutable content target. */
 export async function fetchLegacyMedia(fetcher: typeof fetch, resourceBase: string, path: string, options: RequestInit): Promise<Response> {
-  if (options.method !== 'GET' || !binaryPath.test(path)) return fetcher(resourceBase + path, options)
+  if (options.method !== 'GET' || !binaryPath.test(path.split('?')[0])) return fetcher(resourceBase + path, options)
   let offset = 0, total = 0, contentType = '', etag: string | null = null
   const chunks: ArrayBuffer[] = []
   const signal = options.signal ?? undefined

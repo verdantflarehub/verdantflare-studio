@@ -6,7 +6,8 @@ export function mountImage({ listen, api, notice, login }) {
   const getMarket = () => document.getElementById('marketView') || document.getElementById('marketContent');
   const getVideo = () => document.getElementById('videoHost');
   let active = false, generation = 0, pending = new Set(), viewState = null, currentUrl = null;
-  const pathPattern = /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+(?:\/(?:title|delete|content-rating))?)?|tasks\/stats|artifacts\/upload|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
+  const pathPattern = /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+(?:\/(?:title|delete|content-rating))?)?|tasks\/stats|artifacts\/upload|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/(content|thumbnail))$/;
+  const immutableMediaPattern = /^\/artifacts\/[a-zA-Z0-9_-]+\/(content|thumbnail)$/;
   const theme = () => document.body.dataset.theme === 'light' ? 'light' : 'dark';
 
   function route() {
@@ -186,10 +187,12 @@ export function mountImage({ listen, api, notice, login }) {
     const epoch = generation, method = d.method || 'GET';
     const reply = value => {
       if (epoch === generation && active) {
-        frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'response', id: d.id, ...value }, '*');
+        const transfer = value.body instanceof ArrayBuffer && value.body.byteLength > 0 ? [value.body] : [];
+        frame.contentWindow.postMessage({ channel: 'vf-studio', type: 'response', id: d.id, ...value }, '*', transfer);
       }
     };
-    if (!['GET', 'POST', 'DELETE'].includes(method) || !pathPattern.test(d.path.split('?')[0]) || d.path.split('?')[0].includes('%') || d.path.includes('#') || (d.body != null && (typeof d.body !== 'string' || d.body.length > 1048576))) {
+    const pathname = d.path.split('?')[0];
+    if (!['GET', 'POST', 'DELETE'].includes(method) || !pathPattern.test(pathname) || pathname.includes('%') || d.path.includes('#') || (d.body != null && (typeof d.body !== 'string' || d.body.length > 1048576))) {
       reply({ status: 403, body: new ArrayBuffer(0) });
       return;
     }
@@ -197,12 +200,13 @@ export function mountImage({ listen, api, notice, login }) {
     try {
       const headers = method === 'POST' ? { 'Content-Type': 'application/json' } : {};
       if (hostContentPreferences.get().includeNsfw) headers['X-VF-Include-NSFW'] = '1';
+      const cacheMode = method === 'GET' && immutableMediaPattern.test(pathname) ? 'default' : 'no-store';
       const r = await fetch('/apps/image' + d.path, {
         method,
         body: method === 'POST' ? d.body : undefined,
         headers,
         credentials: 'same-origin',
-        cache: 'no-store',
+        cache: cacheMode,
         signal: AbortSignal.timeout(90000)
       });
       if (r.status === 401) {

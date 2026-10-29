@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
 import { videoPath } from './legacy'
-import { mediaAdapter, validMediaRequest, isVideoChannelFailure } from './legacy-media'
+import { mediaAdapter, validMediaRequest, isImmutableMediaRequest, isVideoChannelFailure } from './legacy-media'
 import { fetchLegacyMedia } from './legacy-media-transfer'
 import { videoPage, videoTaskLabel, videoTaskName } from './legacy-video-navigation'
 import { openMediaPreview, closeMediaPreview, validateMediaPreview } from '../platform/media-preview'
@@ -106,7 +106,12 @@ async function receive(event: MessageEvent) {
   }
   if (data.type !== 'request' || !Number.isSafeInteger(data.id) || data.id < 0 || typeof data.path !== 'string' || pending.has(data.id) || pending.size >= 32) return
   const epoch = generation, method = data.method ?? 'GET', signal = controller.signal
-  const reply = (value: object) => { if (!disposed && epoch === generation && !signal.aborted) post({ type: 'response', id: data.id, ...value }) }
+  const reply = (value: { status: number; contentType?: string; body: ArrayBuffer }) => {
+    if (!disposed && epoch === generation && !signal.aborted) {
+      const transfer = value.body instanceof ArrayBuffer && value.body.byteLength > 0 ? [value.body] : []
+      frame.value?.contentWindow?.postMessage({ channel: 'vf-studio', type: 'response', id: data.id, ...value }, '*', transfer)
+    }
+  }
   if (!validMediaRequest(a, method, data.path, data.body)) { reply({ status: 403, body: new ArrayBuffer(0) }); return }
   pending.add(data.id)
   try {
@@ -116,7 +121,8 @@ async function receive(event: MessageEvent) {
       reply({ status: 503, body: new ArrayBuffer(0) }); return
     }
     if (disposed || epoch !== generation || signal.aborted) return
-    const options: RequestInit = { method, credentials: props.resourceBase ? 'omit' : 'same-origin', cache: 'no-store', redirect: 'error',
+    const cacheMode: RequestCache = isImmutableMediaRequest(method, data.path) ? 'default' : 'no-store'
+    const options: RequestInit = { method, credentials: props.resourceBase ? 'omit' : 'same-origin', cache: cacheMode, redirect: 'error',
       headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? data.body : undefined,
       signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) }
     const response = props.resourceBase ? await fetchLegacyMedia(fetch, props.resourceBase, data.path, options) : await fetch(a.prefix + data.path, options)

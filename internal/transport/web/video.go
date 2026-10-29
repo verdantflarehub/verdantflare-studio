@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -25,6 +24,7 @@ var videoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|t
 var videoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
 var videoMemberRead = regexp.MustCompile(`^/api/higgsfield/(projects|capabilities|assets|assets/art_[a-zA-Z0-9_-]+/content|tasks|tasks/[a-zA-Z0-9_-]+(/(thumbnail|content))?)$`)
 var videoMemberWrite = regexp.MustCompile(`^/api/higgsfield/(preflight|tasks|attempt|imports/(prepare|chunk|status|commit)|tasks/[a-zA-Z0-9_-]+/result)$`)
+var videoImmutableMedia = regexp.MustCompile(`^/(api/tasks/[a-zA-Z0-9_-]+/(thumbnail|content)|artifacts/[a-zA-Z0-9_-]+/content|api/higgsfield/(assets/art_[a-zA-Z0-9_-]+/content|tasks/[a-zA-Z0-9_-]+/(thumbnail|content)))$`)
 
 func videoStatic(path string) bool {
 	if path == "/dashboard" || videoTask.MatchString(path) {
@@ -47,8 +47,10 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	path := c.Param("path")
 	static := c.Request.Method == "GET" && videoStatic(path)
-	member := c.Request.Method == "GET" && videoMemberRead.MatchString(path) || c.Request.Method == "POST" && videoMemberWrite.MatchString(path)
-	if !static && !member && !(c.Request.Method == "GET" && videoRead.MatchString(path)) && !(c.Request.Method == "POST" && videoWrite.MatchString(path)) {
+	isReadMethod := c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead
+	immutableMedia := isReadMethod && videoImmutableMedia.MatchString(path)
+	member := (isReadMethod && videoMemberRead.MatchString(path)) || (c.Request.Method == "POST" && videoMemberWrite.MatchString(path))
+	if !static && !member && !immutableMedia && !(c.Request.Method == "GET" && videoRead.MatchString(path)) && !(c.Request.Method == "POST" && videoWrite.MatchString(path)) {
 		c.Status(404)
 		return
 	}
@@ -68,30 +70,47 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 			c.Status(401)
 			return
 		}
-		auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
-		if auth.Status != 200 {
-			c.Status(auth.Status)
-			return
+		cachedAuth, hasCached := mcpAuthEntry{}, false
+		if immutableMedia {
+			cachedAuth, hasCached = s.getCachedMCPAuth(token)
 		}
-		var identity struct {
-			Roles []string `json:"roles"`
-		}
-		_ = json.Unmarshal(auth.Data, &identity)
-		admin := false
-		for _, role := range identity.Roles {
-			if role == "admin" {
-				admin = true
+		if hasCached && cachedAuth.hasPrincipal {
+			if !cachedAuth.admin && !member {
+				c.Status(403)
+				return
 			}
-		}
-		if !admin && !member {
-			c.Status(403)
-			return
-		}
-		var status int
-		principal, status = s.station.Principal(c.Request.Context(), token, uuid.Must(uuid.NewV7()).String())
-		if status != 200 {
-			c.Status(status)
-			return
+			principal = cachedAuth.principal
+			principal.RequestID = uuid.Must(uuid.NewV7()).String()
+		} else {
+			auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
+			if auth.Status != 200 {
+				s.evictCachedMCPAuth(token)
+				c.Status(auth.Status)
+				return
+			}
+			var identity struct {
+				Roles []string `json:"roles"`
+			}
+			_ = json.Unmarshal(auth.Data, &identity)
+			admin := false
+			for _, role := range identity.Roles {
+				if role == "admin" {
+					admin = true
+				}
+			}
+			if !admin && !member {
+				s.setCachedMCPAuth(token, admin, nil)
+				c.Status(403)
+				return
+			}
+			var status int
+			principal, status = s.station.Principal(c.Request.Context(), token, uuid.Must(uuid.NewV7()).String())
+			if status != 200 {
+				s.evictCachedMCPAuth(token)
+				c.Status(status)
+				return
+			}
+			s.setCachedMCPAuth(token, admin, &principal)
 		}
 	}
 	upstream, err := url.Parse(cfg.URL)
@@ -134,14 +153,21 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 	if value := c.GetHeader("Range"); value != "" {
 		req.Header.Set("Range", value)
 	}
-	client := &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
+	if immutableMedia {
+		if value := c.GetHeader("If-None-Match"); value != "" {
+			req.Header.Set("If-None-Match", value)
+		}
+		if value := c.GetHeader("If-Range"); value != "" {
+			req.Header.Set("If-Range", value)
+		}
+	}
+	resp, err := s.proxyClient().Do(req)
 	if err != nil {
 		c.Status(502)
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 && !(immutableMedia && resp.StatusCode == http.StatusNotModified) {
 		c.Status(502)
 		return
 	}
@@ -159,11 +185,21 @@ func (s *Server) video(c *gin.Context, cfg VideoConfig) {
 			c.Header(key, v)
 		}
 	}
+	if immutableMedia && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent || resp.StatusCode == http.StatusNotModified) {
+		if cc := resp.Header.Get("Cache-Control"); cc != "" && !strings.Contains(cc, "no-store") {
+			c.Header("Cache-Control", cc)
+		} else {
+			c.Header("Cache-Control", "private, max-age=2592000, immutable")
+		}
+	}
 	if static {
 		// Bind embedding explicitly to the configured Studio origin. Scripts
 		// still use the isolated postMessage bridge; the sandbox is unchanged.
 		c.Header("Content-Security-Policy", "default-src 'none'; script-src "+s.origin+"; style-src "+s.origin+" 'unsafe-inline'; img-src blob: data:; media-src blob:; connect-src 'none'; frame-ancestors "+s.origin+"; base-uri 'none'; form-action 'none'")
 	}
 	c.Status(resp.StatusCode)
+	if resp.StatusCode == http.StatusNotModified || c.Request.Method == http.MethodHead {
+		return
+	}
 	_, _ = io.Copy(c.Writer, resp.Body)
 }

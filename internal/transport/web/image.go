@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
@@ -17,9 +16,10 @@ import (
 // The upstream and credential are server configuration, never caller-controlled.
 type ImageConfig struct{ URL, Token string }
 
-var imageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
+var imageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/(content|thumbnail))$`)
 var imageWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
 var imageContent = regexp.MustCompile(`^/artifacts/art-[0-9a-f]{16}/content$`)
+var imageImmutableMedia = regexp.MustCompile(`^/artifacts/[a-zA-Z0-9_-]+/(content|thumbnail)$`)
 
 func imageStatic(path string) bool {
 	if path == "/dashboard" || path == "/dashboard/" || path == "/image/dashboard" || path == "/image/dashboard/" {
@@ -48,7 +48,8 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	path := c.Param("path")
 	static := c.Request.Method == "GET" && imageStatic(path)
-	if !static && !(c.Request.Method == "GET" && imageRead.MatchString(path)) && !(c.Request.Method == "POST" && imageWrite.MatchString(path)) {
+	immutableMedia := (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) && imageImmutableMedia.MatchString(path)
+	if !static && !immutableMedia && !(c.Request.Method == "GET" && imageRead.MatchString(path)) && !(c.Request.Method == "POST" && imageWrite.MatchString(path)) {
 		c.Status(404)
 		return
 	}
@@ -62,7 +63,8 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 			return
 		}
 		var token string
-		if c.GetHeader("Authorization") != "" {
+		isBearer := c.GetHeader("Authorization") != ""
+		if isBearer {
 			// Existing admin content access may use the caller's MCP identity.
 			// Do not extend Bearer access to dashboard APIs or writes.
 			r := c.Request
@@ -87,24 +89,37 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 				return
 			}
 		}
-		auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
-		if auth.Status != 200 {
-			c.Status(auth.Status)
-			return
+		cachedAuth, hasCached := mcpAuthEntry{}, false
+		if immutableMedia && !isBearer {
+			cachedAuth, hasCached = s.getCachedMCPAuth(token)
 		}
-		var identity struct {
-			Roles []string `json:"roles"`
-		}
-		_ = json.Unmarshal(auth.Data, &identity)
-		admin := false
-		for _, role := range identity.Roles {
-			if role == "admin" {
-				admin = true
+		if hasCached {
+			if !cachedAuth.admin {
+				c.Status(403)
+				return
 			}
-		}
-		if !admin {
-			c.Status(403)
-			return
+		} else {
+			auth := s.station.Call(c.Request.Context(), token, application.Request{Path: "me", Method: "GET"})
+			if auth.Status != 200 {
+				s.evictCachedMCPAuth(token)
+				c.Status(auth.Status)
+				return
+			}
+			var identity struct {
+				Roles []string `json:"roles"`
+			}
+			_ = json.Unmarshal(auth.Data, &identity)
+			admin := false
+			for _, role := range identity.Roles {
+				if role == "admin" {
+					admin = true
+				}
+			}
+			s.setCachedMCPAuth(token, admin, nil)
+			if !admin {
+				c.Status(403)
+				return
+			}
 		}
 	}
 	upstream, err := url.Parse(cfg.URL)
@@ -141,14 +156,21 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 	if value := c.GetHeader("Range"); value != "" {
 		req.Header.Set("Range", value)
 	}
-	client := &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
+	if immutableMedia {
+		if value := c.GetHeader("If-None-Match"); value != "" {
+			req.Header.Set("If-None-Match", value)
+		}
+		if value := c.GetHeader("If-Range"); value != "" {
+			req.Header.Set("If-Range", value)
+		}
+	}
+	resp, err := s.proxyClient().Do(req)
 	if err != nil {
 		c.Status(502)
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 && !(immutableMedia && resp.StatusCode == http.StatusNotModified) {
 		c.Status(502)
 		return
 	}
@@ -161,9 +183,19 @@ func (s *Server) image(c *gin.Context, cfg ImageConfig) {
 			c.Header(key, v)
 		}
 	}
+	if immutableMedia && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent || resp.StatusCode == http.StatusNotModified) {
+		if cc := resp.Header.Get("Cache-Control"); cc != "" && !strings.Contains(cc, "no-store") {
+			c.Header("Cache-Control", cc)
+		} else {
+			c.Header("Cache-Control", "private, max-age=2592000, immutable")
+		}
+	}
 	if static {
 		c.Header("Content-Security-Policy", "default-src 'none'; script-src "+s.origin+" 'unsafe-inline'; style-src "+s.origin+" 'unsafe-inline'; img-src blob: data: https://images.unsplash.com; media-src blob:; connect-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
 	}
 	c.Status(resp.StatusCode)
+	if resp.StatusCode == http.StatusNotModified || c.Request.Method == http.MethodHead {
+		return
+	}
 	_, _ = io.Copy(c.Writer, resp.Body)
 }

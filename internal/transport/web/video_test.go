@@ -94,8 +94,11 @@ func TestVideoIsolation(t *testing.T) {
 	if call("GET", "/apps/video/api/capabilities", "", cookie).Code != 200 {
 		t.Fatal("authorized capabilities read failed")
 	}
-	if call("GET", "/apps/video/api/tasks/task_1/content", "", cookie).Code != 200 {
-		t.Fatal("content read denied")
+	if w := call("GET", "/apps/video/api/tasks/task_1/content", "", cookie); w.Code != 200 || w.Header().Get("Cache-Control") != "private, max-age=2592000, immutable" {
+		t.Fatalf("content read denied or missing immutable cache header: code=%d cc=%q", w.Code, w.Header().Get("Cache-Control"))
+	}
+	if w := call("GET", "/apps/video/api/tasks/task_1/thumbnail", "", cookie); w.Code != 200 || w.Header().Get("Cache-Control") != "private, max-age=2592000, immutable" {
+		t.Fatalf("thumbnail read denied or missing immutable cache header: code=%d cc=%q", w.Code, w.Header().Get("Cache-Control"))
 	}
 	before := calls
 	if call("GET", "/apps/video/api/model-catalog", "", nil).Code != 401 {

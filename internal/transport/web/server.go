@@ -15,6 +15,7 @@ import (
 	"github.com/verdantflarehub/verdantflare-studio/internal/appstatehints"
 	"github.com/verdantflarehub/verdantflare-studio/internal/buildinfo"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
+	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -22,17 +23,28 @@ const cookieName = "vf_studio_session"
 const defaultSessionTTL = 72 * time.Hour
 const defaultSessionMaxAge = int(defaultSessionTTL / time.Second) // 259200 (3 days)
 const sessionEtcdPrefix = "/verdantflare/studio/sessions/"
+const mcpAuthCacheTTL = 15 * time.Second
 
 type session struct {
 	token   string
 	expires time.Time
 }
+
+type mcpAuthEntry struct {
+	admin        bool
+	principal    project.Principal
+	hasPrincipal bool
+	expires      time.Time
+}
+
 type Server struct {
 	station         *application.Station
 	origin          string
 	secure          bool
 	mu              sync.Mutex
 	sessions        map[string]session
+	mcpAuthCache    map[string]mcpAuthEntry
+	mcpProxyClient  *http.Client
 	etcd            *clientv3.Client
 	appStateHints   func(context.Context, appcenter.Scope) (<-chan appstatehints.RefreshEvent, error)
 	mcpGateway      *mcp.Gateway
@@ -40,6 +52,74 @@ type Server struct {
 	comfyuiEndpoint func() (string, bool)
 	imageConfig     ImageConfig
 	videoConfig     VideoConfig
+}
+
+func newMCPProxyClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 64
+	transport.MaxIdleConnsPerHost = 16
+	transport.IdleConnTimeout = 90 * time.Second
+	return &http.Client{
+		Timeout:   90 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+func (s *Server) proxyClient() *http.Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mcpProxyClient == nil {
+		s.mcpProxyClient = newMCPProxyClient()
+	}
+	return s.mcpProxyClient
+}
+
+func (s *Server) getCachedMCPAuth(token string) (mcpAuthEntry, bool) {
+	if token == "" {
+		return mcpAuthEntry{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mcpAuthCache == nil {
+		return mcpAuthEntry{}, false
+	}
+	entry, ok := s.mcpAuthCache[token]
+	if !ok || !entry.expires.After(time.Now()) {
+		delete(s.mcpAuthCache, token)
+		return mcpAuthEntry{}, false
+	}
+	return entry, true
+}
+
+func (s *Server) setCachedMCPAuth(token string, admin bool, principal *project.Principal) {
+	if token == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mcpAuthCache == nil {
+		s.mcpAuthCache = map[string]mcpAuthEntry{}
+	}
+	entry := s.mcpAuthCache[token]
+	entry.admin = admin
+	if principal != nil {
+		entry.principal = *principal
+		entry.hasPrincipal = true
+	}
+	entry.expires = time.Now().Add(mcpAuthCacheTTL)
+	s.mcpAuthCache[token] = entry
+}
+
+func (s *Server) evictCachedMCPAuth(token string) {
+	if token == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.mcpAuthCache, token)
 }
 
 func (s *Server) SetEtcdClient(cli *clientv3.Client) {
@@ -104,6 +184,9 @@ func (s *Server) deleteSession(ctx context.Context, sid string) {
 		return
 	}
 	s.mu.Lock()
+	if ss, ok := s.sessions[sid]; ok && ss.token != "" {
+		delete(s.mcpAuthCache, ss.token)
+	}
 	delete(s.sessions, sid)
 	s.mu.Unlock()
 

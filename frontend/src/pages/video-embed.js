@@ -5,6 +5,7 @@ export function mountVideo({listen, api, notice, login}) {
  const getMarket=()=>document.getElementById('marketView')||document.getElementById('marketContent');
  let active=false, generation=0, pending=new Set(), viewState=null, currentUrl=null;
  const pathPattern=/^\/(api\/(dashboard|capabilities|model-catalog|mcp\/status|models|models\/[a-z0-9-]+\/instances(\/[a-zA-Z0-9._-]+(\/gpus\/[a-zA-Z0-9._:-]+)?)?|tasks\/[a-zA-Z0-9_-]+(\/thumbnail|\/content|\/result|\/title|\/delete|\/content-rating)?|tasks|artifacts\/import)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
+ const immutableMediaPattern=/^\/(api\/tasks\/[a-zA-Z0-9_-]+\/(thumbnail|content)|artifacts\/[a-zA-Z0-9_-]+\/content)$/;
  const theme=()=>document.body.dataset.theme==='light'?'light':'dark';
  function route(){
   const params=new URLSearchParams(location.hash.split('?')[1]||'');
@@ -123,12 +124,14 @@ export function mountVideo({listen, api, notice, login}) {
   if(d.type==='wheel'&&typeof d.deltaY==='number'){window.scrollBy({top:d.deltaY,behavior:'auto'});return}
   if(d.type!=='request'||!Number.isSafeInteger(d.id)||typeof d.path!=='string'||d.path.length>2048||pending.has(d.id)||pending.size>=32)return;
   const epoch=generation,method=d.method||'GET';
-  const reply=value=>{if(epoch===generation&&active)frame.contentWindow.postMessage({channel:'vf-studio',type:'response',id:d.id,...value},'*')};
-  if(!['GET','POST','DELETE'].includes(method)||!pathPattern.test(d.path.split('?')[0])||d.path.split('?')[0].includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
+  const reply=value=>{if(epoch===generation&&active){const transfer=value.body instanceof ArrayBuffer&&value.body.byteLength>0?[value.body]:[];frame.contentWindow.postMessage({channel:'vf-studio',type:'response',id:d.id,...value},'*',transfer)}};
+  const pathname=d.path.split('?')[0];
+  if(!['GET','POST','DELETE'].includes(method)||!pathPattern.test(pathname)||pathname.includes('%')||d.path.includes('#')||(d.body!=null&&(typeof d.body!=='string'||d.body.length>1048576))){reply({status:403,body:new ArrayBuffer(0)});return}
   pending.add(d.id);
   try {
    const headers=method==='POST'?{'Content-Type':'application/json'}:{};if(hostContentPreferences.get().includeNsfw)headers['X-VF-Include-NSFW']='1';
-   const r=await fetch('/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)});
+   const cacheMode=method==='GET'&&immutableMediaPattern.test(pathname)?'default':'no-store';
+   const r=await fetch('/apps/video'+d.path,{method,body:method==='POST'?d.body:undefined,headers,credentials:'same-origin',cache:cacheMode,signal:AbortSignal.timeout(90000)});
    if(r.status===401){close();login();return}
    reply({status:r.status,contentType:r.headers.get('Content-Type')||'application/octet-stream',body:await r.arrayBuffer()});
   }catch{reply({status:502,body:new ArrayBuffer(0)})}finally{if(epoch===generation)pending.delete(d.id)}
