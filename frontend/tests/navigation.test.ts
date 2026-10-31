@@ -150,3 +150,14 @@ test('a cached menu seeds only the same identity and only before any live result
   await controller.refresh()
   assert.equal(controller.state.status, 'ready')
 })
+
+test('a second read never aborts the adopted boot read', async () => {
+  let release!: (value: unknown) => void, aborted = false, reads = 0
+  const inner = { read: (signal: AbortSignal) => { reads++; if (reads > 1) return Promise.resolve({ n: reads }); signal.addEventListener('abort', () => { aborted = true }); return new Promise(yes => { release = yes }) }, write: async () => ({}) }
+  const prefetched = prefetchNavigation(inner)
+  const first = prefetched.read(new AbortController().signal)
+  assert.deepEqual(await prefetched.read(new AbortController().signal), { n: 2 })
+  release({ n: 1 })
+  assert.deepEqual(await first, { n: 1 })
+  assert.equal(aborted, false)
+})

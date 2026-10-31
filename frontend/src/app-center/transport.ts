@@ -41,16 +41,19 @@ export function prefetchView(transport: AppCenterTransport, maxAge = 5000, now =
   const started = now(), abort = new AbortController()
   let early: Promise<unknown> | null = transport.read(abort.signal)
   early.catch(() => undefined)
-  const timer = setTimeout(() => { early = null; abort.abort() }, maxAge)
+  // Abort only an unused early read; once adopted it belongs to its caller.
+  let adopted = false
+  const timer = setTimeout(() => { if (!adopted) { early = null; abort.abort() } }, maxAge)
   return {
     clock: transport.clock,
     async read(signal) {
-      const adopted = early
+      const first = early
       early = null
       clearTimeout(timer)
-      if (adopted && now() - started < maxAge) {
-        try { return await adopted } catch { /* fall back to a live read */ }
-      } else abort.abort()
+      if (first && !adopted && now() - started < maxAge) {
+        adopted = true
+        try { return await first } catch { /* fall back to a live read */ }
+      } else if (!adopted) abort.abort()
       return transport.read(signal)
     },
   }
