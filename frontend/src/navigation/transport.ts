@@ -1,5 +1,5 @@
 import type { NavigationPreference, NavigationTransport } from './controller'
-import { withAttemptTimeout } from '../platform/attempts.ts'
+import { withHedge } from '../platform/attempts.ts'
 
 /** Web and Wails local asset requests use the same host path. Go owns desktop cookies. */
 export function createNavigationTransport(fetcher: typeof fetch = fetch): NavigationTransport {
@@ -22,7 +22,7 @@ export function createNavigationTransport(fetcher: typeof fetch = fetch): Naviga
     } catch (error) { await reader.cancel().catch(() => undefined); throw error }
     finally { reader.releaseLock() }
   }
-  return { read: signal => withAttemptTimeout(attempt => call('/studio/navigation', undefined, attempt), signal), write: (body, signal) => call('/studio/navigation/preferences', body, signal) }
+  return { read: signal => withHedge(attempt => call('/studio/navigation', undefined, attempt), signal), write: (body, signal) => call('/studio/navigation/preferences', body, signal) }
 }
 
 /**

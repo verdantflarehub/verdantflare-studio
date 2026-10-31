@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { request } from './client'
 import { readHostSession } from './session'
+import { withHedge } from './attempts'
 import { stationHealth } from './stationHealth'
 import type { HostIdentity } from './session'
 export type { HostIdentity } from './session'
@@ -51,7 +52,7 @@ export const useHostStore = defineStore('host', () => {
   async function fetchSession() {
     const epoch = identityEpoch
     sessionStatus.value = 'loading'
-    const result = await readHostSession(() => request({ path: 'me', method: 'GET' }, { realOnly: true, signal: AbortSignal.timeout(4000) }), () => epoch === identityEpoch)
+    const result = await readHostSession(() => withHedge(signal => request({ path: 'me', method: 'GET' }, { realOnly: true, signal }), new AbortController().signal, 600, 3, 4000), () => epoch === identityEpoch)
     if (epoch !== identityEpoch || result.status === 'superseded') return null
     if (result.status === 'authenticated') { setIdentity(result.identity); return result.identity }
     setIdentity({}); sessionStatus.value = result.status

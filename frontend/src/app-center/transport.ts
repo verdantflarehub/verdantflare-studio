@@ -1,12 +1,12 @@
 import { AppCenterError } from './controller.ts'
 import type { AppCenterTransport } from './controller'
 import { responseClock } from '../pages/response-clock.js'
-import { withAttemptTimeout } from '../platform/attempts.ts'
+import { withHedge } from '../platform/attempts.ts'
 
 /** Wails' in-process asset handler forwards this same fixed path to Studio. */
 export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotonic = () => performance.now()): AppCenterTransport {
   const clocks = new WeakMap<object, () => number>()
-  return { clock: value => value && typeof value === 'object' ? clocks.get(value) : undefined, read: signal => withAttemptTimeout(readOnce, signal) }
+  return { clock: value => value && typeof value === 'object' ? clocks.get(value) : undefined, read: signal => withHedge(readOnce, signal) }
   async function readOnce(signal: AbortSignal): Promise<unknown> {
     const started = monotonic()
     const response = await fetcher('/studio/appcenter/v1/view', { method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal })
