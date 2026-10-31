@@ -2,45 +2,77 @@ package appstatehints
 
 import (
 	"context"
-	"strings"
+	"sync"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-// WatchInvalidations follows every Station/Organization notification key and
-// reports which scope changed. Each (re)subscription first calls reset, since
-// changes during a gap cannot be replayed from disposable hints.
-func WatchInvalidations(ctx context.Context, client *clientv3.Client, changed func(station, organization string), reset func()) {
-	if client == nil {
+// OrganizationWatcher keeps one exact-key watch per Station/Organization
+// notification key and reports every change. Studio's etcd role grants only
+// exact keys, so a prefix watch is denied; watches start lazily for the
+// organizations that are actually cached.
+type OrganizationWatcher struct {
+	ctx      context.Context
+	client   *clientv3.Client
+	changed  func(station, organization string)
+	mu       sync.Mutex
+	watching map[string]bool
+}
+
+func NewOrganizationWatcher(ctx context.Context, client *clientv3.Client, changed func(station, organization string)) *OrganizationWatcher {
+	return &OrganizationWatcher{ctx: ctx, client: client, changed: changed, watching: map[string]bool{}}
+}
+
+// Ensure starts the watch for one organization if it is not running yet.
+func (w *OrganizationWatcher) Ensure(station, organization string) {
+	if w == nil || w.client == nil {
 		return
 	}
-	for ctx.Err() == nil {
-		watchCtx, cancel := context.WithCancel(clientv3.WithRequireLeader(ctx))
-		reset()
-		for response := range client.Watch(watchCtx, NotificationPrefix, clientv3.WithPrefix()) {
+	key, err := Key(station, organization)
+	if err != nil {
+		return
+	}
+	w.mu.Lock()
+	if w.watching[key] || len(w.watching) >= 1000 {
+		w.mu.Unlock()
+		return
+	}
+	w.watching[key] = true
+	w.mu.Unlock()
+	go w.run(key, station, organization)
+}
+
+func (w *OrganizationWatcher) run(key, station, organization string) {
+	backoff, logged := time.Second, false
+	for w.ctx.Err() == nil {
+		watchCtx, cancel := context.WithCancel(clientv3.WithRequireLeader(w.ctx))
+		healthy := false
+		for response := range w.client.Watch(watchCtx, key) {
 			if response.Canceled || response.Err() != nil {
-				logWatchEnd("invalidation", true, response)
+				if !logged {
+					logWatchEnd("invalidation", true, response)
+					logged = true
+				}
 				break
 			}
-			for _, event := range response.Events {
-				if event.Kv == nil {
-					continue
-				}
-				station, organization, ok := strings.Cut(strings.TrimPrefix(string(event.Kv.Key), NotificationPrefix), "/")
-				if !ok {
-					continue
-				}
-				if _, err := Key(station, organization); err == nil {
-					changed(station, organization)
-				}
+			healthy = true
+			if len(response.Events) > 0 {
+				w.changed(station, organization)
 			}
 		}
 		cancel()
+		// Changes during a gap cannot be replayed from disposable hints.
+		w.changed(station, organization)
+		if healthy {
+			backoff, logged = time.Second, false
+		} else if backoff < 30*time.Second {
+			backoff *= 2
+		}
 		select {
-		case <-ctx.Done():
+		case <-w.ctx.Done():
 			return
-		case <-time.After(time.Second):
+		case <-time.After(backoff):
 		}
 	}
 }

@@ -81,7 +81,7 @@ func main() {
 				log.Printf("[Session] Connected to etcd for persistent sessions")
 				webServer.SetEtcdClient(cli)
 				navigation.SyncCatalog(ctx)
-				go appstatehints.WatchInvalidations(ctx, cli, appCenter.InvalidateOrganization, appCenter.InvalidateAll)
+				appCenter.WatchOrganizations(appstatehints.NewOrganizationWatcher(ctx, cli, appCenter.InvalidateOrganization).Ensure)
 			}
 		}
 	}

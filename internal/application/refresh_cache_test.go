@@ -154,6 +154,8 @@ func TestAppCenterSnapshotCacheServesAndInvalidates(t *testing.T) {
 	core := &refreshCore{facts: facts, identity: id, now: func() time.Time { return clock }}
 	a := NewAppCenter(core.station(identityCacheTTL), "").WithSnapshotCache()
 	a.now = func() time.Time { return clock }
+	watched := map[string]int{}
+	a.WatchOrganizations(func(station, organization string) { watched[station+"/"+organization]++ })
 	read := func() appcenter.View {
 		t.Helper()
 		view, _, out := a.read(context.Background(), "test-session")
@@ -166,6 +168,9 @@ func TestAppCenterSnapshotCacheServesAndInvalidates(t *testing.T) {
 	read()
 	if core.factCalls.Load() != 1 || core.identityCalls.Load() != 1 {
 		t.Fatalf("repeat read hit Core: facts=%d identity=%d", core.factCalls.Load(), core.identityCalls.Load())
+	}
+	if watched[facts.Scope.StationID+"/"+facts.Scope.OrganizationID] != 1 || len(watched) != 1 {
+		t.Fatal("cached organization was not watched once", watched)
 	}
 	// Past Studio's own 15 second window the cached observation still reports
 	// Core's state as of the read; Core notifications drive any change.

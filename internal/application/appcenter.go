@@ -28,6 +28,8 @@ type AppCenter struct {
 	dashboards       *Dashboards
 	snapshots        snapshotCache
 	snapshotCache    bool
+	// watchOrganization starts Core notification watches for cached scopes.
+	watchOrganization func(station, organization string)
 }
 
 func NewAppCenter(station *Station, presentationPath string) *AppCenter {

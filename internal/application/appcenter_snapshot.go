@@ -115,6 +115,12 @@ func (a *AppCenter) WithSnapshotCache() *AppCenter {
 	return a
 }
 
+// WatchOrganizations registers the hook that starts Core notification watches
+// for cached organizations. Configure only during startup.
+func (a *AppCenter) WatchOrganizations(ensure func(station, organization string)) {
+	a.watchOrganization = ensure
+}
+
 func (a *AppCenter) snapshot(ctx context.Context, token, id string, scope appcenter.Scope) (snapshotInput, Result) {
 	if !a.snapshotCache {
 		return a.loadSnapshot(ctx, token, id, scope)
@@ -171,6 +177,9 @@ func (a *AppCenter) snapshot(ctx context.Context, token, id string, scope appcen
 	flight.input, flight.out = input, out
 	close(flight.done)
 	c.mu.Unlock()
+	if out.Status == 200 && a.watchOrganization != nil {
+		a.watchOrganization(scope.StationID, scope.OrganizationID)
+	}
 	return input, out
 }
 
