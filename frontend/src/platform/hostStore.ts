@@ -51,7 +51,7 @@ export const useHostStore = defineStore('host', () => {
   async function fetchSession() {
     const epoch = identityEpoch
     sessionStatus.value = 'loading'
-    const result = await readHostSession(() => request({ path: 'me', method: 'GET' }, { realOnly: true }), () => epoch === identityEpoch)
+    const result = await readHostSession(() => request({ path: 'me', method: 'GET' }, { realOnly: true, signal: AbortSignal.timeout(4000) }), () => epoch === identityEpoch)
     if (epoch !== identityEpoch || result.status === 'superseded') return null
     if (result.status === 'authenticated') { setIdentity(result.identity); return result.identity }
     setIdentity({}); sessionStatus.value = result.status
