@@ -29,6 +29,10 @@ type Result struct {
 type Station struct {
 	base   string
 	client *http.Client
+	// identityTTL bounds how long a verified session identity is reused. Zero
+	// disables reuse; NewStation enables the production window.
+	identityTTL time.Duration
+	identities  identityCache
 }
 
 var operationPath = regexp.MustCompile(`^operations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -49,7 +53,7 @@ func NewStation(base string) (*Station, error) {
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, &url.Error{Op: "configure", URL: "Station endpoint", Err: errInvalidURL{}}
 	}
-	return &Station{strings.TrimRight(base, "/"), &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Station{base: strings.TrimRight(base, "/"), client: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, identityTTL: identityCacheTTL}, nil
 }
 
 type errInvalidURL struct{}

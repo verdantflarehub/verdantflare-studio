@@ -32,3 +32,26 @@ export function createAppCenterTransport(fetcher: typeof fetch = fetch, monotoni
     finally { reader.releaseLock() }
   } }
 }
+
+/**
+ * Starts the view read at boot alongside the session read. The controller
+ * adopts it once and still decodes it against the confirmed identity.
+ */
+export function prefetchView(transport: AppCenterTransport, maxAge = 5000, now = () => Date.now()): AppCenterTransport {
+  const started = now(), abort = new AbortController()
+  let early: Promise<unknown> | null = transport.read(abort.signal)
+  early.catch(() => undefined)
+  const timer = setTimeout(() => { early = null; abort.abort() }, maxAge)
+  return {
+    clock: transport.clock,
+    async read(signal) {
+      const adopted = early
+      early = null
+      clearTimeout(timer)
+      if (adopted && now() - started < maxAge) {
+        try { return await adopted } catch { /* fall back to a live read */ }
+      } else abort.abort()
+      return transport.read(signal)
+    },
+  }
+}

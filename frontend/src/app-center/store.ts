@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { onScopeDispose, shallowRef, watch } from 'vue'
 import { useHostStore } from '../platform/hostStore'
 import { createAppCenterController } from './controller'
-import { createAppCenterTransport } from './transport'
+import { createAppCenterTransport, prefetchView } from './transport'
 import { createSharedRefresh } from './refresh'
 import { createStateCalibration, subscribeStateHints } from './state-hints'
 import { isDesktopHost } from '../platform/desktop'
@@ -16,7 +16,7 @@ import type { AppCenterCard } from './schema.generated'
 
 /** One snapshot and polling owner shared by directory, details and launchers. */
 export const useAppCenterStore = defineStore('appcenter', () => {
-  const host = useHostStore(), controller = createAppCenterController(createAppCenterTransport())
+  const host = useHostStore(), controller = createAppCenterController(isDesktopHost() ? createAppCenterTransport() : prefetchView(createAppCenterTransport()))
   const state = shallowRef(controller.state), consumers = new Set<string>()
   // IndexedDB is optional at runtime, but persistence is mandatory for sending.
   const transport = createCommandTransport(fetch,
@@ -66,7 +66,9 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   const sharedRefresh = createSharedRefresh(async () => {
     const current = new AbortController(); readCycle = current
     try {
-      await controller.refresh()
+      // Join rather than restart a running read: page boot used to abort and
+      // reissue the view several times before an App could open.
+      await controller.join()
       await commands.reconcile(state.value.value?.items ?? [])
       if (current.signal.aborted || !visible() || !progressVisible) return
       const force = forceOperations; forceOperations = false
@@ -100,9 +102,16 @@ export const useAppCenterStore = defineStore('appcenter', () => {
     if (!visible() || !host.connected || !hasPageConsumer()) return
     const hasActiveOp = commandState.value.items.some(item => item.busy || (item.record.operationId && (!item.operation || !['succeeded', 'failed'].includes(item.operation.status))))
       || (state.value.value?.items.some(card => card.operation.blocking) ?? false)
-    const until = state.value.value ? Date.parse(state.value.value.validUntil) - controller.currentTime() : 15000
-    const delay = hasActiveOp ? 1500 : state.value.status === 'ready' && !state.value.stale ? Math.max(5000, Math.min(15000, until)) : 15000
-    timer = setTimeout(() => { void refresh() }, delay)
+    // Only a running operation is polled for progress; App state otherwise
+    // changes through server hints, never on a validity timer.
+    if (!hasActiveOp) return
+    timer = setTimeout(() => { void refresh() }, 1500)
+  }
+  /** Opening needs only a current view, not command or progress reconciliation. */
+  function ensureView(): Promise<void> {
+    controller.expire()
+    if (state.value.value && !state.value.stale && state.value.status !== 'error') return Promise.resolve()
+    return controller.join()
   }
   function refresh(force = false): Promise<void> {
     forceOperations ||= force
@@ -144,5 +153,5 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   window.addEventListener('studio:logout', clear)
   window.addEventListener('studio:logout', logoutCommands)
   onScopeDispose(() => { navHintListeners.clear(); calibration.dispose(); timer !== undefined && clearTimeout(timer); sharedRefresh.invalidate(); stopReads(); controller.dispose(); commands.dispose(); progress.dispose(); channel?.close(); document.removeEventListener('visibilitychange', changedVisibility); window.removeEventListener('studio:logout', clear); window.removeEventListener('studio:logout', logoutCommands) })
-  return { state, commandState, operationState, setDetail, setProgressVisible, execute, resumeCommand, dismissCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
+  return { state, commandState, operationState, ensureView, setDetail, setProgressVisible, execute, resumeCommand, dismissCommand, refresh, clear, setVisible, onNavigationHint, pinOpen, takeOpenBinding, takeOpenEntry, canExecute: controller.canExecute, currentTime: controller.currentTime }
 })

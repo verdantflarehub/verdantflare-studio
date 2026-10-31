@@ -26,6 +26,8 @@ type AppCenter struct {
 	legacyPath       string
 	legacyBackends   func() map[string]string
 	dashboards       *Dashboards
+	snapshots        snapshotCache
+	snapshotCache    bool
 }
 
 func NewAppCenter(station *Station, presentationPath string) *AppCenter {
@@ -79,7 +81,12 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	identity, status := a.station.verifiedIdentity(ctx, token, id)
+	// Commands re-read identity and facts; only reads use the session caches.
+	verify := a.station.sessionIdentity
+	if manage {
+		verify = a.station.verifiedIdentity
+	}
+	identity, status := verify(ctx, token, id)
 	if status != 200 {
 		if status == 401 {
 			return fail(401, "UNAUTHENTICATED")
@@ -94,6 +101,40 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 	}
 	actor := dashboardActorFromIdentity(identity)
 	scope := appcenter.Scope{UserID: actor.UserID, OrganizationID: actor.OrganizationID, StationID: actor.StationID, AuthorizationEpoch: actor.AuthorizationEpoch}
+	snapshot := a.snapshot
+	if manage {
+		snapshot = a.loadSnapshot
+	}
+	input, res := snapshot(ctx, token, id, scope)
+	if res.Status != 200 {
+		return appcenter.View{}, nil, appcenter.Facts{}, res
+	}
+	facts, metadata, groups := input.at(a.now().UTC(), id), input.metadata, input.groups
+	presentation, entries := input.presentation, input.entries
+	now := a.now().UTC()
+	view, err := appcenter.Resolve(appcenter.Input{Facts: facts, Scope: scope, Now: now, Groups: groups, Metadata: metadata, Sources: []appcenter.Source{
+		presentation,
+		entries,
+	}})
+	if err != nil {
+		if errors.Is(err, appcenter.ErrUnavailable) {
+			return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
+		}
+		return fail(502, "APPCENTER_INVALID_FACTS")
+	}
+	raw, err := json.Marshal(view)
+	if err != nil || len(raw) > 4<<20 {
+		return fail(503, "APPCENTER_LIMIT_EXCEEDED")
+	}
+	return view, metadata, facts, Result{Status: 200, Data: raw, RequestID: id}
+}
+
+// loadSnapshot performs the only Core facts read and registry reads behind a
+// view. Its result is cached per authorized scope by snapshot.
+func (a *AppCenter) loadSnapshot(ctx context.Context, token, id string, scope appcenter.Scope) (snapshotInput, Result) {
+	fail := func(status int, code string) (snapshotInput, Result) {
+		return snapshotInput{}, appCenterError(status, code, id)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.station.base+"/appcenter/v1/facts", nil)
 	if err != nil {
 		return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
@@ -225,20 +266,5 @@ func (a *AppCenter) readSnapshot(ctx context.Context, token string, manage bool)
 			metadata[fact.CardKey] = meta
 		}
 	}
-	now := a.now().UTC()
-	view, err := appcenter.Resolve(appcenter.Input{Facts: facts, Scope: scope, Now: now, Groups: groups, Metadata: metadata, Sources: []appcenter.Source{
-		presentation,
-		entries,
-	}})
-	if err != nil {
-		if errors.Is(err, appcenter.ErrUnavailable) {
-			return fail(503, "APPCENTER_DEPENDENCY_UNAVAILABLE")
-		}
-		return fail(502, "APPCENTER_INVALID_FACTS")
-	}
-	raw, err := json.Marshal(view)
-	if err != nil || len(raw) > 4<<20 {
-		return fail(503, "APPCENTER_LIMIT_EXCEEDED")
-	}
-	return view, metadata, facts, Result{Status: 200, Data: raw, RequestID: id}
+	return snapshotInput{fetched: a.now().UTC(), facts: facts, groups: groups, metadata: metadata, presentation: presentation, entries: entries}, Result{Status: 200, RequestID: id}
 }

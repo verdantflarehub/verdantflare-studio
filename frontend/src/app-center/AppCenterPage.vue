@@ -16,9 +16,10 @@ import { dashboardLocation } from '../app-dashboard/routes'
 import AppInstallDetail from './AppInstallDetail.vue'
 import AppCommandRecovery from './AppCommandRecovery.vue'
 import LegacyWorkspace from './LegacyWorkspace.vue'
+import AppRuntimeNotice from './AppRuntimeNotice.vue'
 import ComfyUIBookmarkWorkspace from './ComfyUIBookmarkWorkspace.vue'
 import { comfyuiBookmark } from './comfyui-bookmark'
-import { createLegacyClient, legacyAppLocation, legacyTarget } from './legacy'
+import { createLegacyClient, legacyAppLocation, legacyTarget, selectLegacyCard } from './legacy'
 import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
@@ -50,11 +51,20 @@ const legacy = computed(() => {
 })
 const businessRoute = computed(() => ['app-dashboard', 'app-dashboard-legacy', 'app-instance'].includes(String(route.name)) && !legacy.value.target && !legacy.value.error)
 const installationId = computed(() => typeof route.params.appId === 'string' ? route.params.appId : typeof route.params.installationId === 'string' ? route.params.installationId : '')
+// The card behind the open App page, used only to explain a stopped service.
+const runtimeCard = computed(() => {
+  const view = store.state.value
+  if (!view || store.state.status === 'error') return null
+  if (legacy.value.target) { try { return selectLegacyCard(view, legacy.value.target) } catch { return null } }
+  if (!businessRoute.value) return null
+  const id = installationId.value
+  return view.items.find(card => card.installation?.installationId === id || (card.appId === id && card.installation?.state === 'installed')) ?? null
+})
 const titles = computed(() => Object.fromEntries((store.state.value?.items ?? []).map(card => [card.appId, card.display.name])))
 const dashboardClient = createDashboardWebClient(location.origin)
 const legacyClient = createLegacyClient()
 async function authorizeDashboard(target: string, signal: AbortSignal): Promise<string> {
-  await store.refresh()
+  await store.ensureView()
   if (signal.aborted) throw new Error('REQUEST_CANCELLED')
   const matches = (store.state.value?.items ?? []).filter(item =>
     item.installation?.installationId === target || (item.appId === target && item.installation?.state === 'installed')
@@ -264,8 +274,12 @@ onBeforeUnmount(() => { store.setDetail(''); store.setVisible('directory', false
     </template>
   </div></main>
   <AppDashboardWorkspace :active="businessRoute" :installation-id="installationId" :titles="titles"
-    :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation" />
-  <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation" />
+    :open-dashboard="openDashboard" :authorize-dashboard="authorizeDashboard" :return-location="returnLocation">
+    <template #notice><AppRuntimeNotice :card="runtimeCard" @start="id => runtimeCard && perform(runtimeCard, id)" /></template>
+  </AppDashboardWorkspace>
+  <LegacyWorkspace :target="legacy.target" :route-error="legacy.error" :return-location="returnLocation">
+    <template #notice><AppRuntimeNotice :card="runtimeCard" @start="id => runtimeCard && perform(runtimeCard, id)" /></template>
+  </LegacyWorkspace>
   <ComfyUIBookmarkWorkspace :target="legacy.comfyui" :return-location="returnLocation" />
   <AppCommandConfirm v-if="confirmation" :title="actionLabels[confirmation.kind]" :name="confirmation.card.display.name" :version="confirmation.kind === 'install' ? confirmation.card.candidateVersion ?? '版本待确认' : confirmation.kind === 'upgrade' ? `${confirmation.card.installedVersion ?? '版本待确认'} → ${confirmation.card.candidateVersion ?? '版本待确认'}` : versionLabel(confirmation.card)" :installation-id="confirmation.card.installation?.installationId ?? null" :helm="confirmation.card.helm ?? null" :impact="confirmation.impact" :busy="submitting" @confirm="confirmCommand" @cancel="confirmation = null" />
 </template>

@@ -2,19 +2,17 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createStateCalibration, subscribeStateHints } from '../src/app-center/state-hints.ts'
 
-test('all hints lost still calibrates at 30 seconds; frequent hints do not postpone its clock', t => {
+test('with a hint stream there is no periodic read: one read per activation and per hint', t => {
   t.mock.timers.enable({ apis: ['setInterval'] })
   let calls = 0, notify = () => {}, closed = 0
   const calibration = createStateCalibration(async () => { calls++ }, callback => { notify = callback; return () => { closed++ } })
   calibration.activate('scope-a'); assert.equal(calls, 1)
-  t.mock.timers.tick(29999); assert.equal(calls, 1)
-  t.mock.timers.tick(1); assert.equal(calls, 2)
-  for (let i = 0; i < 29; i++) { t.mock.timers.tick(1000); notify() }
-  assert.equal(calls, 31)
-  t.mock.timers.tick(1000); assert.equal(calls, 32)
+  t.mock.timers.tick(10 * 60000); assert.equal(calls, 1)
+  for (let i = 0; i < 3; i++) notify()
+  assert.equal(calls, 4)
   calibration.activate(null); assert.equal(closed, 1)
-  notify(); t.mock.timers.tick(60000); assert.equal(calls, 32)
-  calibration.activate('scope-a'); assert.equal(calls, 33)
+  notify(); t.mock.timers.tick(60000); assert.equal(calls, 4)
+  calibration.activate('scope-a'); assert.equal(calls, 5)
   calibration.dispose()
 })
 

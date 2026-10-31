@@ -13,11 +13,14 @@ export function appCenterNavigationEntries(navigation: NavigationEnvelope, state
     const card = sameScope ? view.items.find(card => card.installation?.installationId === entry.installationId
       && card.appId === entry.appId && card.installedVersion === entry.appVersion) : undefined
     const open = card?.actions.find(action => action.kind === 'open' && action.entryId === card.entry?.entryId)
+    // The badge shows the observed service; clicking needs only the static
+    // open binding, so a stopped App still opens and explains itself inside.
+    const offline = fresh && card?.service.quality === 'known' && ['absent', 'stopped', 'starting', 'stopping', 'degraded'].includes(card.service.state)
     if (fresh && card?.entry?.transport === 'dashboard' && open?.enabled) {
-      return { ...entry, availability: 'ready', cardKey: card.cardKey, bindingRevision: card.bindingRevision }
+      const ready = card.service.quality === 'known' && card.service.state === 'ready'
+      return { ...entry, availability: ready ? 'ready' : offline ? 'offline' : 'unknown', cardKey: card.cardKey, bindingRevision: card.bindingRevision }
     }
-    return { ...entry, availability: fresh && card?.service.quality === 'known'
-      && ['absent', 'stopped', 'starting', 'stopping', 'degraded'].includes(card.service.state) ? 'offline' : 'unknown',
+    return { ...entry, availability: offline ? 'offline' : 'unknown',
       openReason: !fresh ? 'FACTS_UNAVAILABLE' : !card ? 'APPCENTER_BINDING_CHANGED' : open?.reasonCode ?? 'ENTRY_MISSING' }
   })
 }

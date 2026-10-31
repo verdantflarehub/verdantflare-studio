@@ -6,7 +6,7 @@ import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
 import { browserDashboardPath, dashboardLocation } from '../app-dashboard/routes'
-import { selectedNavigationChild } from '../navigation/controller'
+import { sameNavigationPath, selectedNavigationChild } from '../navigation/controller'
 import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
 import { appCenterNavigationEntries } from '../app-center/navigation'
@@ -47,6 +47,9 @@ watch(() => [route.fullPath, navigation.pinned] as const, () => {
   }
 }, { immediate: true })
 const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.appId, path)
+// A parent opens its own page only when it declares a route that no child
+// repeats (for example a World overview); otherwise clicking it expands.
+const ownsPage = (entry: NavigationEntry) => !!entry.route && !!entry.children?.length && !entry.children.some(child => sameNavigationPath(child.route, entry.route))
 function entryReason(entry: NavigationEntry) { return appcenter ? reasonLabel('openReason' in entry ? entry.openReason as string : null) : entry.availability === 'offline' ? '应用离线' : '应用状态待确认' }
 const feedback = ref('')
 async function openEntry(entry: NavigationEntry, target = entry.route) {
@@ -80,12 +83,12 @@ const nsfwSnap = ref(hostContentPreferences.get())
 const nsfwStatusText = computed(() => nsfwSnap.value.includeNsfw ? `已开启，${formatRemainingTime(nsfwSnap.value.remainingMs)}` : '关闭')
 let unsubNsfw: (() => void) | undefined
 
-watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), () => {
+watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), authorizationKey => {
   const identity = host.identity
   nsfwSnap.value = hostContentPreferences.setSessionIdentity(
     identity.user_id && identity.organization_id ? { userId: identity.user_id, organizationId: identity.organization_id } : null,
   )
-  navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null)
+  navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null, authorizationKey)
   expanded.value = new Set(['directory']); feedback.value = ''
   refreshNavigation()
 }, { immediate: true })
@@ -205,9 +208,9 @@ onBeforeUnmount(() => {
              :href="router.resolve(item).href" @click.prevent="router.push(item)"><NavigationIcon :name="item.icon" /><span class="label">{{ item.title }}</span></a>
         </template>
         <template v-else v-for="entry in navigation.pinned" :key="branchKey(entry)">
-          <div v-if="entry.appId === 'world' && entry.route === '/' && entry.children?.length" class="branch-row">
+          <div v-if="ownsPage(entry)" class="branch-row">
             <a class="nav-row" :href="router.resolve(entryLocation(entry)).href" :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && appPath === '/' ? 'page' : undefined" @click.prevent="openEntry(entry)"><NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span></a>
-            <button class="branch-toggle" :aria-label="(expanded.has(branchKey(entry)) ? '收起' : '展开') + entry.title" :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))"><span aria-hidden="true">{{ expanded.has(branchKey(entry)) ? '▾' : '▸' }}</span></button>
+            <button class="branch-toggle" :aria-label="(expanded.has(branchKey(entry)) ? '收起' : '展开') + entry.title" :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))"><NavigationIcon name="chevron" /></button>
           </div>
           <button v-else-if="entry.children?.length" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
                   :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))">
@@ -295,7 +298,9 @@ onBeforeUnmount(() => {
 .children[hidden] { display:none; }
 .branch-row { display:flex; align-items:center; min-width:0; }
 .branch-row>.nav-row { flex:1; min-width:0; }
-.branch-toggle { flex:0 0 30px; height:40px; border-radius:6px; color:var(--muted); font-size:15px; }
+.branch-toggle { flex:0 0 30px; height:40px; border-radius:6px; color:var(--muted); display:grid; place-items:center; }
+.branch-toggle>.chevron { transition:transform var(--vf-dur-Spring, 340ms) var(--vf-ease-spring); }
+.branch-toggle[aria-expanded=true]>.chevron { transform:rotate(180deg); }
 .branch-toggle:hover { background:var(--shell-button); color:var(--ink); }
 .branch-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 .children { padding:2px 0 7px; }

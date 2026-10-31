@@ -63,6 +63,7 @@ export function selectCards(view: AppCenterView | null, query = '', group = 'all
 export function createAppCenterController(transport: AppCenterTransport, now = Date.now) {
   let state: AppCenterState = { status: 'idle', value: null, refreshing: false, stale: true, error: '' }
   let identity: Identity | null = null, generation = 0, pending: AbortController | null = null
+  let inflight: Promise<void> | null = null
   let snapshotClock = now, suspended = false
   const currentTime = () => snapshotClock()
   const listeners = new Set<(state: AppCenterState) => void>()
@@ -107,9 +108,17 @@ export function createAppCenterController(transport: AppCenterTransport, now = D
         error: error instanceof AppCenterError ? error.code : 'APPCENTER_DEPENDENCY_UNAVAILABLE' })
     } finally { clearTimeout(timer); if (pending === controller) pending = null }
   }
+  /** Reuses a read already running for this identity instead of restarting it. */
+  function join(): Promise<void> {
+    if (inflight && pending && !pending.signal.aborted) return inflight
+    const run = refresh()
+    inflight = run
+    void run.finally(() => { if (inflight === run) inflight = null })
+    return run
+  }
   function dispose() { clear(); listeners.clear() }
   function suspend() { cancel(); suspended = true; publish({ ...state, status: state.value ? state.status : 'idle', refreshing: false, stale: true }) }
-  return { get state() { return state }, clear, refresh, expire, canExecute, currentTime, dispose, suspend,
+  return { get state() { return state }, clear, refresh, join, expire, canExecute, currentTime, dispose, suspend,
     subscribe(listener: (state: AppCenterState) => void) { listeners.add(listener); listener(state); return () => { listeners.delete(listener) } },
   }
 }

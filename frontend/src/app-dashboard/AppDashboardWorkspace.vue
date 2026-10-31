@@ -220,6 +220,7 @@ onBeforeUnmount(() => { revision++; pending?.abort(); void sessions?.revoke() })
 <template>
   <main v-show="active" class="main embed-active" :class="{ 'workspace-active': Boolean(workspaceId) }">
     <div class="workspace">
+      <slot name="notice" />
       <div v-if="workspaceId || (navigationChild && !ownsBreadcrumb)" class="dashboard-context"><nav class="dashboard-breadcrumb" aria-label="面包屑">
         <a v-if="breadcrumbLocation" :href="router.resolve(breadcrumbLocation).href" @click.prevent="router.push(breadcrumbLocation)">{{ title }}</a>
         <span v-else class="breadcrumb-current">{{ title }}</span>

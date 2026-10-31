@@ -45,7 +45,7 @@ function fail(errorValue: unknown) { error.value = errorValue instanceof Error ?
 async function authorize() {
   const selected = selection.value
   if (!selected) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
-  if (store.state.stale || !store.state.value || Date.parse(store.state.value.validUntil) <= store.currentTime()) await store.refresh()
+  if (store.state.stale || !store.state.value || Date.parse(store.state.value.validUntil) <= store.currentTime()) await store.ensureView()
   const current = store.state.value
   if (selection.value !== selected || selected.identity !== identity.value || current && (JSON.stringify(current.scope) !== selected.scope
     || current.items.find(card => card.cardKey === selected.card.cardKey)?.bindingRevision !== selected.card.bindingRevision)) {
@@ -93,7 +93,7 @@ watch(() => [props.target?.route, props.target?.cardKey, props.routeError, ident
     if (props.routeError) throw new Error(props.routeError)
     if (!target || !host.connected) throw new Error('UNAUTHENTICATED')
     if (!store.state.value || store.state.stale) {
-      await store.refresh()
+      await store.ensureView()
     }
     if (epoch !== generation || controller.signal.aborted) return
     const view = store.state.value
@@ -103,7 +103,7 @@ watch(() => [props.target?.route, props.target?.cardKey, props.routeError, ident
     if (expected && expected !== card.bindingRevision) throw new Error('APPCENTER_BINDING_CHANGED')
     if (!store.canExecute(card.cardKey, 'open', card.bindingRevision)) {
       if (store.state.stale) {
-        await store.refresh()
+        await store.ensureView()
         const refreshedView = store.state.value
         if (!refreshedView) throw new Error('APPCENTER_OPEN_UNAVAILABLE')
         const refreshedCard = selectLegacyCard(refreshedView, target)
@@ -138,6 +138,7 @@ onBeforeUnmount(() => { generation++; pending?.abort(); clearSelection() })
 
 <template>
   <main v-if="active" class="main embed-active legacy-workspace"><div class="workspace">
+    <slot name="notice" />
     <nav v-if="selection?.opened.adapterId !== 'blender-host-v1'" class="dashboard-breadcrumb" aria-label="面包屑">
       <template v-if="video">
         <a :href="router.resolve(videoTasksRoute).href" @click.prevent="navigate(videoTasksRoute)">{{ selection?.card.display.name || 'Video MCP' }}</a>

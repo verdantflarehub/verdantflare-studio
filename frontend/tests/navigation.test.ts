@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createNavigationController, decodeNavigation, sameNavigationPath, selectedNavigationChild } from '../src/navigation/controller.ts'
-import { createNavigationTransport } from '../src/navigation/transport.ts'
+import { createNavigationTransport, prefetchNavigation } from '../src/navigation/transport.ts'
 import type { NavigationEnvelope, NavigationPreference, NavigationIdentity } from '../src/navigation/controller.ts'
 
 const identity: NavigationIdentity = { userId: '019a00b0-0000-7000-8000-000000000001', organizationId: '019a00b0-0000-7000-8000-000000000002', stationId: '019a00b0-0000-7000-8000-000000000003' }
@@ -116,4 +116,37 @@ test('the host transport uses only the fixed local paths and same-origin credent
   await transport.write({ appId: 'project', entryId: 'main', pinned: false, order: 10, preferenceRevision: '12' }, signal)
   assert.deepEqual(calls.map(call => call.path), ['/studio/navigation', '/studio/navigation/preferences'])
   for (const call of calls) { assert.equal(call.options.credentials, 'same-origin'); assert.equal(call.options.redirect, 'error'); assert.equal(call.options.cache, 'no-store') }
+})
+
+test('the boot menu read is adopted once, falls back after failure and expires', async () => {
+  let reads = 0, fail = false
+  const inner = { read: async () => { reads++; if (fail) throw new Error('NAVIGATION_UNAVAILABLE'); return { n: reads } }, write: async () => ({}) }
+  const prefetched = prefetchNavigation(inner)
+  assert.equal(reads, 1)
+  assert.deepEqual(await prefetched.read(new AbortController().signal), { n: 1 })
+  assert.deepEqual(await prefetched.read(new AbortController().signal), { n: 2 })
+  fail = true
+  const failing = prefetchNavigation(inner)
+  fail = false
+  await assert.doesNotReject(failing.read(new AbortController().signal))
+  let clock = 0
+  const old = prefetchNavigation(inner, 5000, () => clock)
+  const before = reads; clock = 6000
+  await old.read(new AbortController().signal)
+  assert.equal(reads, before + 1)
+})
+
+test('a cached menu seeds only the same identity and only before any live result', async () => {
+  const live = { read: async () => envelope(), write: async () => envelope() }
+  const controller = createNavigationController(live)
+  assert.equal(controller.seed(envelope()), false)
+  controller.clear(identity)
+  const stranger = { ...identity, userId: identity.organizationId }
+  assert.equal(controller.seed(envelope(stranger)), false)
+  assert.equal(controller.state.value, null)
+  assert.equal(controller.seed(envelope()), true)
+  assert.equal(controller.state.status, 'ready')
+  assert.equal(controller.seed(envelope()), false)
+  await controller.refresh()
+  assert.equal(controller.state.status, 'ready')
 })

@@ -10,6 +10,7 @@ import (
 
 	"github.com/verdantflarehub/verdantflare-studio/frontend"
 	"github.com/verdantflarehub/verdantflare-studio/internal/application"
+	"github.com/verdantflarehub/verdantflare-studio/internal/appstatehints"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/transport/web"
 )
@@ -32,7 +33,7 @@ func main() {
 	dashboards := application.NewDashboards(s, os.Getenv("STUDIO_DASHBOARD_REGISTRY"))
 	defer dashboards.Shutdown()
 	webServer.EnableDashboards(handler, dashboards)
-	appCenter := application.NewAppCenter(s, os.Getenv("STUDIO_APPCENTER_PRESENTATION_REGISTRY")).WithDashboards(dashboards, os.Getenv("STUDIO_APPCENTER_DECLARATIONS_DIR")).WithPreinstalled(os.Getenv("STUDIO_PREINSTALLED_CONFIG"))
+	appCenter := application.NewAppCenter(s, os.Getenv("STUDIO_APPCENTER_PRESENTATION_REGISTRY")).WithDashboards(dashboards, os.Getenv("STUDIO_APPCENTER_DECLARATIONS_DIR")).WithPreinstalled(os.Getenv("STUDIO_PREINSTALLED_CONFIG")).WithSnapshotCache()
 	appCenter.WithLegacy(os.Getenv("STUDIO_APPCENTER_LEGACY_REGISTRY"), webServer.LegacyBackends(imageConfig, videoConfig))
 	webServer.EnableAppCenter(handler, appCenter)
 	navigation := application.NewNavigation(s, os.Getenv("STUDIO_NAVIGATION_REGISTRY"), os.Getenv("STUDIO_DASHBOARD_REGISTRY"), webServer.NavigationPreferences(), webServer.NavigationKV()).WithAppCenter(appCenter)
@@ -80,6 +81,7 @@ func main() {
 				log.Printf("[Session] Connected to etcd for persistent sessions")
 				webServer.SetEtcdClient(cli)
 				navigation.SyncCatalog(ctx)
+				go appstatehints.WatchInvalidations(ctx, cli, appCenter.InvalidateOrganization, appCenter.InvalidateAll)
 			}
 		}
 	}

@@ -122,7 +122,9 @@ func TestNavigationConsumesAppCenterAndKeepsPreferences(t *testing.T) {
 			}
 			entry := v.Projection.Entries[0]
 			want := "unknown"
-			if scenario == "ready" || scenario == "unpin" {
+			// Availability reports the observed service; a pending operation no
+			// longer hides a ready service or blocks entry.
+			if scenario == "ready" || scenario == "unpin" || scenario == "blocking" {
 				want = "ready"
 			}
 			if scenario == "stopped" {

@@ -66,8 +66,10 @@ func appCenterNavigationBindings(view appcenter.View, metadata map[string]appcen
 		}
 		binding.InstallationID, binding.State = installed.InstallationID, installed.State
 		binding.OrganizationID, binding.StationID = view.Scope.OrganizationID, view.Scope.StationID
+		// Availability is display only: it follows the observed service, while
+		// opening relies on the static entry binding alone.
 		binding.Availability = "unknown"
-		if card.Entry != nil && card.Entry.Transport == "dashboard" && slices.ContainsFunc(card.Actions, func(a appcenter.Action) bool {
+		if card.Entry != nil && card.Entry.Transport == "dashboard" && card.Service.Quality == "known" && card.Service.State == "ready" && slices.ContainsFunc(card.Actions, func(a appcenter.Action) bool {
 			return a.Kind == "open" && a.Enabled && a.EntryID != nil && *a.EntryID == card.Entry.EntryID
 		}) {
 			binding.Availability = "ready"

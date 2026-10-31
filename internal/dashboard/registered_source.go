@@ -63,6 +63,14 @@ type RegisteredSource struct {
 	credential func(string) string
 }
 
+// Path reports the registry file so callers can detect releases by metadata.
+func (s *RegisteredSource) Path() string {
+	if s == nil {
+		return ""
+	}
+	return s.path
+}
+
 var credentialName = regexp.MustCompile(`^STUDIO_APP_[A-Z0-9_]+_TOKEN$`)
 var serviceHost = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svc\.cluster\.local$`)
 var rawDigest = regexp.MustCompile(`^[a-f0-9]{64}$`)

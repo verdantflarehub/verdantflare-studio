@@ -332,6 +332,8 @@ func (s *Server) api(c *gin.Context) {
 		if sid != "" {
 			s.deleteSession(c.Request.Context(), sid)
 		}
+		s.station.ForgetIdentity(token)
+		s.evictCachedMCPAuth(token)
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 		http.SetCookie(c.Writer, &http.Cookie{Name: cookieName, Value: "", Path: "/studio", HttpOnly: true, Secure: s.secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}

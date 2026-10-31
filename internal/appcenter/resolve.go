@@ -198,6 +198,17 @@ func unsafeReason(f Fact) string {
 	return ""
 }
 
+// staticOpenReason ignores service observations and operations on purpose.
+func staticOpenReason(f Fact) string {
+	if f.InstallationQuality == "conflict" {
+		return "BINDING_CONFLICT"
+	}
+	if !known(f.InstallationQuality) {
+		return "FACTS_UNAVAILABLE"
+	}
+	return ""
+}
+
 func project(f Fact, meta Metadata, scope Scope) Card {
 	display, candidateVersion, helm, _, hasMarketMeta := catalogDetails(f)
 	if meta.Display != nil {
@@ -271,15 +282,15 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 	}
 	if meta.Entry != nil {
 		e := meta.Entry
-		reason := denied
+		// Opening depends only on static facts: permission, a confirmed
+		// installation and a verified entry. Runtime state and pending
+		// operations are shown in the App page, never used to refuse entry.
+		reason := staticOpenReason(f)
 		if reason == "" && (e.Quality != "known" || e.Availability != "available" || meta.EntryRevision == "") {
 			reason = "ENTRY_UNAVAILABLE"
 			if e.ReasonCode != nil {
 				reason = *e.ReasonCode
 			}
-		}
-		if reason == "" && e.RequiresServiceReady && f.Service.State != "ready" {
-			reason = "SERVICE_NOT_READY"
 		}
 		if reason == "" && (f.Installation == nil || f.Installation.State != "installed") && !(f.Origin == "observation" && e.Transport == "legacy") {
 			reason = "INSTALLATION_NOT_CONFIRMED"
@@ -287,7 +298,9 @@ func project(f Fact, meta Metadata, scope Scope) Card {
 		a := action("open", reason == "", reason)
 		a.EntryID = Text(e.EntryID)
 		c.Actions = append(c.Actions, a)
-		if a.Enabled {
+		// Open stays enabled for a stopped App, but the directory keeps its
+		// lifecycle action (such as start) as the primary intent.
+		if a.Enabled && denied == "" && (!e.RequiresServiceReady || f.Service.State == "ready") {
 			c.PrimaryActionID = a.ID
 		}
 	}

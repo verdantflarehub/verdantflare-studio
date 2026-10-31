@@ -141,7 +141,9 @@ func TestAppCenterOpenPinsTargetAndReauthorizes(t *testing.T) {
 			out = a.Open(context.Background(), "test-session", request)
 			want, lookups := 409, 0
 			switch scenario {
-			case "valid", "unrelated", "legacy-present", "stale-binding", "installation-race", "release-race":
+			// A stopped service or pending operation is reported inside the App,
+			// not by refusing the static Open.
+			case "valid", "unrelated", "legacy-present", "stale-binding", "installation-race", "release-race", "blocking", "stopped":
 				want, lookups = 200, 1
 			case "invalid-request":
 				want = 400

@@ -318,7 +318,8 @@
       "primary": "refresh",
       "enabled": [
         "detail",
-        "refresh"
+        "refresh",
+        "open"
       ]
     }
   },
@@ -548,7 +549,8 @@
       "primary": "detail",
       "enabled": [
         "detail",
-        "refresh"
+        "refresh",
+        "open"
       ]
     }
   },
@@ -673,7 +675,8 @@
       "enabled": [
         "detail",
         "refresh",
-        "start"
+        "start",
+        "open"
       ]
     }
   },
@@ -1018,7 +1021,8 @@
       "primary": "detail",
       "enabled": [
         "detail",
-        "refresh"
+        "refresh",
+        "open"
       ]
     }
   },
@@ -1363,7 +1367,8 @@
       "primary": "detail",
       "enabled": [
         "detail",
-        "refresh"
+        "refresh",
+        "open"
       ]
     }
   },
@@ -1479,7 +1484,8 @@
       "enabled": [
         "detail",
         "refresh",
-        "progress"
+        "progress",
+        "open"
       ]
     }
   },

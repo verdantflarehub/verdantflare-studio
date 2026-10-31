@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -122,7 +123,10 @@ func TestAppCenterLegacyOpenRechecksIdentityWorkloadAndBackend(t *testing.T) {
 				facts.Items = append(facts.Items, other)
 			}
 			out = a.Open(context.Background(), "test-session", request)
-			if scenario != "valid" && scenario != "unrelated" && scenario != "renamed" && scenario != "stale-click" && scenario != "revision-race" {
+			// Runtime state and pending operations no longer refuse entry; only
+			// identity, workload binding, backend and entry changes do.
+			opens := []string{"valid", "unrelated", "renamed", "stale-click", "revision-race", "service-race", "blocked", "installed-service-race", "installed-blocked"}
+			if !slices.Contains(opens, strings.TrimPrefix(scenario, "installed-")) && !slices.Contains(opens, scenario) {
 				if out.Status < 400 {
 					t.Fatal("unsafe open allowed")
 				}

@@ -23,3 +23,27 @@ export function createNavigationTransport(fetcher: typeof fetch = fetch): Naviga
   }
   return { read: signal => call('/studio/navigation', undefined, signal), write: (body, signal) => call('/studio/navigation/preferences', body, signal) }
 }
+
+/**
+ * Starts the menu read together with the session read. The first controller
+ * read adopts it; the controller still decodes it against the confirmed
+ * identity, so an early response never renders for another scope.
+ */
+export function prefetchNavigation(transport: NavigationTransport, maxAge = 5000, now = () => Date.now()): NavigationTransport {
+  const started = now(), abort = new AbortController()
+  let early: Promise<unknown> | null = transport.read(abort.signal)
+  early.catch(() => undefined)
+  const timer = setTimeout(() => { early = null; abort.abort() }, maxAge)
+  return {
+    async read(signal) {
+      const adopted = early
+      early = null
+      clearTimeout(timer)
+      if (adopted && now() - started < maxAge) {
+        try { return await adopted } catch { /* fall back to a live read */ }
+      } else abort.abort()
+      return transport.read(signal)
+    },
+    write: (body, signal) => transport.write(body, signal),
+  }
+}

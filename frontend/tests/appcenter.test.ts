@@ -391,3 +391,33 @@ test('late response clocks cannot recalibrate the active snapshot', async () => 
   assert.equal(controller.canExecute(view().items[0].cardKey, 'open', digest), true)
   controller.dispose()
 })
+
+test('join reuses a running view read while refresh still supersedes it', async () => {
+  const first = deferred<unknown>(); let calls = 0
+  const controller = createAppCenterController({ read: () => ++calls === 1 ? first.promise : Promise.resolve(view()) }, () => now)
+  controller.clear(identity)
+  const a = controller.join(), b = controller.join()
+  assert.equal(calls, 1)
+  first.resolve(view()); await Promise.all([a, b])
+  assert.equal(controller.state.status, 'ready')
+  await controller.join()
+  assert.equal(calls, 2)
+  const slow = deferred<unknown>(); calls = 0
+  const other = createAppCenterController({ read: () => ++calls === 1 ? slow.promise : Promise.resolve(view()) }, () => now)
+  other.clear(identity)
+  const joined = other.join(); await other.refresh()
+  assert.equal(calls, 2)
+  slow.resolve(view()); await joined
+  assert.equal(other.state.status, 'ready')
+  controller.dispose(); other.dispose()
+})
+
+test('a stopped dashboard App still opens from the menu while its badge reports the service', () => {
+  const value = view()
+  const card = value.items[0]
+  card.service = { ...card.service, state: 'stopped' }
+  const envelope = { mode: 'preinstalled', preferenceRevision: '0', projection: { scope: value.scope, revision: digest, entries: [{ installationId: card.installation!.installationId, appId: card.appId, appVersion: card.installedVersion!, entryId: 'main', title: 'Sample', iconRef: 'app', route: '/', group: 'applications', order: 1, pinned: true, pinSource: 'default', availability: 'unknown' }] } } as NavigationEnvelope
+  const [entry] = appCenterNavigationEntries(envelope, { status: 'ready', value, refreshing: false, stale: false, error: '' })
+  assert.equal(entry.availability, 'offline')
+  assert.equal(entry.cardKey, card.cardKey)
+})

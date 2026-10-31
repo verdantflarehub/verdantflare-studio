@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
@@ -63,6 +64,123 @@ func dashboardActorFromIdentity(identity identityContext) dashboard.Actor {
 		UserID: identity.UserID, OrganizationID: identity.OrganizationID,
 		StationID: identity.StationID, AuthorizationEpoch: hex.EncodeToString(epoch[:]),
 	}
+}
+
+// identityCacheTTL is the longest a permission change or revoked session can
+// remain unobserved by Studio reads; Core still checks every command itself.
+const identityCacheTTL = 15 * time.Second
+
+type cachedIdentity struct {
+	identity identityContext
+	expires  time.Time
+}
+
+type identityFlight struct {
+	done     chan struct{}
+	identity identityContext
+	status   int
+}
+
+// identityCache keeps verified identities per session token. Concurrent reads
+// of one token share a single Core request; only 200 results are retained.
+type identityCache struct {
+	mu      sync.Mutex
+	entries map[string]cachedIdentity
+	flights map[string]*identityFlight
+}
+
+func identityKey(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// ForgetIdentity drops a session identity after logout or rejection.
+func (s *Station) ForgetIdentity(token string) {
+	if s == nil || token == "" {
+		return
+	}
+	key := identityKey(token)
+	s.identities.mu.Lock()
+	delete(s.identities.entries, key)
+	s.identities.mu.Unlock()
+}
+
+// sessionIdentity serves the refresh path (views, navigation, Open and state
+// hints) from a short per-session cache. Proxies and long-lived workspaces
+// keep calling verifiedIdentity so revocation stays immediate there.
+func (s *Station) sessionIdentity(ctx context.Context, token, requestID string) (identityContext, int) {
+	if token == "" {
+		return identityContext{}, 401
+	}
+	if s.identityTTL <= 0 {
+		return s.verifiedIdentity(ctx, token, requestID)
+	}
+	key, now := identityKey(token), time.Now()
+	c := &s.identities
+	c.mu.Lock()
+	if entry, ok := c.entries[key]; ok {
+		if now.Before(entry.expires) {
+			c.mu.Unlock()
+			identity := entry.identity
+			identity.RequestID = requestID
+			identity.Roles, identity.Scopes = slices.Clone(identity.Roles), slices.Clone(identity.Scopes)
+			return identity, 200
+		}
+		delete(c.entries, key)
+	}
+	flight, waiting := c.flights[key]
+	if !waiting {
+		if c.flights == nil {
+			c.flights = map[string]*identityFlight{}
+		}
+		flight = &identityFlight{done: make(chan struct{})}
+		c.flights[key] = flight
+	}
+	c.mu.Unlock()
+	if waiting {
+		select {
+		case <-flight.done:
+		case <-ctx.Done():
+			return identityContext{}, 503
+		}
+		if flight.status != 200 {
+			return identityContext{}, flight.status
+		}
+		identity := flight.identity
+		identity.RequestID = requestID
+		identity.Roles, identity.Scopes = slices.Clone(identity.Roles), slices.Clone(identity.Scopes)
+		return identity, 200
+	}
+	identity, status := s.verifiedIdentity(ctx, token, requestID)
+	c.mu.Lock()
+	delete(c.flights, key)
+	if status == 200 {
+		expires := now.Add(s.identityTTL)
+		if identity.ExpiresAt.Before(expires) {
+			expires = identity.ExpiresAt
+		}
+		if c.entries == nil {
+			c.entries = map[string]cachedIdentity{}
+		}
+		if len(c.entries) >= 4096 {
+			for k, e := range c.entries {
+				if !now.Before(e.expires) {
+					delete(c.entries, k)
+				}
+			}
+		}
+		if len(c.entries) < 4096 {
+			stored := identity
+			stored.Roles, stored.Scopes = slices.Clone(identity.Roles), slices.Clone(identity.Scopes)
+			c.entries[key] = cachedIdentity{identity: stored, expires: expires}
+		}
+	} else if status == 401 || status == 403 {
+		delete(c.entries, key)
+	}
+	flight.identity, flight.status = identity, status
+	close(flight.done)
+	c.mu.Unlock()
+	return identity, status
 }
 
 func (s *Station) verifiedIdentity(ctx context.Context, token, requestID string) (identityContext, int) {

@@ -29,18 +29,23 @@ export function subscribeStateHints(notify: (revision?: string) => void, factory
   return () => { stopped = true; retry !== undefined && clearTimeout(retry); current?.close(); current = undefined }
 }
 
-/** This clock is independent of ordinary expiry polling and every hint. */
-export function createStateCalibration(read: () => Promise<void>, subscribe?: (notify: () => void) => () => void) {
+/**
+ * State changes arrive as server hints; there is no periodic read. One read
+ * happens on activation and whenever the stream reconnects (the server sends
+ * an initial hint per connection). Without a stream (desktop) the optional
+ * fallback interval keeps the previous calibration behaviour.
+ */
+export function createStateCalibration(read: () => Promise<void>, subscribe?: (notify: () => void) => () => void, fallbackInterval = 30000) {
   let scope: string | null = null, epoch = 0, stop: (() => void) | undefined, timer: ReturnType<typeof setInterval> | undefined
   function activate(next: string | null) {
     if (next === scope) return
-    epoch++; scope = next; timer !== undefined && clearInterval(timer); stop?.(); stop = undefined
+    epoch++; scope = next; timer !== undefined && clearInterval(timer); timer = undefined; stop?.(); stop = undefined
     if (!next) return
     const generation = epoch
     const notify = () => { if (generation === epoch) void read().catch(() => undefined) }
-    timer = setInterval(notify, 30000)
     notify()
-    try { stop = subscribe?.(notify) } catch { /* Periodic reads remain active. */ }
+    if (!subscribe) { timer = setInterval(notify, fallbackInterval); return }
+    try { stop = subscribe(notify) } catch { timer = setInterval(notify, fallbackInterval) }
   }
   return { activate, dispose: () => activate(null) }
 }

@@ -33,7 +33,7 @@ watch(() => [props.target?.alias, identity.value, retry.value], async () => {
   const current = () => epoch === generation && !signal.aborted
   try {
     if (target.alias === 'instances') {
-      await store.refresh()
+      await store.ensureView()
       if (!current()) return
       if (store.state.error) throw new Error(store.state.error)
       const view = store.state.value

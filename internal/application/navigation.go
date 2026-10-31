@@ -25,10 +25,11 @@ type Navigation struct {
 
 func NewNavigation(station *Station, registryPath, dashboardRegistryPath string, store navigation.PreferenceStore, catalogKV ...func() clientv3.KV) *Navigation {
 	metadata := dashboard.NewRegisteredSource(dashboardRegistryPath, nil)
-	local := &navigation.RegisteredSource{Path: registryPath, Artifacts: metadata.RegisteredArtifacts}
+	artifacts := cachedArtifacts(metadata.RegisteredArtifacts, dashboardRegistryPath)
+	local := &cachedCatalogSource{inner: &navigation.RegisteredSource{Path: registryPath, Artifacts: artifacts}, cache: fileCached[navigation.Catalog]{paths: []string{registryPath, dirOf(registryPath), dashboardRegistryPath}}}
 	var source navigation.Source = local
 	if len(catalogKV) > 0 && catalogKV[0] != nil {
-		source = &navigation.EtcdCatalogSource{Local: local, Artifacts: metadata.RegisteredArtifacts, Client: catalogKV[0]}
+		source = &navigation.EtcdCatalogSource{Local: local, Artifacts: artifacts, Client: catalogKV[0]}
 	}
 	return &Navigation{station: station, source: source, preferences: store, close: metadata.Close}
 }
@@ -92,7 +93,7 @@ func (n *Navigation) input(ctx context.Context, token string) (navigationInput, 
 	if n.station == nil || n.source == nil {
 		return in, "", navigationError(navigation.ErrUnavailable, requestID)
 	}
-	identity, status := n.station.verifiedIdentity(ctx, token, requestID)
+	identity, status := n.station.sessionIdentity(ctx, token, requestID)
 	if status != 200 {
 		code := "NAVIGATION_UNAVAILABLE"
 		if status == 401 {

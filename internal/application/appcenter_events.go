@@ -18,7 +18,7 @@ func (a *AppCenter) AuthorizeEvents(ctx context.Context, token string) (appcente
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	requestID := uuid.Must(uuid.NewV7()).String()
-	identity, status := a.station.verifiedIdentity(ctx, token, requestID)
+	identity, status := a.station.sessionIdentity(ctx, token, requestID)
 	if status != 200 {
 		return appcenter.Scope{}, status
 	}

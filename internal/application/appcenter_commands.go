@@ -158,5 +158,8 @@ func (a *AppCenter) Submit(ctx context.Context, token string, in appcenter.Comma
 		}
 	}
 	raw, _ = json.Marshal(operation)
+	// The accepted command changes installation facts; do not wait for the
+	// Core notification before the next view of this organization.
+	a.InvalidateOrganization(command.StationID, command.OrganizationID)
 	return Result{Status: 202, Data: raw, RequestID: id}
 }

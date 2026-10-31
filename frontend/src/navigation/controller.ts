@@ -181,7 +181,13 @@ export function createNavigationController(transport: NavigationTransport) {
       publish({ ...state, error: conflict ? '菜单偏好已在其他窗口更改，已刷新，请重新操作。' : '菜单偏好未能确认保存，请检查当前状态后重试。' })
     } finally { clearTimeout(timer); if (pending === controller) pending = null }
   }
-  return { get state() { return state }, clear, refresh, setPreference,
+  /** Shows a same-scope menu from this tab's last session until the read lands. */
+  function seed(raw: unknown): boolean {
+    if (!identity || state.value || state.saving) return false
+    try { publish({ status: 'ready', value: decodeNavigation(raw, identity), saving: false, error: '' }); return true }
+    catch { return false }
+  }
+  return { get state() { return state }, clear, refresh, seed, setPreference,
     subscribe(listener: (state: NavigationState) => void) { listeners.add(listener); listener(state); return () => { listeners.delete(listener) } },
   }
 }
