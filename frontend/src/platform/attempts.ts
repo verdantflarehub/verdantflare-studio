@@ -12,12 +12,13 @@ export function withHedge<T>(run: (signal: AbortSignal) => Promise<T>, signal: A
     const controllers: AbortController[] = []
     let settled = false, started = 0, running = 0
     let hedge: ReturnType<typeof setTimeout> | undefined
-    const finish = (settle: () => void) => {
+    // The winner is never aborted: a Response may still be streaming its body.
+    const finish = (settle: () => void, winner?: AbortController) => {
       if (settled) return
       settled = true
       clearTimeout(hedge)
       signal.removeEventListener('abort', cancelled)
-      for (const controller of controllers) controller.abort()
+      for (const controller of controllers) if (controller !== winner) controller.abort()
       settle()
     }
     const cancelled = () => finish(() => reject(signal.reason))
@@ -28,7 +29,7 @@ export function withHedge<T>(run: (signal: AbortSignal) => Promise<T>, signal: A
       const controller = new AbortController()
       controllers.push(controller)
       const limit = setTimeout(() => controller.abort(new DOMException('Attempt timed out', 'TimeoutError')), attemptMs)
-      run(AbortSignal.any([signal, controller.signal])).then(value => finish(() => resolve(value)), error => {
+      run(AbortSignal.any([signal, controller.signal])).then(value => { clearTimeout(limit); finish(() => resolve(value), controller) }, error => {
         running--
         if (settled) return
         if (controller.signal.aborted && !signal.aborted) {

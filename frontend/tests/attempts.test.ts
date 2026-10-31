@@ -29,3 +29,10 @@ test('attempts are bounded, real failures settle at once and caller cancellation
   caller.abort(); await assert.rejects(pending)
   assert.equal(calls, 1)
 })
+
+test('the winning attempt is never aborted so a streamed body can still be read', async () => {
+  let winnerSignal: AbortSignal | undefined
+  const response = await withHedge(async signal => { winnerSignal = signal; return { read: () => new Promise((resolve, reject) => { const t = setTimeout(() => resolve('body'), 40); signal.addEventListener('abort', () => { clearTimeout(t); reject(signal.reason) }) }) } }, new AbortController().signal, 10, 3, 20)
+  assert.equal(await response.read(), 'body')
+  assert.equal(winnerSignal?.aborted, false)
+})
