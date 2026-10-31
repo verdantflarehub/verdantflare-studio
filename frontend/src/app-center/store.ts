@@ -109,8 +109,8 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   }
   /** Opening needs only a current view, not command or progress reconciliation. */
   function ensureView(): Promise<void> {
-    controller.expire()
-    if (state.value.value && !state.value.stale && state.value.status !== 'error') return Promise.resolve()
+    // Validity time alone never forces a read: changes arrive as hints.
+    if (state.value.value && state.value.status !== 'error') return Promise.resolve()
     return controller.join()
   }
   function refresh(force = false): Promise<void> {
