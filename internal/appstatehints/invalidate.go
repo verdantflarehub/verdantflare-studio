@@ -20,6 +20,7 @@ func WatchInvalidations(ctx context.Context, client *clientv3.Client, changed fu
 		reset()
 		for response := range client.Watch(watchCtx, NotificationPrefix, clientv3.WithPrefix()) {
 			if response.Canceled || response.Err() != nil {
+				logWatchEnd("invalidation", true, response)
 				break
 			}
 			for _, event := range response.Events {

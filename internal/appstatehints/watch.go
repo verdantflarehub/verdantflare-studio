@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log"
 	"regexp"
 	"strconv"
 	"time"
@@ -94,6 +95,7 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 					return
 				case response, ok := <-ch:
 					if !ok || response.Canceled || response.Err() != nil {
+						logWatchEnd("extra", ok, response)
 						stop()
 						return
 					}
@@ -119,6 +121,7 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 				return
 			case response, ok := <-watch:
 				if !ok || response.Canceled || response.Err() != nil {
+					logWatchEnd("notification", ok, response)
 					return
 				}
 				for _, change := range response.Events {
@@ -134,4 +137,14 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 		}
 	}()
 	return out, nil
+}
+
+// logWatchEnd records why a hint subscription ended. It never logs keys,
+// values or credentials, only the watch status and error text.
+func logWatchEnd(kind string, open bool, response clientv3.WatchResponse) {
+	reason := ""
+	if err := response.Err(); err != nil {
+		reason = err.Error()
+	}
+	log.Printf("[AppState Hints] %s watch ended: open=%t canceled=%t compact=%d reason=%q", kind, open, response.Canceled, response.CompactRevision, reason)
 }
