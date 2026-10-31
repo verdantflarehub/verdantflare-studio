@@ -298,7 +298,8 @@ onBeforeUnmount(() => {
 .children[hidden] { display:none; }
 .branch-row { display:flex; align-items:center; min-width:0; }
 .branch-row>.nav-row { flex:1; min-width:0; }
-.branch-toggle { flex:0 0 30px; height:40px; border-radius:6px; color:var(--muted); display:grid; place-items:center; }
+/* Same right inset as .nav-row (12px) so this chevron lines up with the others. */
+.branch-toggle { flex:0 0 38px; height:40px; padding:0 12px 0 0; border-radius:6px; color:var(--muted); display:grid; place-items:center end; }
 .branch-toggle>.chevron { transition:transform var(--vf-dur-Spring, 340ms) var(--vf-ease-spring); }
 .branch-toggle[aria-expanded=true]>.chevron { transform:rotate(180deg); }
 .branch-toggle:hover { background:var(--shell-button); color:var(--ink); }
