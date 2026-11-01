@@ -16,7 +16,7 @@ func tryonFilterFixture(t *testing.T) (project.Principal, *imageResultGateway, I
 	f, _, g, reader := imageResultFixture(t)
 	_, actor, result := f.service.begin(context.Background(), "test-session")
 	p := project.Principal{SubjectID: actor.UserID, OrganizationID: actor.OrganizationID, RequestID: result.RequestID}
-	task := map[string]any{"task_id": uuid.Must(uuid.NewV7()).String(), "project_id": g.in.ProjectID,
+	task := map[string]any{"task_id": uuid.NewString(), "project_id": g.in.ProjectID,
 		"state": "succeeded", "input": map[string]any{"count": 1}, "images": []any{map[string]any{
 			"index": 0, "attempt": 1, "state": "succeeded", "result": map[string]any{
 				"content_ref": g.input.Ref, "file_id": g.in.ResultFileID, "revision_id": g.in.RevisionID,
@@ -188,5 +188,16 @@ func TestTryonMCPFiltersEachSavedResultAndReadsAgainAfterClear(t *testing.T) {
 	filtered = FilterTryonMCPResults(context.Background(), p, "tryon.get", map[string]any{}, upstreamTryon(task), g, reader)
 	if len(checkedTryonEnvelope(t, filtered, false)["images"].([]any)) != 2 || calls != 4 {
 		t.Fatal("old visibility was cached")
+	}
+}
+
+func TestTryonMCPRejectsNoncanonicalTaskIdentity(t *testing.T) {
+	for _, id := range []string{"", uuid.Nil.String(), "not-a-uuid", "B7F382E0-C592-4032-8F96-A106A3727C24", "b7f382e0c59240328f96a106a3727c24"} {
+		p, g, reader, task := tryonFilterFixture(t)
+		task["task_id"] = id
+		out := FilterTryonMCPResults(context.Background(), p, "tryon.get", map[string]any{}, upstreamTryon(task), g, reader)
+		if checkedTryonEnvelope(t, out, true)["code"] != "RESULT_STATUS_UNAVAILABLE" {
+			t.Fatal("invalid task identity accepted")
+		}
 	}
 }

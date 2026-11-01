@@ -6,8 +6,16 @@ import (
 	"math"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
 )
+
+// Tryon task IDs follow its canonical nonzero UUID contract, not Project UUIDv7.
+func validTryonTaskID(value string) bool {
+	id, err := uuid.Parse(value)
+	return err == nil && id != uuid.Nil && id.String() == value
+}
 
 func TryonResultTool(name string) bool {
 	return name == "tryon.get" || name == "tryon.list" || name == "tryon.create" || name == "tryon.retry"
@@ -41,7 +49,7 @@ func FilterTryonMCPResults(ctx context.Context, p project.Principal, name string
 	mutation := name == "tryon.create" || name == "tryon.retry"
 	failure := func(code string) any {
 		payload := map[string]any{"code": code}
-		if id, ok := envelope.Payload["task_id"].(string); mutation && ok && project.ValidID(id) {
+		if id, ok := envelope.Payload["task_id"].(string); mutation && ok && validTryonTaskID(id) {
 			payload["task_id"], payload["recovery"] = id, "tryon.get"
 		}
 		return tryonEnvelope(payload, true)
@@ -60,7 +68,7 @@ func FilterTryonMCPResults(ctx context.Context, p project.Principal, name string
 		id, _ := task["task_id"].(string)
 		projectID, _ := task["project_id"].(string)
 		images, ok := task["images"].([]any)
-		if !project.ValidID(id) || !project.ValidID(projectID) || !ok || len(images) == 0 || len(images) > 4 {
+		if !validTryonTaskID(id) || !project.ValidID(projectID) || !ok || len(images) == 0 || len(images) > 4 {
 			return nil, false, "RESULT_STATUS_UNAVAILABLE"
 		}
 		if expected, ok := args["task_id"].(string); ok && id != expected {
