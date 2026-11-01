@@ -50,6 +50,12 @@ func (s *Server) enableDashboardImageResult(r *gin.Engine, dashboards DashboardS
 }
 
 func (s *Server) readImageResult(ctx context.Context, principal project.Principal, projectID, artifactID string) (application.ImageResultStatus, int, error) {
+	return s.readImageResultWithPreference(ctx, principal, projectID, artifactID, dashboard.IncludeNSFW(ctx))
+}
+func (s *Server) readMCPImageResult(ctx context.Context, principal project.Principal, projectID, artifactID string) (application.ImageResultStatus, int, error) {
+	return s.readImageResultWithPreference(ctx, principal, projectID, artifactID, false)
+}
+func (s *Server) readImageResultWithPreference(ctx context.Context, principal project.Principal, projectID, artifactID string, include bool) (application.ImageResultStatus, int, error) {
 	var value application.ImageResultStatus
 	s.mu.Lock()
 	cfg := s.imageConfig
@@ -71,7 +77,7 @@ func (s *Server) readImageResult(ctx context.Context, principal project.Principa
 	req.Header.Set("X-User-Id", principal.SubjectID)
 	req.Header.Set("X-Organization-Id", principal.OrganizationID)
 	req.Header.Set("X-Request-Id", principal.RequestID)
-	if dashboard.IncludeNSFW(ctx) {
+	if include {
 		req.Header.Set("X-VF-Include-NSFW", "1")
 	}
 	response, err := s.proxyClient().Do(req)

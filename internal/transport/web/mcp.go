@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/verdantflarehub/verdantflare-studio/internal/application"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcp"
 	"github.com/verdantflarehub/verdantflare-studio/internal/mcprpc"
 )
@@ -69,6 +70,9 @@ func (s *Server) mcpHandler(c *gin.Context) {
 		if e != nil {
 			mcprpc.Reject(c.Writer, c.Request, request, status, -32603, e.Error())
 			return
+		}
+		if status == 200 && application.TryonResultTool(name) {
+			result = application.FilterTryonMCPResults(c.Request.Context(), principal, name, args, result, gateway, s.readMCPImageResult)
 		}
 		c.Status(status)
 		mcprpc.Result(c.Writer, request, result)

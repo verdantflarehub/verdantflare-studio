@@ -53,6 +53,11 @@ func TestImageResultServiceTransport(t *testing.T) {
 		}
 	}
 	status, include = 200, false
+	// MCP must drop even a previously marked UI context at the transport boundary.
+	if _, got, err := s.readMCPImageResult(dashboard.WithIncludeNSFW(context.Background(), true), p, "project", "art-0123456789abcdef"); got != 200 || err != nil {
+		t.Fatal("MCP result read failed")
+	}
+
 	for _, body = range []string{`{}`, `{"project_id":null}`, strings.Repeat("x", 4097), `{"project_id":"p","project_id":"q"}`} {
 		if _, got, err := s.readImageResult(context.Background(), p, "project", "art-0123456789abcdef"); got != 503 || err == nil {
 			t.Fatal("malformed upstream accepted")

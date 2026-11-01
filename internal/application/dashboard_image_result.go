@@ -3,10 +3,14 @@ package application
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
+	"mime"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 	"github.com/verdantflarehub/verdantflare-studio/internal/project"
@@ -71,10 +75,30 @@ func (d *Dashboards) ReadImageResult(ctx context.Context, token, sessionID strin
 	if out.Status != 200 {
 		return imageResultFailure(out.Status, out.RequestID)
 	}
-	if gateway == nil || read == nil {
-		return imageResultFailure(503, out.RequestID)
-	}
 	p := project.Principal{OrganizationID: actor.OrganizationID, SubjectID: actor.UserID, RequestID: out.RequestID}
+	// artifact.read remains a separate required capability on Dashboard sessions.
+	_, _, _, contentGrant := d.contentBegin(ctx, token, sessionID)
+	if contentGrant.Status != 200 {
+		return imageResultFailure(contentGrant.Status, out.RequestID)
+	}
+	out = resolveSavedImageResult(ctx, p, in, gateway, read, dashboard.IncludeNSFW(ctx), func(input DashboardContentInput) Result {
+		return d.ReadContent(ctx, token, sessionID, input, gateway)
+	})
+	if _, err := d.resolver.Inspect(ctx, actor, sessionID); err != nil {
+		return imageResultFailure(dashboardError(err, out.RequestID).Status, out.RequestID)
+	}
+	return out
+}
+
+func resolveSavedImageResult(ctx context.Context, p project.Principal, in DashboardImageResultInput, gateway DashboardContentGateway, read ImageResultReader, include bool, content func(DashboardContentInput) Result) Result {
+	out := Result{Status: 200, RequestID: p.RequestID}
+	encoded, _ := json.Marshal(in)
+	if _, err := DecodeDashboardImageResult(bytes.NewReader(encoded)); err != nil || !p.Valid() {
+		return imageResultFailure(422, p.RequestID)
+	}
+	if gateway == nil || read == nil {
+		return imageResultFailure(503, p.RequestID)
+	}
 	data, err := mediaCall(ctx, gateway, p, "project.open", map[string]any{"project_id": in.ProjectID, "revision_id": in.RevisionID}, in.ProjectID)
 	if err != nil {
 		failure := mediaFailure(err, out.RequestID)
@@ -106,11 +130,11 @@ func (d *Dashboards) ReadImageResult(ctx context.Context, token, sessionID strin
 		return imageResultFailure(422, out.RequestID)
 	}
 	access := project.Access{ProjectID: in.ProjectID, RevisionID: in.RevisionID}
-	metadata := d.ReadContent(ctx, token, sessionID, DashboardContentInput{Mode: "metadata", Ref: resultFile.Content, Access: access}, gateway)
+	metadata := content(DashboardContentInput{Mode: "metadata", Ref: resultFile.Content, Access: access})
 	if metadata.Status != 200 {
 		return imageResultFailure(metadata.Status, out.RequestID)
 	}
-	source := d.ReadContent(ctx, token, sessionID, DashboardContentInput{Mode: "text", Ref: sourceFile.Content, Access: access}, gateway)
+	source := content(DashboardContentInput{Mode: "text", Ref: sourceFile.Content, Access: access})
 	if source.Status != 200 {
 		return imageResultFailure(source.Status, out.RequestID)
 	}
@@ -148,10 +172,6 @@ func (d *Dashboards) ReadImageResult(ctx context.Context, token, sessionID strin
 		return imageResultFailure(422, out.RequestID)
 	}
 	current, status, err := read(ctx, p, in.ProjectID, final)
-	// Recheck the page after network I/O, even for an unavailable result.
-	if _, err := d.resolver.Inspect(ctx, actor, sessionID); err != nil {
-		return imageResultFailure(dashboardError(err, out.RequestID).Status, out.RequestID)
-	}
 	if err != nil {
 		return imageResultFailure(503, out.RequestID)
 	}
@@ -169,10 +189,47 @@ func (d *Dashboards) ReadImageResult(ctx context.Context, token, sessionID strin
 	if (rating.Rating != "unrated" && rating.Rating != "general" && rating.Rating != "nsfw") || (rating.Source != nil && *rating.Source != "ai" && *rating.Source != "human") {
 		return imageResultFailure(503, out.RequestID)
 	}
-	if rating.Rating == "nsfw" && !dashboard.IncludeNSFW(ctx) {
+	if rating.Rating == "nsfw" && !include {
 		out.Data = json.RawMessage(`{"status":"unavailable"}`)
 		return out
 	}
 	out.Data, _ = json.Marshal(map[string]any{"status": "visible", "content_rating": rating, "content_ref": resultFile.Content, "access": access})
 	return out
+}
+
+// Public MCP has no Dashboard session. Artifact and Project services validate
+// the same real principal and fixed scope; only metadata/text is consumed here.
+func readResultContent(ctx context.Context, p project.Principal, in DashboardContentInput, gateway DashboardContentGateway) Result {
+	encoded, _ := json.Marshal(in)
+	var args map[string]any
+	_ = json.Unmarshal(encoded, &args)
+	data, err := mediaCall(ctx, gateway, p, "artifact.read", args, in.Access.ProjectID)
+	if err != nil {
+		return mediaFailure(err, p.RequestID)
+	}
+	var value struct {
+		Mode    string                 `json:"mode"`
+		Version project.ContentVersion `json:"version"`
+		Text    *string                `json:"text,omitempty"`
+	}
+	if strictjson.Decode(bytes.NewReader(data), 4<<20, &value) != nil {
+		return contentFailure(503, p.RequestID)
+	}
+	v := value.Version
+	mt, _, mimeErr := mime.ParseMediaType(v.MIME)
+	if value.Mode != in.Mode || v.ContentRef != in.Ref || v.SchemaVersion != 2 || v.OrganizationID != p.OrganizationID || v.Size < 0 || !contentHash.MatchString(v.SHA256) || mimeErr != nil {
+		return contentFailure(503, p.RequestID)
+	}
+	if in.Mode == "text" {
+		if value.Text == nil || int64(len(*value.Text)) != v.Size || v.Size > 1<<20 || !utf8.ValidString(*value.Text) || !(strings.HasPrefix(mt, "text/") || mt == "application/json" || strings.HasSuffix(mt, "+json")) {
+			return contentFailure(503, p.RequestID)
+		}
+		hash := sha256.Sum256([]byte(*value.Text))
+		if hex.EncodeToString(hash[:]) != v.SHA256 {
+			return contentFailure(503, p.RequestID)
+		}
+	} else if in.Mode != "metadata" || value.Text != nil {
+		return contentFailure(503, p.RequestID)
+	}
+	return Result{Status: 200, RequestID: p.RequestID, Data: data}
 }
