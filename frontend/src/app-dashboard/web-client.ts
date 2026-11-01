@@ -198,8 +198,9 @@ export function createDashboardWebClient(
       return call(sessionPath(sessionId) + '/requests', 'POST', input, signal, extraHeaders)
     },
     async capability(sessionId: string, name: string, input: Json, signal?: AbortSignal): Promise<Json> {
-      if (name !== 'artifact.read' && name !== 'artifact.write' && name !== 'workspace.local') return failure('CAPABILITY_UNAVAILABLE')
-      const response = await call(sessionPath(sessionId) + '/capabilities/' + name, 'POST', input, signal)
+      if (name !== 'image.result.read' && name !== 'artifact.read' && name !== 'artifact.write' && name !== 'workspace.local') return failure('CAPABILITY_UNAVAILABLE')
+      const extraHeaders = name === 'image.result.read' && resolveIncludeNsfw() ? { 'X-VF-Include-NSFW': '1' } : undefined
+      const response = await call(sessionPath(sessionId) + '/capabilities/' + name, 'POST', input, signal, extraHeaders)
       if (response.status !== 200) return failure(codeFrom(response.data))
       if (name === 'workspace.local') return response.data
       const value = response.data

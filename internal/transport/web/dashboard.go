@@ -194,6 +194,7 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 		result(c, service.Close(c.Request.Context(), token, c.Param("session_id")))
 	})
 	s.enableDashboardContent(r, service, gate, result)
+	s.enableDashboardImageResult(r, service, gate, result)
 	s.enableDashboardMedia(r, service, gate, result)
 	r.POST("/studio/dashboards/:session_id/instances/open", func(c *gin.Context) {
 		token, ok := gate(c)

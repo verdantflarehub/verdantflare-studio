@@ -239,3 +239,20 @@ test('non-JSON and oversized requests never reach an adapter', async t => {
   }
   assert.deepEqual(session.calls, [])
 })
+
+
+test('final Image reads are cancelled on hide and reject late visibility responses', async t => {
+  let signal!: AbortSignal
+  let finish!: (value: null) => void
+  const session = fixture({ callCapability: (_name, _input, current) => new Promise(resolve => {
+    signal = current
+    finish = resolve
+  }) }, ['image.result.read'])
+  t.after(session.dispose)
+  const rejected = assert.rejects(session.sdk.capabilities.call('image.result.read', {}), { code: 'REQUEST_CANCELLED' })
+  session.setVisibility(false)
+  await rejected
+  assert.equal(signal.aborted, true)
+  finish(null)
+  await assert.rejects(session.sdk.capabilities.call('image.result.read', {}), { code: 'DASHBOARD_HIDDEN' })
+})

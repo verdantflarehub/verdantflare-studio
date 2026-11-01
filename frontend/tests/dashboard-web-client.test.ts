@@ -260,3 +260,22 @@ test('stable content paths require an explicitly matching representation and rem
     await assert.rejects(client.capability(sessionId, 'artifact.read', input), { code: 'INVALID_CONTENT_RESPONSE' })
   }
 })
+
+
+test('final Image business read follows current UI preference without extending Artifact reads', async () => {
+  let include = false
+  const sent: Array<{ url: string, header: string | null }> = []
+  const client = createDashboardWebClient('https://studio.invalid', async (url, options) => {
+    sent.push({ url: String(url), header: new Headers(options?.headers).get('X-VF-Include-NSFW') })
+    return json({ status: 'unavailable' })
+  }, () => 0, () => include)
+  const input = { project_id: installationId, project_revision_id: installationId, result_file_id: installationId, provenance_file_id: installationId }
+  for (include of [false, true, false]) {
+    assert.deepEqual(await client.capability(sessionId, 'image.result.read', input), { status: 'unavailable' })
+    assert.equal(sent.at(-1)?.url, `https://studio.invalid/studio/dashboards/${sessionId}/capabilities/image.result.read`)
+    assert.equal(sent.at(-1)?.header, include ? '1' : null)
+  }
+  include = true
+  await client.capability(sessionId, 'artifact.read', {})
+  assert.equal(sent.at(-1)?.header, null)
+})
