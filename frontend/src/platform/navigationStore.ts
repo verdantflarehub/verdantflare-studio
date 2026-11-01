@@ -55,8 +55,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     const value = state.value.value
     if (!value) return []
     const projected = appcenter && value.mode === 'preinstalled' ? appCenterNavigationEntries(value, appcenter.state, appcenter.currentTime()) : value.projection.entries
-    // Keep older Project declarations consistent with the current module name.
-    return projected.map(entry => entry.appId === 'project' ? { ...entry, title: '项目管理' } : entry)
+    return projected
   })
   const pinned = computed(() => entries.value.filter(entry => entry.pinned))
   const legacy = computed(() => state.value.status === 'ready' && state.value.value?.mode === 'legacy')

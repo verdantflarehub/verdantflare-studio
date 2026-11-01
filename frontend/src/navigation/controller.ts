@@ -40,30 +40,10 @@ export function validChildRoute(value: unknown): value is string {
     seen.add(key); return true
   })
 }
-function normalizeChildUrl(u: URL): URL {
-  if (u.pathname === '/projects') {
-    const cat = u.searchParams.get('category')
-    if (cat && ['image', 'character', 'music', 'video', 'ai_short_drama'].includes(cat)) {
-      u.pathname = '/' + cat
-      u.searchParams.delete('category')
-    }
-  } else if (u.pathname === '/') {
-    const view = u.searchParams.get('view')
-    if (view === 'storage' || view === 'tasks') {
-      u.pathname = '/' + view
-      u.searchParams.delete('view')
-    } else if (view === 'monitor') {
-      u.searchParams.delete('view')
-    }
-  } else if (u.pathname === '/monitor') {
-    u.pathname = '/'
-  }
-  return u
-}
 export function sameNavigationPath(left: string, right: string): boolean {
   const normalize = (value: string) => {
     try {
-      const u = normalizeChildUrl(new URL(value, 'https://app.invalid'))
+      const u = new URL(value, 'https://app.invalid')
       u.searchParams.sort()
       return u.pathname + u.search
     } catch {
@@ -81,16 +61,18 @@ export function selectedNavigationChild(children: NavigationChild[] | undefined,
   let duplicate = false
   rawCurrent.searchParams.forEach((_value, key) => { if (rawCurrent.searchParams.getAll(key).length !== 1) duplicate = true })
   if (duplicate) return
-  const current = normalizeChildUrl(rawCurrent)
+  const current = rawCurrent
   const candidates = children.flatMap(child => {
-    const declared = normalizeChildUrl(new URL(child.route, 'https://app.invalid'))
-    if (declared.pathname !== current.pathname && !(declared.pathname === '/ai_short_drama' && current.pathname.startsWith('/ai_short_drama/'))) return []
+    const declared = new URL(child.route, 'https://app.invalid')
+    const exact = declared.pathname === current.pathname
+    if (!exact && !(declared.pathname !== '/' && current.pathname.startsWith(declared.pathname + '/'))) return []
     const keys: string[] = []
     declared.searchParams.forEach((_value, key) => keys.push(key))
     if (!keys.every(key => declared.searchParams.get(key) === current.searchParams.get(key))) return []
-    return [{ child, score: keys.length }]
-  }).sort((a, b) => b.score - a.score)
-  return candidates[0] && (!candidates[1] || candidates[0].score > candidates[1].score) ? candidates[0].child : undefined
+    return [{ child, exact: Number(exact), length: declared.pathname.length, score: keys.length }]
+  }).sort((a, b) => b.exact - a.exact || b.length - a.length || b.score - a.score)
+  const [first, second] = candidates
+  return first && (!second || first.exact !== second.exact || first.length !== second.length || first.score !== second.score) ? first.child : undefined
 }
 const denied = (error: unknown) => error instanceof Error && ['NAVIGATION_DENIED', 'INVALID_NAVIGATION_RESPONSE'].includes(error.message)
 

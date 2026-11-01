@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createNavigationController, decodeNavigation, sameNavigationPath, selectedNavigationChild } from '../src/navigation/controller.ts'
 import { createNavigationTransport, prefetchNavigation } from '../src/navigation/transport.ts'
+import { canonicalAppPath } from '../src/app-dashboard/routes.ts'
 import type { NavigationEnvelope, NavigationPreference, NavigationIdentity } from '../src/navigation/controller.ts'
 
 const identity: NavigationIdentity = { userId: '019a00b0-0000-7000-8000-000000000001', organizationId: '019a00b0-0000-7000-8000-000000000002', stationId: '019a00b0-0000-7000-8000-000000000003' }
@@ -11,16 +12,16 @@ test('business queries keep exactly one declared navigation child without expand
     { entryId: 'video', title: '创意视频', route: '/video', order: 1 },
   ]
   assert.equal(selectedNavigationChild(children, '/video?project=one&revision=fixed&q=summer')?.entryId, 'video')
-  assert.equal(selectedNavigationChild(children, '/projects?project=one&revision=fixed&category=video&q=summer')?.entryId, 'video')
+  assert.equal(selectedNavigationChild(children, canonicalAppPath('project', '/projects?project=one&revision=fixed&category=video&q=summer'))?.entryId, 'video')
   assert.equal(selectedNavigationChild(children, '/projects?category=video&category=character'), undefined)
   assert.equal(selectedNavigationChild(children, '/other?category=video'), undefined)
   assert.equal(selectedNavigationChild([...children, { ...children[1], entryId: 'ambiguous' }], '/video'), undefined)
   const resources = [{ entryId: 'monitor', title: '监控', route: '/', order: 0 }, { entryId: 'storage', title: '存储', route: '/storage', order: 1 }, { entryId: 'tasks', title: '任务', route: '/tasks', order: 2 }]
   assert.equal(selectedNavigationChild(resources, '/storage?q=files')?.entryId, 'storage')
-  assert.equal(selectedNavigationChild(resources, '/?view=tasks')?.entryId, 'tasks')
+  assert.equal(selectedNavigationChild(resources, canonicalAppPath('resources', '/?view=tasks'))?.entryId, 'tasks')
   assert.equal(selectedNavigationChild(resources, '/')?.entryId, 'monitor')
-  assert.equal(sameNavigationPath('/video', '/projects?category=video'), true)
-  assert.equal(sameNavigationPath('/tasks', '/?view=tasks'), true)
+  assert.equal(sameNavigationPath('/video', '/projects?category=video'), false)
+  assert.equal(sameNavigationPath('/tasks', '/?view=tasks'), false)
   assert.equal(sameNavigationPath('/video', '/video?q=summer'), false)
 })
 function envelope(who = identity): NavigationEnvelope {

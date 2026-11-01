@@ -13,6 +13,7 @@ import type { SDKAdapters } from './types'
 import { openMediaPreview, closeMediaPreview } from '../platform/media-preview'
 import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
+import { navigationRouteNode } from './navigation-routes'
 import { useNavigationStore } from '../platform/navigationStore'
 import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { nativeTaskLocation, nativeTaskTarget } from '../navigation/native-task-target'
@@ -32,7 +33,10 @@ const currentAppId = computed(() => dashboardAppId(props.installationId, selecti
   appId: selection.value.context.appId, installationId: selection.value.launch.installationId,
 } : undefined))
 const currentAppPath = computed(() => { try { return browserDashboardPath(route, currentAppId.value) } catch { return '/' } })
-const navigationChild = computed(() => selectedNavigationChild(navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)?.children, currentAppPath.value))
+const navigationChild = computed(() => {
+  const entry = navigation.entries.find(entry => entry.installationId === props.installationId || entry.appId === props.installationId)
+  return selectedNavigationChild(entry ? navigationRouteNode(entry).children : undefined, currentAppPath.value)
+})
 const client = ['http:', 'https:'].includes(location.protocol) ? createDashboardWebClient(location.origin) : undefined
 const sessions = client ? new DashboardSessions({ ...client, open: (id, signal) => props.openDashboard ? props.openDashboard(id, signal) : client.open(id, signal) }) : undefined
 const host = ref<InstanceType<typeof AppDashboardHost>>()

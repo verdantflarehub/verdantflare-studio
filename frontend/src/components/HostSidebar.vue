@@ -6,12 +6,16 @@ import { useHostStore } from '../platform/hostStore'
 import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
 import { browserDashboardPath, dashboardLocation } from '../app-dashboard/routes'
-import { sameNavigationPath, selectedNavigationChild } from '../navigation/controller'
+import { menuState } from '../navigation/menu'
+import { navigationRouteNode } from '../app-dashboard/navigation-routes'
+import { legacySidebarEntries, legacySidebarSelected } from '../app-dashboard/legacy-sidebar'
+import { stationNavigationTarget, legacyStationLocation } from '../platform/sidebarActions'
+import NavigationRow from './NavigationRow.vue'
 import type { NavigationEntry } from '../navigation/controller'
 import { useAppCenterStore } from '../app-center/store'
 import { appCenterNavigationEntries } from '../app-center/navigation'
 import { reasonLabel } from '../app-center/labels'
-import { directoryLocation, directoryView } from '../app-center/directory-route'
+import { directoryLocation, directoryView, isDirectoryRoute } from '../app-center/directory-route'
 import { selectCards } from '../app-center/controller'
 import { hostTheme } from '../theme/hostTheme'
 import { themeLabels } from '../theme/preference'
@@ -22,7 +26,7 @@ import NavigationIcon from './NavigationIcon.vue'
 const host = useHostStore(), navigation = useNavigationStore(), router = useRouter(), route = useRoute()
 const appcenter = import.meta.env.VITE_APPCENTER_MODE === 'unified' ? useAppCenterStore() : null
 // /market also hosts legacy application routes; directory ancestry stops at the directory.
-const appCenterActive = computed(() => route.path === '/market' && !['video', 'image', 'music', 'speech', 'blender', 'comfyui'].some(key => route.query[key] !== undefined))
+const appCenterActive = computed(() => isDirectoryRoute(route))
 const expanded = ref(new Set<string>(['directory']))
 const branchKey = (entry: NavigationEntry) => entry.installationId + '/' + entry.entryId
 function toggleBranch(key: string) { const next = new Set(expanded.value); next.has(key) ? next.delete(key) : next.add(key); expanded.value = next }
@@ -32,7 +36,8 @@ watch(() => expanded.value.has('directory'), value => appcenter?.setVisible('dir
 const currentAppId = computed(() => typeof route.params.appId === 'string' ? route.params.appId : navigation.entries.find(e => e.installationId === route.params.installationId)?.appId)
 const appPath = computed(() => { try { return browserDashboardPath(route, currentAppId.value) } catch { return '/' } })
 const entrySelected = (entry: NavigationEntry) => ['app-dashboard', 'app-dashboard-legacy', 'app-instance'].includes(String(route.name)) && (route.params.appId === entry.appId || route.params.installationId === entry.installationId)
-const childSelected = (entry: NavigationEntry, path: string) => ['app-dashboard', 'app-dashboard-legacy'].includes(String(route.name)) && entrySelected(entry) && selectedNavigationChild(entry.children, appPath.value)?.route === path
+const entryMenu = (entry: NavigationEntry) => menuState(navigationRouteNode(entry), appPath.value, entrySelected(entry) && ['app-dashboard', 'app-dashboard-legacy'].includes(String(route.name)))
+const childSelected = (entry: NavigationEntry, entryId: string) => entryMenu(entry).selectedChild === entryId
 let expandedForRoute = ''
 watch(() => [route.fullPath, navigation.pinned] as const, () => {
   const keys = new Set(['directory', ...navigation.pinned.map(branchKey)])
@@ -47,9 +52,6 @@ watch(() => [route.fullPath, navigation.pinned] as const, () => {
   }
 }, { immediate: true })
 const entryLocation = (entry: NavigationEntry, path = entry.route) => dashboardLocation(entry.appId, path)
-// A parent opens its own page only when it declares a route that no child
-// repeats (for example a World overview); otherwise clicking it expands.
-const ownsPage = (entry: NavigationEntry) => !!entry.route && !!entry.children?.length && !entry.children.some(child => sameNavigationPath(child.route, entry.route))
 function entryReason(entry: NavigationEntry) { return appcenter ? reasonLabel('openReason' in entry ? entry.openReason as string : null) : entry.availability === 'offline' ? '应用离线' : '应用状态待确认' }
 const feedback = ref('')
 async function openEntry(entry: NavigationEntry, target = entry.route) {
@@ -68,15 +70,6 @@ async function openEntry(entry: NavigationEntry, target = entry.route) {
     } else await router.push(entryLocation(entry, target))
   } catch { feedback.value = '应用暂时无法打开，请刷新后重试。' }
 }
-// Explicit legacy mode alone retains the old direct entry compatibility.
-const legacyEntries = [
-  { title: '项目管理', icon: 'folder', path: '/projects', query: {} },
-  { title: '数字世界', icon: 'globe', path: '/projects', query: { mode: 'world' } },
-  { title: '资源管理', icon: 'server', path: '/resources', query: {} },
-  { title: '网络出口', icon: 'network', path: '/station/proxies', query: {} },
-]
-function legacySelected(item: typeof legacyEntries[number]) { return route.path === item.path && (route.query.mode === 'world') === (item.query.mode === 'world') }
-
 function refreshNavigation() { if (host.connected) { void navigation.refresh(); void host.fetchCluster() } }
 function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
 const nsfwSnap = ref(hostContentPreferences.get())
@@ -118,9 +111,9 @@ async function account() {
   else host.loginOpen = true
 }
 function station() {
-  const entry = navigation.entries.find(item => item.appId === 'resources')
+  const entry = stationNavigationTarget(navigation.entries)
   if (host.connected && entry) void openEntry(entry, entry.route || entry.children?.[0]?.route)
-  else if (host.connected && navigation.legacy) void router.push('/resources')
+  else if (host.connected && navigation.legacy) void router.push(legacyStationLocation)
   else showDialog('station')
 }
 async function logout() {
@@ -193,36 +186,25 @@ onBeforeUnmount(() => {
       <img :src="vfLogo" alt="" width="30" height="37"><span class="brand-copy"><span class="brand-name">青焰 · VerdantFlare</span><small>STUDIO OS</small></span>
     </a>
     <nav aria-label="业务导航">
-      <button class="nav-row" :class="{ 'parent-current': appCenterActive }" aria-label="应用中心" title="应用中心" :aria-expanded="expanded.has('directory')" aria-controls="directory-children" @click="toggleBranch('directory')">
-        <NavigationIcon name="app" /><span class="label">应用中心</span><NavigationIcon name="chevron" />
-      </button>
+      <NavigationRow label="应用中心" icon="app" children :parent-current="appCenterActive" :expanded="expanded.has('directory')" controls="directory-children" @toggle="toggleBranch('directory')" />
       <div v-show="expanded.has('directory')" id="directory-children" class="children">
-        <a v-for="item in directoryMenus" :key="item.view" class="nav-row" :href="router.resolve(directoryLocation(item.view)).href"
-           :aria-current="appCenterActive && directoryView(route.query.view) === item.view ? 'page' : undefined" @click.prevent="router.push(directoryLocation(item.view))">
-          <span class="label">{{ item.label }}</span><span class="count">{{ directoryCounts[item.view] ?? '—' }}</span>
-        </a>
+        <NavigationRow v-for="item in directoryMenus" :key="item.view" child :label="item.label" :href="router.resolve(directoryLocation(item.view)).href"
+          :current="appCenterActive && directoryView(route.query.view) === item.view" :count="directoryCounts[item.view] ?? '—'" @activate="router.push(directoryLocation(item.view))" />
       </div>
       <div class="dynamic-menu">
         <template v-if="navigation.legacy">
-          <a v-for="item in legacyEntries" :key="item.title" class="nav-row" :title="item.title" :aria-label="item.title" :aria-current="legacySelected(item) ? 'page' : undefined"
-             :href="router.resolve(item).href" @click.prevent="router.push(item)"><NavigationIcon :name="item.icon" /><span class="label">{{ item.title }}</span></a>
+          <NavigationRow v-for="item in legacySidebarEntries" :key="item.title" :label="item.title" :icon="item.icon"
+            :current="legacySidebarSelected(item, route)" :href="router.resolve(item).href" @activate="router.push(item)" />
         </template>
         <template v-else v-for="entry in navigation.pinned" :key="branchKey(entry)">
-          <div v-if="ownsPage(entry)" class="branch-row">
-            <a class="nav-row" :href="router.resolve(entryLocation(entry)).href" :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && appPath === '/' ? 'page' : undefined" @click.prevent="openEntry(entry)"><NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span></a>
-            <button class="branch-toggle" :aria-label="(expanded.has(branchKey(entry)) ? '收起' : '展开') + entry.title" :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))"><NavigationIcon name="chevron" /></button>
-          </div>
-          <button v-else-if="entry.children?.length" class="nav-row" :class="{ 'parent-current': entrySelected(entry) }" :title="entry.title" :aria-label="entry.title"
-                  :aria-expanded="expanded.has(branchKey(entry))" :aria-controls="'children-' + entry.installationId" @click="toggleBranch(branchKey(entry))">
-            <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span><NavigationIcon name="chevron" />
-          </button>
-          <a v-else class="nav-row" :href="router.resolve(entryLocation(entry)).href" :title="entry.title" :aria-label="entry.title"
-             :class="{ 'parent-current': entrySelected(entry) }" :aria-current="entrySelected(entry) && (!entry.children?.length || appPath === entry.route) ? 'page' : undefined" @click.prevent="openEntry(entry)">
-            <NavigationIcon :name="entry.iconRef" /><span class="label">{{ entry.title }}</span><span v-if="entry.availability !== 'ready'" class="offline-badge">{{ entry.availability === 'offline' ? '离线' : '待确认' }}</span>
-          </a>
+          <NavigationRow :label="entry.title" :icon="entry.iconRef" :children="entryMenu(entry).hasChildren"
+            :href="entryMenu(entry).navigable ? router.resolve(entryLocation(entry)).href : undefined"
+            :current="entryMenu(entry).parentCurrent" :parent-current="entrySelected(entry)" :expanded="expanded.has(branchKey(entry))"
+            :controls="'children-' + entry.installationId" :badge="entry.availability !== 'ready' ? (entry.availability === 'offline' ? '离线' : '待确认') : undefined"
+            @activate="openEntry(entry)" @toggle="toggleBranch(branchKey(entry))" />
           <div v-if="entry.children?.length" :hidden="!expanded.has(branchKey(entry))" :inert="!expanded.has(branchKey(entry))" :id="'children-' + entry.installationId" class="children">
-            <a v-for="child in entry.children" :key="child.entryId" class="nav-row" :href="router.resolve(entryLocation(entry, child.route)).href"
-               :aria-current="childSelected(entry, child.route) ? 'page' : undefined" @click.prevent="openEntry(entry, child.route)"><span class="label">{{ child.title }}</span></a>
+            <NavigationRow v-for="child in entry.children" :key="child.entryId" child :label="child.title" :href="router.resolve(entryLocation(entry, child.route)).href"
+              :current="childSelected(entry, child.entryId)" @activate="openEntry(entry, child.route)" />
           </div>
         </template>
         <div v-if="navigation.state.status === 'loading'" class="nav-state" role="status" aria-busy="true">正在加载应用菜单…</div>
@@ -285,29 +267,11 @@ onBeforeUnmount(() => {
 .brand img { width:30px; height:37px; object-fit:contain; justify-self:center; }
 .brand-name { display:block; font-weight:650; white-space:nowrap; font-size:14px; letter-spacing:-.35px; }
 .brand small { display:block; font-size:9px; letter-spacing:2.5px; color:var(--muted); margin-top:3px; }
-.nav-row,.utility { display:grid; grid-template-columns:30px minmax(0,1fr) auto; align-items:center; column-gap:6px; width:100%; min-height:40px; padding:9px 12px 9px 6px; border-radius:7px; text-align:left; color:var(--muted); line-height:22px; transition:background var(--vf-dur-fast, 140ms) var(--vf-ease-out), color var(--vf-dur-fast, 140ms) var(--vf-ease-out); }
-.nav-row:hover,.utility:hover { background:var(--shell-button); color:var(--ink); }
-.nav-row>.icon,.utility>.icon,.avatar { justify-self:center; }
-.nav-row.parent-current { color:var(--ink); font-weight:600; }
-.nav-row[aria-current=page] { background:var(--shell-button); color:var(--ink); font-weight:600; }
-.nav-row[aria-current=page]>.icon { color:var(--accent); }
-.nav-row:has(.offline-badge):has(.chevron) { grid-template-columns:30px minmax(0,1fr) auto 14px; }
-.nav-row>.chevron { transition:transform var(--vf-dur-Spring, 340ms) var(--vf-ease-spring); }
-.nav-row[aria-expanded=true]>.chevron { transform:rotate(180deg); }
-.label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.utility { display:grid; grid-template-columns:30px minmax(0,1fr) auto; align-items:center; column-gap:6px; width:100%; min-height:40px; padding:9px 12px 9px 6px; border-radius:7px; text-align:left; color:var(--muted); line-height:22px; transition:background var(--vf-dur-fast,140ms) var(--vf-ease-out),color var(--vf-dur-fast,140ms) var(--vf-ease-out); }
+.utility:hover { background:var(--shell-button); color:var(--ink); }
+.utility>.icon,.avatar { justify-self:center; }
 .children[hidden] { display:none; }
-.branch-row { display:flex; align-items:center; min-width:0; }
-.branch-row>.nav-row { flex:1; min-width:0; }
-/* Same right inset as .nav-row (12px) so this chevron lines up with the others. */
-.branch-toggle { flex:0 0 38px; height:40px; padding:0 12px 0 0; border-radius:6px; color:var(--muted); display:grid; place-items:center end; }
-.branch-toggle>.chevron { transition:transform var(--vf-dur-Spring, 340ms) var(--vf-ease-spring); }
-.branch-toggle[aria-expanded=true]>.chevron { transform:rotate(180deg); }
-.branch-toggle:hover { background:var(--shell-button); color:var(--ink); }
-.branch-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 .children { padding:2px 0 7px; }
-.children .nav-row { display:flex; justify-content:space-between; min-height:35px; padding:6px 12px 6px 42px; font-size:13px; position:relative; }
-.children .nav-row[aria-current=page]:before { content:""; position:absolute; width:4px; height:4px; left:24px; border-radius:50%; background:var(--accent); }
-.count,.offline-badge { color:var(--muted); font-size:11px; font-weight:400; font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1, "zero" 1; }
 .dynamic-menu { margin-top:6px; }
 .side-spacer { flex:1; min-height:38px; }
 .utilities { border-top:0.5px solid var(--vf-hairline-outer); padding-top:13px; }
@@ -338,16 +302,11 @@ onBeforeUnmount(() => {
 .navigation-dialog h3 { font-size:13px; margin:20px 0 5px; }
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:24px; }
 @media(max-width:700px) {
- .branch-toggle { flex-basis:20px; }
- .branch-row>.nav-row { padding:10px 0; }
  .host-sidebar { padding:22px 7px 12px; }
  .brand { display:flex; padding:0; justify-content:center; margin-bottom:28px; }
  .brand img { width:28px; height:34px; }
- .brand-copy,.nav-row .label,.count,.nav-row .chevron,.utility-label,.status-text,.utility>.chevron,.status-dot,.system-hint,.offline-badge { display:none; }
- .host-sidebar .nav-row,.utility { display:flex; justify-content:center; padding:10px 8px; }
- .children .nav-row { padding:8px 3px; min-height:34px; font-size:10px; line-height:15px; text-align:center; }
- .children .nav-row .label { display:block; white-space:normal; }
- .children .nav-row[aria-current=page]:before { display:none; }
+ .brand-copy,.utility-label,.status-text,.utility>.chevron,.status-dot,.system-hint { display:none; }
+ .utility { display:flex; justify-content:center; padding:10px 8px; }
  .side-spacer { min-height:28px; }
  .nav-state { font-size:10px; padding:10px 2px; overflow-wrap:anywhere; }
  .nav-state .small-button { padding:3px; }
