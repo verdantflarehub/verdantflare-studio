@@ -3,7 +3,6 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import vfLogo from '../assets/verdantflare-logo.png'
 import { useHostStore } from '../platform/hostStore'
-import { request } from '../platform/client'
 import { useNavigationStore } from '../platform/navigationStore'
 import { browserDashboardPath, dashboardLocation } from '../app-dashboard/routes'
 import { menuState } from '../navigation/menu'
@@ -20,7 +19,7 @@ import { selectCards } from '../app-center/controller'
 import { hostTheme } from '../theme/hostTheme'
 import { themeLabels } from '../theme/preference'
 import type { ThemeMode } from '../theme/preference'
-import { formatRemainingTime, hostContentPreferences } from '../platform/contentPreferences'
+import { hostContentPreferences } from '../platform/contentPreferences'
 import NavigationIcon from './NavigationIcon.vue'
 
 const host = useHostStore(), navigation = useNavigationStore(), router = useRouter(), route = useRoute()
@@ -72,13 +71,9 @@ async function openEntry(entry: NavigationEntry, target = entry.route) {
 }
 function refreshNavigation() { if (host.connected) { void navigation.refresh(); void host.fetchCluster() } }
 function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
-const nsfwSnap = ref(hostContentPreferences.get())
-const nsfwStatusText = computed(() => nsfwSnap.value.includeNsfw ? `已开启，${formatRemainingTime(nsfwSnap.value.remainingMs)}` : '关闭')
-let unsubNsfw: (() => void) | undefined
-
 watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), authorizationKey => {
   const identity = host.identity
-  nsfwSnap.value = hostContentPreferences.setSessionIdentity(
+  hostContentPreferences.setSessionIdentity(
     identity.user_id && identity.organization_id ? { userId: identity.user_id, organizationId: identity.organization_id } : null,
   )
   navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null, authorizationKey)
@@ -92,44 +87,19 @@ function measureSidebar() { sticky.value = !!sidebar.value && sidebar.value.scro
 const loginStatus = computed(() => host.connected ? '已登录' : host.sessionStatus === 'loading' ? '读取中' : host.sessionStatus === 'error' ? '读取失败' : '未登录')
 const stationStatus = computed(() => !host.connected ? '未连接' : host.coreStatus === '就绪' ? '已就绪' : host.coreStatus === '未就绪' ? '未就绪' : host.healthLoading ? '检查中' : '待确认')
 const dialog = ref<HTMLDialogElement>()
-const dialogKind = ref<'account' | 'help' | 'station' | 'logout'>('help')
-const dialogTitle = computed(() => ({ account: '账号详情', help: '帮助', station: 'Station 状态', logout: '退出登录？' })[dialogKind.value])
-const logoutBusy = ref(false), logoutError = ref('')
+const dialogKind = ref<'help' | 'station'>('help')
+const dialogTitle = computed(() => ({ help: '帮助', station: 'Station 状态' })[dialogKind.value])
 function showDialog(kind: typeof dialogKind.value) {
   dialogKind.value = kind
-  logoutError.value = ''
-  nsfwSnap.value = hostContentPreferences.get()
   dialog.value?.showModal()
 }
-function openSettings() {
-  dialog.value?.close()
-  void router.push('/settings')
-}
-async function account() {
-  if (host.connected) showDialog('account')
-  else if (host.sessionStatus === 'error') await host.init()
-  else host.loginOpen = true
-}
+function account() { void router.push('/settings') }
 function station() {
   const entry = stationNavigationTarget(navigation.entries)
   if (host.connected && entry) void openEntry(entry, entry.route || entry.children?.[0]?.route)
   else if (host.connected && navigation.legacy) void router.push(legacyStationLocation)
   else showDialog('station')
 }
-async function logout() {
-  if (logoutBusy.value) return
-  logoutBusy.value = true; logoutError.value = ''
-  nsfwSnap.value = hostContentPreferences.disable('logout')
-  try {
-    const result = await request({ path: 'logout', method: 'POST' }, { realOnly: true })
-    if (!result.ok && result.status !== 401) throw new Error('logout')
-    host.setIdentity({}); try { sessionStorage.removeItem('studio.operations') } catch { /* optional browser cache */ }
-    window.dispatchEvent(new CustomEvent('studio:logout'))
-    dialog.value?.close(); host.loginOpen = true
-  } catch { logoutError.value = '退出未能确认，请重试。' }
-  finally { logoutBusy.value = false }
-}
-
 const themeButton = ref<HTMLButtonElement>(), themeMenu = ref<HTMLElement>(), themeExpanded = ref(false)
 const modes: ThemeMode[] = ['light', 'dark', 'system']
 function positionTheme() {
@@ -163,7 +133,6 @@ function themeKeys(event: KeyboardEvent) {
 function resized() { measureSidebar(); positionTheme() }
 onMounted(() => {
   void host.init()
-  unsubNsfw = hostContentPreferences.subscribe(next => { nsfwSnap.value = next })
   window.addEventListener('studio:logout', clearNavigation)
   window.addEventListener('resize', resized)
   window.addEventListener('scroll', positionTheme, { passive: true })
@@ -172,7 +141,6 @@ onMounted(() => {
   measureSidebar()
 })
 onBeforeUnmount(() => {
-  unsubNsfw?.()
   appcenter?.setVisible('directory-menu', false); resizeObserver?.disconnect()
   window.removeEventListener('studio:logout', clearNavigation)
   window.removeEventListener('resize', resized)
@@ -215,7 +183,7 @@ onBeforeUnmount(() => {
     </nav>
     <div class="side-spacer"></div>
     <div class="utilities">
-      <button class="utility account" :title="host.displayName + '，' + loginStatus" :aria-label="host.displayName + '，' + loginStatus + '，查看账号详情'" aria-haspopup="dialog" @click="account">
+      <button class="utility account" :title="host.displayName + '，' + loginStatus" :aria-label="host.displayName + '，' + loginStatus + '，账号与设置'" :aria-current="route.path === '/settings' ? 'page' : undefined" @click="account">
         <span class="avatar">{{ host.avatar }}</span><span class="utility-label username">{{ host.displayName }}</span><span class="status-text">{{ loginStatus }}</span><NavigationIcon name="chevron" />
       </button>
       <button class="utility station" :title="host.clusterName + '，' + stationStatus" :aria-label="host.clusterName + '，' + stationStatus + '，查看状态'" @click="station">
@@ -234,18 +202,9 @@ onBeforeUnmount(() => {
     <div ref="themeMenu" id="theme-menu" class="theme-popover" popover role="menu" aria-label="主题" @toggle="themeToggled" @keydown="themeKeys">
       <p>主题</p><button v-for="mode in modes" :key="mode" role="menuitemradio" :aria-checked="hostTheme.mode.value === mode" @click="chooseTheme(mode)">{{ themeLabels[mode] }}<span v-if="hostTheme.mode.value === mode" aria-hidden="true">✓</span></button>
     </div>
-    <dialog ref="dialog" class="navigation-dialog" aria-labelledby="navigation-dialog-title" @cancel="logoutBusy && $event.preventDefault()">
-      <div class="dialog-head"><h2 id="navigation-dialog-title">{{ dialogTitle }}</h2><button class="small-button" :disabled="logoutBusy" aria-label="关闭" @click="dialog?.close()">关闭</button></div>
-      <template v-if="dialogKind === 'account'">
-        <p>用户：{{ host.displayName }}</p><p>组织：{{ host.identity.organization_name || '未配置组织' }}</p><p>登录状态：{{ loginStatus }}</p>
-        <p>NSFW 显示：{{ nsfwStatusText }}</p>
-        <div class="dialog-actions"><button class="small-button" @click="openSettings">设置</button><button class="small-button" @click="dialogKind = 'logout'">退出登录</button></div>
-      </template>
-      <template v-else-if="dialogKind === 'logout'">
-        <p>确认退出当前账号？</p><p v-if="logoutError" role="alert">{{ logoutError }}</p>
-        <div class="dialog-actions"><button class="small-button" :disabled="logoutBusy" @click="dialogKind = 'account'">取消</button><button class="small-button" :disabled="logoutBusy" @click="logout">{{ logoutBusy ? '正在退出…' : '确认退出' }}</button></div>
-      </template>
-      <template v-else-if="dialogKind === 'station'">
+    <dialog ref="dialog" class="navigation-dialog" aria-labelledby="navigation-dialog-title">
+      <div class="dialog-head"><h2 id="navigation-dialog-title">{{ dialogTitle }}</h2><button class="small-button" aria-label="关闭" @click="dialog?.close()">关闭</button></div>
+      <template v-if="dialogKind === 'station'">
         <p>{{ host.clusterName }}：{{ stationStatus }}</p><p>{{ host.connected ? '资源管理入口当前不可用，请在应用中心检查安装与访问权限。' : '请登录后查看 Station 的当前状态。' }}</p>
         <div class="dialog-actions"><button class="small-button" @click="refreshNavigation">重新检查</button></div>
       </template>
@@ -268,7 +227,7 @@ onBeforeUnmount(() => {
 .brand-name { display:block; font-weight:650; white-space:nowrap; font-size:14px; letter-spacing:-.35px; }
 .brand small { display:block; font-size:9px; letter-spacing:2.5px; color:var(--muted); margin-top:3px; }
 .utility { display:grid; grid-template-columns:30px minmax(0,1fr) auto; align-items:center; column-gap:6px; width:100%; min-height:40px; padding:9px 12px 9px 6px; border-radius:7px; text-align:left; color:var(--muted); line-height:22px; transition:background var(--vf-dur-fast,140ms) var(--vf-ease-out),color var(--vf-dur-fast,140ms) var(--vf-ease-out); }
-.utility:hover { background:var(--shell-button); color:var(--ink); }
+.utility[aria-current="page"],.utility:hover { background:var(--shell-button); color:var(--ink); }
 .utility>.icon,.avatar { justify-self:center; }
 .children[hidden] { display:none; }
 .children { padding:2px 0 7px; }

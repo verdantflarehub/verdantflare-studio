@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { request } from '../platform/client'
 import { useHostStore } from '../platform/hostStore'
 import {
   NSFW_MAX_TTL_MS,
@@ -11,6 +12,24 @@ import {
 import type { ContentPreferencesState } from '../platform/contentPreferences'
 
 const host = useHostStore()
+const logoutConfirm = ref(false)
+const logoutBusy = ref(false)
+const logoutError = ref('')
+const loginStatus = computed(() => host.connected ? '已登录' : host.sessionStatus === 'loading' ? '读取中' : host.sessionStatus === 'error' ? '读取失败' : '未登录')
+async function logout() {
+  if (logoutBusy.value) return
+  logoutBusy.value = true; logoutError.value = ''
+  hostContentPreferences.disable('logout')
+  try {
+    const result = await request({ path: 'logout', method: 'POST' }, { realOnly: true })
+    if (!result.ok && result.status !== 401) throw new Error('logout')
+    host.setIdentity({})
+    try { sessionStorage.removeItem('studio.operations') } catch { /* optional browser cache */ }
+    window.dispatchEvent(new CustomEvent('studio:logout'))
+    logoutConfirm.value = false; host.loginOpen = true
+  } catch { logoutError.value = '退出未能确认，请重试。' }
+  finally { logoutBusy.value = false }
+}
 const prefState = ref<ContentPreferencesState>(hostContentPreferences.get())
 const expiredAtMs = ref<number | null>(null)
 const announcement = ref('')
@@ -124,9 +143,31 @@ onBeforeUnmount(() => {
 <template>
   <main class="main settings-main">
     <header class="page-heading">
-      <h1>设置</h1>
-      <p>这些设置只保存在当前浏览器，不会同步到账号或其他设备。</p>
+      <h1>账号与设置</h1>
+      <p>管理当前账号与本机内容显示偏好。</p>
     </header>
+
+    <section class="settings-card" aria-labelledby="settings-account-title">
+      <header id="settings-account-title">当前账号</header>
+      <div class="setting-row">
+        <dl class="account-details">
+          <dt>用户</dt><dd>{{ host.displayName }}</dd>
+          <dt>组织</dt><dd>{{ host.identity.organization_name || '未配置组织' }}</dd>
+          <dt>登录状态</dt><dd>{{ loginStatus }}</dd>
+        </dl>
+        <button v-if="host.connected && !logoutConfirm" class="button" @click="logoutConfirm = true; logoutError = ''">退出登录</button>
+        <button v-else-if="host.sessionStatus === 'error'" class="button" @click="host.init()">重试</button>
+        <button v-else-if="!host.connected && !isLoading" class="button" @click="host.loginOpen = true">登录</button>
+      </div>
+      <div v-if="logoutConfirm && host.connected" class="notice" aria-label="退出登录确认">
+        <p>确认退出当前账号？</p>
+        <p v-if="logoutError" role="alert">{{ logoutError }}</p>
+        <div class="account-actions">
+          <button class="button" :disabled="logoutBusy" @click="logoutConfirm = false">取消</button>
+          <button class="button" :disabled="logoutBusy" @click="logout">{{ logoutBusy ? '正在退出…' : '确认退出' }}</button>
+        </div>
+      </div>
+    </section>
 
     <section class="settings-card" aria-labelledby="settings-content-group-title">
       <header id="settings-content-group-title">内容显示</header>
@@ -219,7 +260,7 @@ onBeforeUnmount(() => {
 .page-heading h1 { font-size: 28px; line-height: 1.28; letter-spacing: -0.8px; font-weight: 650; margin: 0 0 8px; }
 .page-heading p { margin: 0; color: var(--muted); }
 .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-.settings-card { max-width: 760px; border-radius: 12px; background: var(--shell-panel); box-shadow: var(--vf-shadow-card); overflow: hidden; }
+.settings-card { margin-bottom: 20px; max-width: 760px; border-radius: 12px; background: var(--shell-panel); box-shadow: var(--vf-shadow-card); overflow: hidden; }
 .settings-card > header { padding: 14px 20px; border-bottom: 0.5px solid var(--line, var(--vf-hairline-outer)); font-size: 13px; font-weight: 650; }
 .setting-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 18px 20px; }
 .setting-row h2 { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
@@ -248,4 +289,14 @@ onBeforeUnmount(() => {
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .small-button { border: 0.5px solid var(--vf-hairline-outer); border-radius: 5px; padding: 5px 10px; font-size: 12px; background: var(--shell-button); color: var(--ink); }
 .sr-only { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+.account-details { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 20px; margin: 0; font-size: 13px; }
+.account-details dt { color: var(--muted); }
+.account-details dd { margin: 0; overflow-wrap: anywhere; }
+.account-actions { display: flex; gap: 10px; margin-top: 12px; }
+@media(max-width:700px) {
+  .settings-main { padding: 24px 16px; }
+  .setting-row { gap: 12px; padding: 16px; }
+  .status-area { grid-template-columns: minmax(0, 1fr); }
+  .skeleton { max-width: 100%; }
+}
 </style>
