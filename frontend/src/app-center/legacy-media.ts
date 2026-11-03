@@ -4,7 +4,7 @@ export const mediaAdapters = {
   'image-iframe-v1': {
     prefix: '/apps/image', channel: 'vf-image', query: 'image',
     read: /^\/(api\/(tasks(?:\/[a-zA-Z0-9_-]+)?|tasks\/stats|mcp\/status)|artifacts\/[a-zA-Z0-9_-]+\/(content|thumbnail))$/,
-    write: /^\/api\/(tasks|tasks\/[a-zA-Z0-9_-]+\/content-rating|artifacts\/upload)$/,
+    write: /^\/api\/(tasks|tasks\/[a-zA-Z0-9_-]+\/(content-rating|delete)|artifacts\/upload)$/,
   },
   'video-iframe-v1': {
     prefix: '/apps/video', channel: 'vf-video', query: 'video',

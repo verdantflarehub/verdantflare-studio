@@ -211,8 +211,17 @@ test('Higgsfield member routes are scoped to Video and known operations', () => 
 test('Image rating writes use the existing exact task route', () => {
   const image = mediaAdapter('image-iframe-v1')!
   assert.equal(validMediaRequest(image, 'POST', '/api/tasks/imgtask-ff32b6da90ab4480/content-rating', '{"action":"mark"}'), true)
-  for (const path of ['/api/tasks/a/content-rating/extra', '/api/tasks/a/delete', '/api/tasks/../content-rating', '/api/tasks/a%2fb/content-rating']) {
+  for (const path of ['/api/tasks/a/content-rating/extra', '/api/tasks/a/delete/extra', '/api/tasks/../content-rating', '/api/tasks/a%2fb/content-rating']) {
     assert.equal(validMediaRequest(image, 'POST', path, '{}'), false)
   }
   assert.equal(validMediaRequest(image, 'DELETE', '/api/tasks/a/content-rating', undefined), false)
+})
+
+test('Image delete permits only the exact POST task deletion route', () => {
+  const image = mediaAdapter('image-iframe-v1')!
+  assert.equal(validMediaRequest(image, 'POST', '/api/tasks/imgtask-test/delete', '{}'), true)
+  for (const path of ['/api/tasks/a/delete/extra', '/api/tasks/a%2fb/delete', '/api/tasks/../delete']) {
+    assert.equal(validMediaRequest(image, 'POST', path, '{}'), false)
+  }
+  assert.equal(validMediaRequest(image, 'DELETE', '/api/tasks/a', undefined), false)
 })
