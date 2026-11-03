@@ -8,6 +8,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,11 +62,12 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 	}
 	watchCtx, stop := context.WithCancel(ctx)
 	rev := first.Header.Revision + 1
-	watch := client.Watch(watchCtx, key, clientv3.WithRev(rev))
+	watcher := clientv3.NewWatcher(client)
+	watch := watcher.Watch(watchCtx, key, clientv3.WithRev(rev))
 	var extraWatches []clientv3.WatchChan
 	for _, extra := range extraKeys {
 		if extra != "" {
-			extraWatches = append(extraWatches, client.Watch(watchCtx, extra, clientv3.WithRev(rev)))
+			extraWatches = append(extraWatches, watcher.Watch(watchCtx, extra, clientv3.WithRev(rev)))
 		}
 	}
 	out := make(chan RefreshEvent, 1)
@@ -86,9 +88,12 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 			return false
 		}
 	}
+	var extras sync.WaitGroup
 	for _, ew := range extraWatches {
+		extras.Add(1)
 		ch := ew
 		go func() {
+			defer extras.Done()
 			for {
 				select {
 				case <-watchCtx.Done():
@@ -113,8 +118,7 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 		}()
 	}
 	go func() {
-		defer stop()
-		defer close(out)
+		defer func() { stop(); _ = watcher.Close(); extras.Wait(); close(out) }()
 		for {
 			select {
 			case <-watchCtx.Done():

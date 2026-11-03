@@ -48,7 +48,22 @@ func (w *OrganizationWatcher) run(key, station, organization string) {
 	for w.ctx.Err() == nil {
 		watchCtx, cancel := context.WithCancel(clientv3.WithRequireLeader(w.ctx))
 		healthy := false
-		for response := range w.client.Watch(watchCtx, key) {
+		// A successful unary read refreshes expired credentials. A private
+		// watcher then opens a new stream instead of reusing another watch's
+		// stream with its old authentication metadata.
+		readCtx, finishRead := context.WithTimeout(watchCtx, 3*time.Second)
+		first, err := w.client.Get(readCtx, key)
+		finishRead()
+		watcher := clientv3.NewWatcher(w.client)
+		var responses clientv3.WatchChan
+		if err == nil && first.Header != nil {
+			responses = watcher.Watch(watchCtx, key, clientv3.WithRev(first.Header.Revision+1))
+		} else {
+			closed := make(chan clientv3.WatchResponse)
+			close(closed)
+			responses = closed
+		}
+		for response := range responses {
 			if response.Canceled || response.Err() != nil {
 				if !logged {
 					logWatchEnd("invalidation", true, response)
@@ -62,6 +77,7 @@ func (w *OrganizationWatcher) run(key, station, organization string) {
 			}
 		}
 		cancel()
+		_ = watcher.Close()
 		// Changes during a gap cannot be replayed from disposable hints.
 		w.changed(station, organization)
 		if healthy {
