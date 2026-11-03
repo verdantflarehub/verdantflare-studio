@@ -84,7 +84,7 @@ func SubscribeWithExtras(ctx context.Context, client *clientv3.Client, station, 
 		select {
 		case out <- event:
 			return true
-		case <-ctx.Done():
+		case <-watchCtx.Done():
 			return false
 		}
 	}

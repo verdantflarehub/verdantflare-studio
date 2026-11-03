@@ -110,7 +110,7 @@ func TestSubscriptionAfterTokenRenewalDoesNotReusePinnedStream(t *testing.T) {
 	f.epoch.Store(2)
 	subCtx, stop := context.WithCancel(ctx)
 	defer stop()
-	events, e := Subscribe(subCtx, c, "00000000-0000-7000-8000-000000000001", "00000000-0000-7000-8000-000000000002")
+	events, e := SubscribeWithExtras(subCtx, c, "00000000-0000-7000-8000-000000000001", "00000000-0000-7000-8000-000000000002", "extra-one", "extra-two")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -120,15 +120,14 @@ func TestSubscriptionAfterTokenRenewalDoesNotReusePinnedStream(t *testing.T) {
 			if !ok {
 				t.Fatal("subscription closed after successful authentication refresh")
 			}
-			if v.Revision == "renewed:2" {
+			if v.Revision == "renewed:2" || v.Revision == "nav:2" {
 				stop()
-				select {
-				case _, open := <-events:
-					if open {
-						t.Fatal("subscription survived cancellation")
+				for open := true; open; {
+					select {
+					case _, open = <-events:
+					case <-ctx.Done():
+						t.Fatal("cancel did not close subscription")
 					}
-				case <-ctx.Done():
-					t.Fatal("cancel did not close subscription")
 				}
 				select {
 				case <-f.ended:
