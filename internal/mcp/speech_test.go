@@ -69,3 +69,71 @@ func TestSpeechRequiresVerifiedIdentityAndExplicitProject(t *testing.T) {
 		t.Fatal("missing credential reached producer")
 	}
 }
+
+func TestSpeechListOptionalProjectMatchesRegisteredContract(t *testing.T) {
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	p := project.Principal{OrganizationID: id(), SubjectID: id(), RequestID: id()}
+	pid, calls := id(), 0
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer speech-internal" ||
+			r.Header.Get("X-User-Id") != p.SubjectID || r.Header.Get("X-Organization-Id") != p.OrganizationID {
+			t.Error("list lost verified identity or internal credential")
+		}
+		var in struct {
+			Params struct {
+				Name      string         `json:"name"`
+				Arguments map[string]any `json:"arguments"`
+			} `json:"params"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			t.Fatal(err)
+		}
+		want, _ := in.Params.Arguments["project_id"].(string)
+		if in.Params.Name != "speech.list" || r.Header.Get("X-Project-Id") != want {
+			t.Error("list changed project scope")
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": p.RequestID,
+			"result": map[string]any{"isError": false, "structuredContent": map[string]any{"tasks": []any{}}}})
+	}))
+	defer provider.Close()
+	g := NewGatewayWithClient(nil)
+	g.services["speech"] = ServiceRegistration{Domain: "speech", Endpoint: provider.URL,
+		Tools: []ToolDefinition{{Name: "speech.list"}}}
+	t.Setenv("STUDIO_SPEECH_TOKEN", "speech-internal")
+	for _, tc := range []struct {
+		name   string
+		args   map[string]any
+		header string
+		status int
+	}{
+		{"no filter", nil, "", 200},
+		{"pagination only", map[string]any{"limit": 5}, "", 200},
+		{"project filter", map[string]any{"project_id": pid}, "", 200},
+		{"matching header", map[string]any{"project_id": pid}, pid, 200},
+		{"header alone", nil, pid, 400},
+		{"mismatched header", map[string]any{"project_id": pid}, id(), 400},
+		{"empty project", map[string]any{"project_id": ""}, "", 400},
+		{"null project", map[string]any{"project_id": nil}, "", 400},
+		{"wrong type", map[string]any{"project_id": 1}, "", 400},
+		{"invalid project", map[string]any{"project_id": "prj_studio_default"}, "", 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := calls
+			_, status, err := g.CallVerified(context.Background(), "speech.list", tc.args, p, tc.header)
+			if status != tc.status || (tc.status == 200 && err != nil) {
+				t.Fatalf("got status %d error %v, want %d", status, err, tc.status)
+			}
+			if tc.status != 200 && calls != before {
+				t.Fatal("invalid scope reached speech service")
+			}
+		})
+	}
+	before := calls
+	if _, status, _ := g.CallVerified(context.Background(), "speech.list", nil, project.Principal{}, ""); status != 403 {
+		t.Fatal("unverified list accepted")
+	}
+	if _, status, _ := g.CallTool(context.Background(), "speech.list", nil, nil); status != 403 || calls != before {
+		t.Fatal("unverified call reached speech service")
+	}
+}

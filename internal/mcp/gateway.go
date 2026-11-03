@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,10 +37,11 @@ type ServiceRegistration struct {
 	Tools          []ToolDefinition `json:"tools"`
 }
 type Gateway struct {
-	client     *clientv3.Client
-	httpClient *http.Client
-	mu         sync.RWMutex
-	services   map[string]ServiceRegistration
+	client           *clientv3.Client
+	httpClient       *http.Client
+	mu               sync.RWMutex
+	services         map[string]ServiceRegistration
+	diagnosticLogger *slog.Logger
 }
 
 func NewGateway(endpoints []string) (*Gateway, error) {
@@ -202,7 +204,14 @@ func (g *Gateway) CallVerified(ctx context.Context, name string, args map[string
 		projectID = ""
 		if name != "speech.capabilities" {
 			value, ok := args["project_id"].(string)
-			if name == "speech.rate_content" && (!ok || value == "") {
+			_, hasProject := args["project_id"]
+			if name == "speech.list" && !hasProject {
+				// List supports the verified subject's tasks without a project filter.
+				// A header alone must not silently introduce a different filter.
+				if projectHeader != "" {
+					return nil, 400, errors.New("unexpected project scope")
+				}
+			} else if name == "speech.rate_content" && (!ok || value == "") {
 				if projectHeader != "" {
 					if !project.ValidID(projectHeader) {
 						return nil, 400, errors.New("project scope mismatch")
@@ -342,13 +351,18 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		copy.Timeout = MusicGenerateTimeout
 		client = &copy
 	}
+	started := time.Now()
+	fail := func(message, stage, reason string, status int) (any, int, error) {
+		g.recordCallFailure(ctx, headers["X-Request-Id"], name, stage, reason, status, started)
+		return nil, 502, errors.New(message)
+	}
 	resp, e := client.Do(req)
 	if e != nil {
-		return nil, 502, errors.New("downstream unavailable")
+		return fail("downstream unavailable", "transport", transportFailureReason(e), 0)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-		return nil, 502, errors.New("downstream redirect rejected")
+		return fail("downstream redirect rejected", "protocol", "redirect", resp.StatusCode)
 	}
 	responseLimit := 12 << 20
 	if domain == "artifact" {
@@ -357,18 +371,21 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		responseLimit = 16 << 20
 	}
 	b, e = io.ReadAll(io.LimitReader(resp.Body, int64(responseLimit)+1))
-	if e != nil || len(b) > responseLimit {
-		return nil, 502, errors.New("invalid downstream response")
+	if e != nil {
+		return fail("invalid downstream response", "read", transportFailureReason(e), resp.StatusCode)
+	}
+	if len(b) > responseLimit {
+		return fail("invalid downstream response", "read", "response_too_large", resp.StatusCode)
 	}
 	var envelope map[string]json.RawMessage
 	if json.Unmarshal(b, &envelope) != nil {
 		if Managed(name) || expectedVersion != "" {
-			return nil, 502, errors.New("invalid downstream response")
+			return fail("invalid downstream response", "protocol", "invalid_json", resp.StatusCode)
 		}
 		return map[string]any{"content": []map[string]string{{"type": "text", "text": string(b)}}}, resp.StatusCode, nil
 	}
 	if failure, ok := envelope["error"]; ok && string(failure) != "null" {
-		return nil, 502, errors.New("downstream protocol error")
+		return fail("downstream protocol error", "protocol", "rpc_error", resp.StatusCode)
 	}
 	if result, ok := envelope["result"]; ok {
 		if musicTool(name) {
@@ -377,7 +394,7 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		if Managed(name) || expectedVersion != "" {
 			var version, id string
 			if json.Unmarshal(envelope["jsonrpc"], &version) != nil || version != "2.0" || json.Unmarshal(envelope["id"], &id) != nil || id != headers["X-Request-Id"] {
-				return nil, 502, errors.New("downstream response identity mismatch")
+				return fail("downstream response identity mismatch", "protocol", "identity_mismatch", resp.StatusCode)
 			}
 			// Preserve opaque extension numbers and nulls exactly through the
 			// relay instead of rounding them through float64.
@@ -388,7 +405,7 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 		return out, resp.StatusCode, nil
 	}
 	if Managed(name) || expectedVersion != "" {
-		return nil, 502, errors.New("invalid downstream response")
+		return fail("invalid downstream response", "protocol", "invalid_envelope", resp.StatusCode)
 	}
 	var out any
 	_ = json.Unmarshal(b, &out)
