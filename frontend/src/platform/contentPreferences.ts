@@ -217,6 +217,13 @@ export function createContentPreferencesController(options: ContentPreferencesCo
     return snap
   }
 
+  function suspendSessionIdentity(): Readonly<ContentPreferencesState> {
+    // Loading or a transient read error is not a confirmed logout.
+    session = null
+    clearExpiryTimer()
+    return notify('identity-change')
+  }
+
   function setSessionIdentity(next: SessionIdentityScope | null): Readonly<ContentPreferencesState> {
     if (!next || !next.userId || !next.organizationId) {
       const hadSession = session !== null
@@ -300,6 +307,7 @@ export function createContentPreferencesController(options: ContentPreferencesCo
     enable,
     disable,
     setSessionIdentity,
+    suspendSessionIdentity,
     checkAndSync,
     subscribe,
     dispose,

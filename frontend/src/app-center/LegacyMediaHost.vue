@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { LegacyAdapterID } from './legacy'
 import { videoPath } from './legacy'
-import { mediaAdapter, validMediaRequest, isImmutableMediaRequest, isVideoChannelFailure } from './legacy-media'
+import { mediaAdapter, legacyMediaHeaders, validMediaRequest, isImmutableMediaRequest, isVideoChannelFailure } from './legacy-media'
+import { hostContentPreferences } from '../platform/contentPreferences'
 import { fetchLegacyMedia } from './legacy-media-transfer'
 import { videoPage, videoTaskLabel, videoTaskName } from './legacy-video-navigation'
 import { openMediaPreview, closeMediaPreview, validateMediaPreview } from '../platform/media-preview'
@@ -11,6 +12,8 @@ const props = defineProps<{ adapterId: LegacyAdapterID; route: string; title: st
 const emit = defineEmits<{ navigate: [route: string]; error: [message: string]; reconnect: []; taskLabel: [value: { route: string; label: string }] }>()
 const frame = ref<HTMLIFrameElement>(), src = ref(''), state = ref<'loading' | 'ready' | 'error'>('loading'), message = ref('')
 const adapter = computed(() => mediaAdapter(props.adapterId))
+let preferenceUnsubscribe: (() => void) | undefined
+let includeNsfw = hostContentPreferences.get().includeNsfw
 let generation = 0, disposed = false, controller = new AbortController(), deadline: ReturnType<typeof setTimeout> | undefined
 let currentPath = '', viewState: unknown = null
 const mediaOwner = {}
@@ -81,7 +84,7 @@ async function receive(event: MessageEvent) {
     return
   }
   if (data.type === 'ready') {
-    deadline !== undefined && clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState })
+    deadline !== undefined && clearTimeout(deadline); state.value = 'ready'; message.value = ''; post({ type: 'theme', theme: theme() }); post({ type: 'restore', state: viewState }); post({ type: 'contentPreferences', ...hostContentPreferences.get() })
     if (a.channel === 'vf-image') {
       const path = new URL(props.route, location.origin).searchParams.get(a.query)!
       post({ type: 'route', path, hash: path.split('#')[1] || 'tasks' })
@@ -123,7 +126,7 @@ async function receive(event: MessageEvent) {
     if (disposed || epoch !== generation || signal.aborted) return
     const cacheMode: RequestCache = isImmutableMediaRequest(method, data.path) ? 'default' : 'no-store'
     const options: RequestInit = { method, credentials: props.resourceBase ? 'omit' : 'same-origin', cache: cacheMode, redirect: 'error',
-      headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {}, body: method === 'POST' ? data.body : undefined,
+      headers: legacyMediaHeaders(method, hostContentPreferences.get().includeNsfw), body: method === 'POST' ? data.body : undefined,
       signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) }
     const response = props.resourceBase ? await fetchLegacyMedia(fetch, props.resourceBase, data.path, options) : await fetch(a.prefix + data.path, options)
     const body = await response.arrayBuffer()
@@ -158,6 +161,11 @@ async function receive(event: MessageEvent) {
 const observer = new MutationObserver(() => { if (!disposed) post({ type: 'theme', theme: theme() }) })
 watch(() => [props.adapterId, props.route, props.resourceBase], () => load())
 onMounted(() => {
+  preferenceUnsubscribe = hostContentPreferences.subscribe(next => {
+    if (includeNsfw === next.includeNsfw) return
+    includeNsfw = next.includeNsfw
+    load(true) // Aborts old reads, closes preview and discards iframe Blob caches.
+  })
   if (props.adapterId === 'video-iframe-v1') {
     previousScrollRestoration = window.history.scrollRestoration
     window.history.scrollRestoration = 'manual'
@@ -165,6 +173,7 @@ onMounted(() => {
   window.addEventListener('message', receive); observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] }); load()
 })
 onBeforeUnmount(() => {
+  preferenceUnsubscribe?.()
   closePreview()
   disposed = true; generation++; cancelAnimationFrame(scrollFrame); controller.abort(); deadline !== undefined && clearTimeout(deadline); pending.clear(); observer.disconnect(); window.removeEventListener('message', receive)
   if (previousScrollRestoration !== undefined && window.history.scrollRestoration === 'manual') window.history.scrollRestoration = previousScrollRestoration

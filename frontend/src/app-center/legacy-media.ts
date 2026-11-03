@@ -54,3 +54,10 @@ export function isVideoChannelFailure(contentType: string | null, body: ArrayBuf
       && (error.http_status === undefined || Number.isInteger(error.http_status) && error.http_status >= 400 && error.http_status <= 599)
   } catch { return false }
 }
+
+/** Host-owned browser preference; never accept inclusion claims from the iframe. */
+export function legacyMediaHeaders(method: string, includeNsfw: boolean): Record<string, string> {
+  const headers: Record<string, string> = method === 'POST' ? { 'Content-Type': 'application/json' } : {}
+  if (includeNsfw) headers['X-VF-Include-NSFW'] = '1'
+  return headers
+}

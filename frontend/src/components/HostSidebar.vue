@@ -71,11 +71,15 @@ async function openEntry(entry: NavigationEntry, target = entry.route) {
 }
 function refreshNavigation() { if (host.connected) { void navigation.refresh(); void host.fetchCluster() } }
 function clearNavigation() { navigation.clear(); expanded.value = new Set(['directory']); feedback.value = ''; dialog.value?.close() }
-watch(() => JSON.stringify([host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), authorizationKey => {
+watch(() => JSON.stringify([host.sessionStatus, host.identity.user_id, host.identity.organization_id, host.identity.station_id, host.identity.session_id, host.identity.policy_version, host.identity.revocation_version, host.identity.roles, host.identity.scopes]), authorizationKey => {
   const identity = host.identity
-  hostContentPreferences.setSessionIdentity(
-    identity.user_id && identity.organization_id ? { userId: identity.user_id, organizationId: identity.organization_id } : null,
-  )
+  if (identity.user_id && identity.organization_id) {
+    hostContentPreferences.setSessionIdentity({ userId: identity.user_id, organizationId: identity.organization_id })
+  } else if (host.sessionStatus === 'loading' || host.sessionStatus === 'error') {
+    hostContentPreferences.suspendSessionIdentity()
+  } else {
+    hostContentPreferences.setSessionIdentity(null)
+  }
   navigation.clear(identity.user_id && identity.organization_id && identity.station_id ? { userId: identity.user_id, organizationId: identity.organization_id, stationId: identity.station_id } : null, authorizationKey)
   expanded.value = new Set(['directory']); feedback.value = ''
   refreshNavigation()

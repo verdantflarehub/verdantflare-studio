@@ -1,3 +1,4 @@
+import { legacyMediaHeaders } from '../src/app-center/legacy-media.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createLegacyClient, legacyAppLocation, legacyLocation, legacyTarget, selectLegacyCard } from '../src/app-center/legacy.ts'
@@ -224,4 +225,11 @@ test('Image delete permits only the exact POST task deletion route', () => {
     assert.equal(validMediaRequest(image, 'POST', path, '{}'), false)
   }
   assert.equal(validMediaRequest(image, 'DELETE', '/api/tasks/a', undefined), false)
+})
+
+test('legacy media UI requests take inclusion from host preference for lists and images', () => {
+  assert.deepEqual(legacyMediaHeaders('GET', false), {})
+  assert.deepEqual(legacyMediaHeaders('GET', true), { 'X-VF-Include-NSFW': '1' })
+  assert.deepEqual(legacyMediaHeaders('POST', false), { 'Content-Type': 'application/json' })
+  assert.deepEqual(legacyMediaHeaders('POST', true), { 'Content-Type': 'application/json', 'X-VF-Include-NSFW': '1' })
 })
