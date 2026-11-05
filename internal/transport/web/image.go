@@ -17,7 +17,7 @@ import (
 type ImageConfig struct{ URL, Token string }
 
 var imageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/(content|thumbnail))$`)
-var imageWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
+var imageWrite = regexp.MustCompile(`^/api/(tasks|tasks/cleanup|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
 var imageContent = regexp.MustCompile(`^/artifacts/art-[0-9a-f]{16}/content$`)
 var imageImmutableMedia = regexp.MustCompile(`^/artifacts/[a-zA-Z0-9_-]+/(content|thumbnail)$`)
 

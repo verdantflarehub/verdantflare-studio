@@ -21,7 +21,7 @@ const legacyJSONLimit = 4 << 20
 const legacyMediaLimit = 1 << 30
 
 var legacyImageRead = regexp.MustCompile(`^/(api/(tasks|tasks/[a-zA-Z0-9_-]+|tasks/stats|mcp/status)|artifacts/[a-zA-Z0-9_-]+/content)$`)
-var legacyImageWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
+var legacyImageWrite = regexp.MustCompile(`^/api/(tasks|tasks/cleanup|tasks/[a-zA-Z0-9_-]+/(title|delete|content-rating)|artifacts/upload)$`)
 var legacyVideoRead = regexp.MustCompile(`^/api/(dashboard|capabilities|model-catalog|mcp/status|models|models/[a-z0-9-]+/instances(/[a-zA-Z0-9._-]+(/gpus/[a-zA-Z0-9._:-]+)?)?|tasks/[a-zA-Z0-9_-]+)$`)
 var legacyVideoWrite = regexp.MustCompile(`^/api/(tasks|tasks/[a-zA-Z0-9_-]+/(result|title|delete|content-rating)|artifacts/import)$`)
 var legacyVideoTask = regexp.MustCompile(`^/dashboard/tasks/[a-zA-Z0-9_-]+$`)
