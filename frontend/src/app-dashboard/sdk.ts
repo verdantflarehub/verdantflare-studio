@@ -63,6 +63,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
     || context.contextRevision !== launch.contextRevision) fail('CONTEXT_MISMATCH')
   const grants = new Set(launch.grantedCapabilities)
   let state: Lifecycle = 'active'
+  const galleryListeners = new Set<(event: { id: string; index: number }) => Promise<void>>()
   const contextListeners = new Set<(context: Readonly<AppContext>) => void>()
   const lifecycleListeners = new Set<(event: Lifecycle) => void>()
   const themeListeners = new Set<(theme: Theme) => void>()
@@ -102,6 +103,7 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
     themeListeners.clear()
     contentPrefListeners.clear()
     routeListeners.clear()
+    galleryListeners.clear()
   }
   function live() {
     if (state === 'dispose') fail('SESSION_REVOKED')
@@ -154,10 +156,15 @@ export function createAppSDK(launch: DashboardLaunch, initial: AppContext, adapt
       preview: async (input: import('./types').MediaPreviewInput) => {
         live(); validateMediaPreview(input)
         if (!adapters.previewMedia) fail('MEDIA_PREVIEW_UNSUPPORTED')
-        const copy = { bytes: input.bytes.slice(0), mime: input.mime, title: input.title }
-        return invoke(signal => adapters.previewMedia!(copy, signal), true)
+        const copy = { bytes: input.bytes.slice(0), mime: input.mime, title: input.title, ...(input.gallery && galleryListeners.size ? { gallery: { ...input.gallery } } : {}) }
+        const listeners = [...galleryListeners]
+        return invoke(signal => adapters.previewMedia!(copy, signal, copy.gallery ? async index => {
+          if (index !== -1) { live(); if (state !== 'active') fail('SESSION_HIDDEN') }
+          await Promise.all(listeners.map(listener => listener({ id: copy.gallery!.id, index })))
+        } : undefined), true)
       },
       close: () => { adapters.closeMedia?.() },
+      subscribeGallery: (listener: (event: { id: string; index: number }) => Promise<void>) => subscribe(galleryListeners, listener),
     }),
     context: Object.freeze({
       get: () => { live(); return context },

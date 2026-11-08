@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { openMediaPreview, openMediaPreviewBlob, closeMediaPreview, subscribeMediaPreview, validateMediaPreview, type MediaPreview } from '../src/platform/media-preview.ts'
+import { openMediaPreview, stepMediaGallery, openMediaPreviewBlob, closeMediaPreview, subscribeMediaPreview, validateMediaPreview, type MediaPreview } from '../src/platform/media-preview.ts'
 const input = () => ({ bytes: new Uint8Array([1, 2, 3]).buffer, mime: 'image/png', title: '图片' })
 test('preview accepts only bounded raster bytes, never URLs, SVG or HTML', () => {
   validateMediaPreview(input())
@@ -55,4 +55,27 @@ test('replacement revokes the old URL, stale owners cannot close the new image',
     assert.equal(states.at(-1), null)
     await assert.rejects(fetch(next))
   } finally { closeMediaPreview(); off() }
+})
+
+
+test('gallery replaces one image without closing, errors hide stale images, and close cancels ownership', async () => {
+  let state: MediaPreview | null = null, closes = 0
+  const off = subscribeMediaPreview(value => { state = value })
+  const owner = {}, gallery = { id: 'character-eye', index: 0, count: 2 }
+  const closed = () => { closes++ }
+  const navigate = async (index: number) => { openMediaPreview(owner, { ...input(), title: 'P02', gallery: { ...gallery, index } }, closed, async () => { throw new Error('read failed') }) }
+  openMediaPreview(owner, { ...input(), gallery }, closed, navigate)
+  await stepMediaGallery(1)
+  assert.equal((state as MediaPreview | null)?.title, 'P02')
+  assert.equal((state as MediaPreview | null)?.gallery?.index, 1)
+  assert.equal(closes, 0)
+  await stepMediaGallery(1)
+  assert.match((state as MediaPreview | null)?.error || '', /无法读取/)
+  closeMediaPreview(owner)
+  assert.equal(closes, 1)
+  assert.equal(state, null)
+  off()
+  for (const invalid of [{ ...gallery, count: 33 }, { ...gallery, index: -1 }, { ...gallery, id: 'bad/id' }]) {
+    assert.throws(() => validateMediaPreview({ ...input(), gallery: invalid }))
+  }
 })

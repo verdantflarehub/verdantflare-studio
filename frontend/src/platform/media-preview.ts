@@ -1,7 +1,12 @@
-export interface MediaPreviewInput { bytes: ArrayBuffer; mime: string; title: string }
-export interface MediaPreview { owner: object; url: string; title: string; closed?: () => void }
+export interface MediaGallery { id: string; index: number; count: number }
+export interface MediaPreviewInput { bytes: ArrayBuffer; mime: string; title: string; gallery?: MediaGallery }
+export interface MediaPreview { owner: object; url: string; title: string; closed?: () => void; gallery?: MediaGallery; navigate?: (index: number) => Promise<void>; loading?: boolean; error?: string }
 const formats = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
 export function validateMediaPreview(input: MediaPreviewInput): void {
+  if (input?.gallery) {
+    const g = input.gallery
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(g.id) || !Number.isInteger(g.count) || g.count < 1 || g.count > 32 || !Number.isInteger(g.index) || g.index < 0 || g.index >= g.count) throw new Error('INVALID_MEDIA_PREVIEW')
+  }
   // ArrayBuffers may originate in a trusted Dashboard's separate realm.
   if (!input || Object.prototype.toString.call(input.bytes) !== '[object ArrayBuffer]'
     || input.bytes.byteLength < 1 || input.bytes.byteLength > 128 * 1024 * 1024
@@ -23,11 +28,13 @@ export function closeMediaPreview(owner?: object) {
   const previous = current; current = null
   URL.revokeObjectURL(previous.url); emit(); previous.closed?.()
 }
-export function openMediaPreview(owner: object, input: MediaPreviewInput, closed?: () => void) {
+export function openMediaPreview(owner: object, input: MediaPreviewInput, closed?: () => void, navigate?: (index: number) => Promise<void>) {
   validateMediaPreview(input)
   const url = URL.createObjectURL(new Blob([input.bytes], { type: input.mime }))
-  closeMediaPreview()
-  current = { owner, url, title: input.title || '图片预览', closed }; emit()
+  const previous = current
+  if (previous?.owner === owner && previous.gallery?.id === input.gallery?.id && input.gallery) URL.revokeObjectURL(previous.url)
+  else closeMediaPreview()
+  current = { owner, url, title: input.title || '图片预览', closed, ...(navigate && input.gallery ? { gallery: { ...input.gallery }, navigate } : {}) }; emit()
 }
 
 // Native host views may reuse a Blob URL already authorized by ProjectReader.
@@ -50,4 +57,13 @@ export async function openMediaPreviewBlob(owner: object, source: string, title:
     pending = null
     throw error
   }
+}
+
+export async function stepMediaGallery(delta: -1 | 1) {
+  const previous = current
+  if (!previous?.gallery || !previous.navigate || previous.loading) return
+  const index = (previous.gallery.index + delta + previous.gallery.count) % previous.gallery.count
+  current = { ...previous, loading: true, error: undefined }; const pendingPreview = current; emit()
+  try { await previous.navigate(index) }
+  catch { if (current === pendingPreview) { current = { ...pendingPreview, loading: false, error: '无法读取该张图片，请重试。' }; emit() } }
 }

@@ -97,11 +97,11 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
   return {
     now,
     closeMedia() { mediaState.revision++; closeMediaPreview(mediaOwner) },
-    async previewMedia(input, signal) {
+    async previewMedia(input, signal, navigate) {
       const revision = ++mediaState.revision
       const current = await client!.inspect(id, opened.launch.installationId, signal)
       if (signal.aborted || revision !== mediaState.revision || current.context.contextRevision !== opened.context.contextRevision) throw new Error('CONTEXT_CHANGED')
-      openMediaPreview(mediaOwner, input)
+      openMediaPreview(mediaOwner, input, () => { mediaState.revision++; void navigate?.(-1).catch(() => {}) }, navigate)
     },
     async navigate(input, signal) {
       await client!.inspect(id, opened.launch.installationId, signal)

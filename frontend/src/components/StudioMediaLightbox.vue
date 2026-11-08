@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { closeMediaPreview, subscribeMediaPreview, type MediaPreview } from '../platform/media-preview'
+import { closeMediaPreview, stepMediaGallery, subscribeMediaPreview, type MediaPreview } from '../platform/media-preview'
 const current = shallowRef<MediaPreview | null>(null), dialog = ref<HTMLDialogElement>(), stage = ref<HTMLElement>(), picture = ref<HTMLImageElement>()
 const scale = ref(1), x = ref(0), y = ref(0), dragging = ref(false), status = ref<'loading' | 'ready' | 'error'>('loading')
 let start: { x: number; y: number; tx: number; ty: number } | null = null
@@ -66,12 +66,18 @@ onBeforeUnmount(() => { close(); unsubscribe(); unlock(); window.removeEventList
         <output>{{ Math.round(scale * 100) }}%</output>
         <button type="button" class="btn" aria-label="放大图片" :disabled="status !== 'ready'" @click="zoom(scale * 1.25)">＋</button>
         <button type="button" class="btn" @click="reset">适配</button>
+        <template v-if="current?.gallery && current.gallery.count > 1">
+          <button type="button" class="btn" :disabled="current.loading" @click="stepMediaGallery(-1)">上一张</button>
+          <span>{{ current.gallery.index + 1 }} / {{ current.gallery.count }}</span>
+          <button type="button" class="btn" :disabled="current.loading" @click="stepMediaGallery(1)">下一张</button>
+        </template>
         <button type="button" class="btn" autofocus @click="close">关闭</button>
       </div></header>
       <div ref="stage" class="media-stage" :class="{ dragging }" @wheel.prevent.stop="zoom(scale * ($event.deltaY < 0 ? 1.15 : 1 / 1.15), $event)" @dblclick="scale > 1 ? reset() : zoom(2.5, $event)" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @lostpointercapture="up">
-        <p v-if="status === 'loading'" role="status">正在加载图片…</p>
+        <p v-if="current?.loading || (!current?.error && status === 'loading')" role="status">正在加载图片…</p>
+        <p v-if="current?.error" role="alert">{{ current.error }}</p>
         <p v-if="status === 'error'" role="alert">图片无法解码，请关闭后重试。</p>
-        <img v-if="current && status !== 'error'" :key="current.url" ref="picture" :src="current.url" :alt="current.title" draggable="false" :style="{ visibility: status === 'ready' ? 'visible' : 'hidden', transform: `translate3d(${x}px, ${y}px, 0) scale(${scale})` }" @load="status = 'ready'; clamp()" @error="status = 'error'">
+        <img v-if="current && !current.loading && !current.error && status !== 'error'" :key="current.url" ref="picture" :src="current.url" :alt="current.title" draggable="false" :style="{ visibility: status === 'ready' ? 'visible' : 'hidden', transform: `translate3d(${x}px, ${y}px, 0) scale(${scale})` }" @load="status = 'ready'; clamp()" @error="status = 'error'">
       </div>
     </dialog>
   </Teleport>
