@@ -3,7 +3,20 @@ export function installDashboardRuntime(target: Window & typeof globalThis, _now
   const timers = new Set<number>(), intervals = new Set<number>()
   const setTimeout = target.setTimeout.bind(target), clearTimeout = target.clearTimeout.bind(target)
   const setInterval = target.setInterval.bind(target), clearInterval = target.clearInterval.bind(target)
+  const hostClipboard = globalThis.navigator?.clipboard
+  const targetNavigator = target.navigator
+  const hasClipboardBridge = Boolean(targetNavigator && hostClipboard && targetNavigator !== globalThis.navigator)
+  const originalClipboard = hasClipboardBridge ? Object.getOwnPropertyDescriptor(targetNavigator, 'clipboard') : undefined
   let disposed = false
+  if (hasClipboardBridge) {
+    try {
+      Object.defineProperty(targetNavigator, 'clipboard', {
+        configurable: true,
+        enumerable: true,
+        get: () => hostClipboard,
+      })
+    } catch { /* ignore if non-configurable */ }
+  }
   target.setTimeout = ((handler: TimerHandler, delay?: number, ...args: unknown[]) => {
     if (disposed) return 0
     let handle: number
@@ -29,5 +42,11 @@ export function installDashboardRuntime(target: Window & typeof globalThis, _now
     for (const handle of timers) clearTimeout(handle)
     for (const handle of intervals) clearInterval(handle)
     timers.clear(); intervals.clear()
+    if (hasClipboardBridge) {
+      try {
+        if (originalClipboard) Object.defineProperty(targetNavigator, 'clipboard', originalClipboard)
+        else Reflect.deleteProperty(targetNavigator, 'clipboard')
+      } catch { /* ignore */ }
+    }
   }
 }

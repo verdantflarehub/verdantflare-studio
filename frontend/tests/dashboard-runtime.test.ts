@@ -37,3 +37,25 @@ test('Dashboard runtime preserves native Date without global proxying', () => {
   assert.equal(typeof realm.Date.now, 'function')
   dispose()
 })
+
+test('Dashboard runtime bridges sandbox navigator.clipboard to focused host clipboard and restores on dispose', async () => {
+  const previousClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+  const written: string[] = []
+  const hostClipboard = { writeText: async (text: string) => { written.push(text) } }
+  const sandboxClipboard = { writeText: async () => { throw new Error('Document is not focused') } }
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: hostClipboard })
+  try {
+    const sandboxNavigator: any = {}
+    Object.defineProperty(sandboxNavigator, 'clipboard', { configurable: true, get: () => sandboxClipboard })
+    const realm: any = { Date, navigator: sandboxNavigator, setTimeout, clearTimeout, setInterval, clearInterval }
+    const dispose = installDashboardRuntime(realm)
+    assert.equal(realm.navigator.clipboard, hostClipboard)
+    await realm.navigator.clipboard.writeText('prompt text')
+    assert.deepEqual(written, ['prompt text'])
+    dispose()
+    assert.equal(realm.navigator.clipboard, sandboxClipboard)
+  } finally {
+    if (previousClipboard) Object.defineProperty(navigator, 'clipboard', previousClipboard)
+    else Reflect.deleteProperty(navigator, 'clipboard')
+  }
+})

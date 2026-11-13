@@ -120,6 +120,7 @@ export async function mountWujieDashboard(options: DashboardMountOptions): Promi
   timer = setTimeout(() => { rejectReady(new Error('DASHBOARD_LOAD_TIMEOUT')); cancel() }, 30_000)
   try {
     const loading = startApp({ name, url: launch.entryUrl, el: element, alive: true, sync: false,
+      attrs: { allow: 'clipboard-write' },
       props: { appSDK: session.sdk, dashboardHost }, fetch: fetchAssets,
       beforeLoad: appWindow => { clearRuntime = installDashboardRuntime(appWindow as Window & typeof globalThis, options.now) },
       loadError: () => rejectReady(new Error('DASHBOARD_ASSET_FAILED')),

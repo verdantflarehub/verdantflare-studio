@@ -64,7 +64,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="instance-workspace">
     <p v-if="message" role="status">{{ message }}</p>
-    <iframe v-if="entry" ref="frame" :src="entry" title="应用实例工作区" sandbox="allow-scripts allow-same-origin allow-downloads" referrerpolicy="no-referrer" />
+    <iframe v-if="entry" ref="frame" :src="entry" title="应用实例工作区" allow="clipboard-write" sandbox="allow-scripts allow-same-origin allow-downloads" referrerpolicy="no-referrer" />
   </section>
 </template>
 
