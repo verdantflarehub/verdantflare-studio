@@ -23,17 +23,57 @@ test('legacy installation links wait for their own resolved identity rather than
 })
 
 test('Project lists, searches and fixed objects own one complete breadcrumb', () => {
-  for (const path of ['/image', '/image?project=id&revision=fixed', '/character', '/video?q=abc', '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero', '/ai_short_drama/00000000-0000-7000-8000-000000000001/materials/location/bathroom/lights_on', '/projects?category=character', '/projects?category=video&q=abc']) {
-    assert.equal(dashboardOwnsBreadcrumb('project', path), true)
+  for (const path of [
+    '/image',
+    '/image?project=id&revision=fixed',
+    '/character',
+    '/video?q=abc',
+    '/ai_short_drama?project=id&revision=fixed&tab=character&material=hero',
+    '/ai_short_drama/00000000-0000-7000-8000-000000000001/materials/location/bathroom/lights_on',
+    '/ai_short_drama/00000000-0000-7000-8000-000000000001/materials/location/courtyard/review?revision=00000000-0000-7000-8000-000000000002',
+    '/projects?category=character',
+    '/projects?category=video&q=abc',
+  ]) {
+    assert.equal(dashboardOwnsBreadcrumb('project', path), true, `expected project to own breadcrumb for ${path}`)
   }
 })
 
 test('other applications, fallback routes and invalid navigation keep host breadcrumb', () => {
-  for (const app of [undefined, 'resources', 'world']) assert.equal(dashboardOwnsBreadcrumb(app, '/projects'), false)
+  for (const app of [undefined, 'resources', 'network', 'viewer', 'tryon', 'world']) assert.equal(dashboardOwnsBreadcrumb(app, '/projects'), false)
   for (const path of [undefined, '/', '/workspace', '/create', '//outside.invalid/projects', '/projects#fragment', '/projects-extra', ['projects']]) assert.equal(dashboardOwnsBreadcrumb('project', path), false)
 })
 
-test('World owns complete result trails while other pages retain the host trail', () => {
-  for (const path of ['/', '/character', '/scene?asset=id&version=fixed', '/sound', '/music', '/shot', '/script', '/knowledge', '/learn?task=id']) assert.equal(dashboardOwnsBreadcrumb('world', path), true)
-  for (const path of ['/collections', '/collections/id', '/publish', '/learn-extra', '//outside.invalid/learn', '/learn#fragment']) assert.equal(dashboardOwnsBreadcrumb('world', path), false)
+test('World owns complete trails across all valid domain, gallery, collection, review and result sub-routes', () => {
+  for (const path of [
+    '/',
+    '/?asset=id&version=fixed',
+    '/item/hero?asset=id&version=fixed',
+    '/character',
+    '/character/item/hero?asset=id&version=fixed',
+    '/pose',
+    '/pose?sys=standard&v=diag',
+    '/pose/asset/0199b501-0000-7000-8000-000000000001?version=0199b501-0000-7000-8000-000000000002&v=diag',
+    '/costume',
+    '/costume?tab=item&kind=dress',
+    '/costume/asset/0199b501-0000-7000-8000-000000000003?version=0199b501-0000-7000-8000-000000000004',
+    '/scene?asset=id&version=fixed',
+    '/scene/01900000-0000-7000-8000-000000000001/versions/01900000-0000-7000-8000-000000000002/review',
+    '/sound',
+    '/music',
+    '/shot',
+    '/script',
+    '/knowledge',
+    '/collections',
+    '/collections?trash=1',
+    '/collections/01900000-0000-7000-8000-000000000001?revision=01900000-0000-7000-8000-000000000002',
+    '/learn',
+    '/learn?task=id',
+    '/learn/item/prompt.123?task=id',
+    '/publish?project=01900000-0000-7000-8000-000000000001',
+  ]) {
+    assert.equal(dashboardOwnsBreadcrumb('world', path), true, `expected world to own breadcrumb for ${path}`)
+  }
+  for (const path of ['/item', '/learn-extra', '/pose-extra', '/costume-extra', '/publish/extra', '//outside.invalid/learn', '/learn#fragment']) {
+    assert.equal(dashboardOwnsBreadcrumb('world', path), false, `expected world not to own invalid path ${path}`)
+  }
 })

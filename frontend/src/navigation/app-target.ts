@@ -1,7 +1,10 @@
+import type { AppCenterView } from '../app-center/schema.generated'
 import { assertAppPath } from '../app-dashboard/sdk.ts'
 import { dashboardLocation } from '../app-dashboard/routes.ts'
 import type { Json } from '../app-dashboard/types'
 import type { NavigationEnvelope } from './controller'
+
+const deniedReasonCodes = new Set(['PERMISSION_DENIED', 'FORBIDDEN', 'CAPABILITY_DENIED'])
 
 export interface AppTarget { appId: string; path: string }
 export function decodeAppTarget(value: Json): AppTarget {
@@ -16,6 +19,28 @@ export function appTargetLocation(target: AppTarget, navigation: NavigationEnvel
   const entries = navigation.projection.entries.filter(entry => entry.appId === target.appId)
   if (entries.length !== 1) throw new Error('APP_NAVIGATION_UNAVAILABLE')
   return dashboardLocation(entries[0].appId, target.path)
+}
+/** Resolves an installed AppCenter Dashboard app (including non-sidebar apps such as viewer and tryon). */
+export function appCenterTargetLocation(target: AppTarget, view: AppCenterView, now: number, authorizationEpoch: string) {
+  if (!Number.isFinite(now) || Date.parse(view.validUntil) <= now) throw new Error('APPCENTER_VIEW_EXPIRED')
+  if (view.scope.authorizationEpoch !== authorizationEpoch) throw new Error('CONTEXT_CHANGED')
+  const matches = view.items.filter(card => card.appId === target.appId && card.installation?.state === 'installed')
+  if (matches.length !== 1) throw new Error('APP_NAVIGATION_UNAVAILABLE')
+  const card = matches[0]
+  if (card.installationQuality !== 'known' || !card.entry || card.entry.transport !== 'dashboard') {
+    throw new Error('APP_NAVIGATION_UNAVAILABLE')
+  }
+  const open = card.actions.find(action => action.kind === 'open' && action.entryId === card.entry?.entryId)
+    ?? card.actions.find(action => action.kind === 'open')
+  if (card.entry.availability === 'denied'
+    || (card.entry.reasonCode !== null && deniedReasonCodes.has(card.entry.reasonCode))
+    || (open?.reasonCode !== null && open?.reasonCode !== undefined && deniedReasonCodes.has(open.reasonCode))) {
+    throw new Error('PERMISSION_DENIED')
+  }
+  if (card.entry.quality !== 'known' || card.entry.availability !== 'available' || !open?.enabled || open.entryId !== card.entry.entryId) {
+    throw new Error('APP_NAVIGATION_UNAVAILABLE')
+  }
+  return dashboardLocation(card.appId, target.path)
 }
 
 /** Only compatibility bookmarks are product-specific; Dashboard loading stays generic. */

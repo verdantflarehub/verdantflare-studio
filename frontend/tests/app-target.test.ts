@@ -1,7 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { appTargetLocation, decodeAppTarget, legacyAppTarget } from '../src/navigation/app-target.ts'
+import { appCenterTargetLocation, appTargetLocation, decodeAppTarget, legacyAppTarget } from '../src/navigation/app-target.ts'
+import type { AppCenterView } from '../src/app-center/schema.generated'
 import type { NavigationEnvelope } from '../src/navigation/controller'
+
+const now = Date.parse('2026-11-14T06:00:00Z')
+const viewerCard = {
+  cardKey: 'installation:01980000-0000-7000-8000-000000000099',
+  appId: 'viewer',
+  installationQuality: 'known',
+  installation: { installationId: '01980000-0000-7000-8000-000000000099', revision: 1, appVersion: '0.1.3', state: 'installed', lastOperationId: null },
+  entry: { entryId: 'dashboard-main', transport: 'dashboard', quality: 'known', availability: 'available', reasonCode: null, requiresServiceReady: false, minimumHostVersion: null },
+  actions: [{ id: 'open', kind: 'open', enabled: true, reasonCode: null, entryId: 'dashboard-main', confirmation: 'none' }],
+}
+const appCenterSnapshot = () => ({
+  generatedAt: new Date(now - 1000).toISOString(),
+  validUntil: new Date(now + 5000).toISOString(),
+  scope: { authorizationEpoch: 'epoch-1' },
+  items: [structuredClone(viewerCard)],
+}) as unknown as AppCenterView
 
 test('cross-app navigation accepts product and path only and resolves an unpinned authorized install', () => {
   const target = decodeAppTarget({ appId: 'project', path: '/projects?revision=fixed' })
@@ -10,6 +27,36 @@ test('cross-app navigation accepts product and path only and resolves an unpinne
   for (const value of [{ appId: 'project', path: '//evil.invalid' }, { appId: 'project', path: '/', installationId: 'spoof' }, { appId: 'project', path: '/%2e%2e/other' }]) assert.throws(() => decodeAppTarget(value))
   assert.throws(() => appTargetLocation({ appId: 'missing', path: '/' }, navigation))
   assert.throws(() => appTargetLocation(target, { ...navigation, mode: 'legacy' }))
+})
+
+test('non-sidebar installed Dashboard apps resolve through the identity-bound AppCenter snapshot', () => {
+  const viewerTarget = decodeAppTarget({ appId: 'viewer', path: '/?source=world&asset=01980000-0000-7000-8000-000000000010&version=01980000-0000-7000-8000-000000000011' })
+  assert.deepEqual(appCenterTargetLocation(viewerTarget, appCenterSnapshot(), now, 'epoch-1'), {
+    path: '/apps/viewer/',
+    query: { source: 'world', asset: '01980000-0000-7000-8000-000000000010', version: '01980000-0000-7000-8000-000000000011' },
+  })
+
+  const tryonView = appCenterSnapshot()
+  tryonView.items[0].appId = 'tryon'
+  const tryonTarget = decodeAppTarget({ appId: 'tryon', path: '/?costume=01980000-0000-7000-8000-000000000020' })
+  assert.deepEqual(appCenterTargetLocation(tryonTarget, tryonView, now, 'epoch-1'), {
+    path: '/apps/tryon/',
+    query: { costume: '01980000-0000-7000-8000-000000000020' },
+  })
+
+  assert.throws(() => appCenterTargetLocation(viewerTarget, appCenterSnapshot(), now + 10_000, 'epoch-1'), /APPCENTER_VIEW_EXPIRED/)
+  assert.throws(() => appCenterTargetLocation(viewerTarget, appCenterSnapshot(), now, 'epoch-other'), /CONTEXT_CHANGED/)
+
+  const uninstalled = appCenterSnapshot()
+  uninstalled.items[0].installation = null
+  assert.throws(() => appCenterTargetLocation(viewerTarget, uninstalled, now, 'epoch-1'), /APP_NAVIGATION_UNAVAILABLE/)
+
+  const forbidden = appCenterSnapshot()
+  forbidden.items[0].entry!.availability = 'denied'
+  forbidden.items[0].entry!.reasonCode = 'PERMISSION_DENIED'
+  forbidden.items[0].actions[0].enabled = false
+  forbidden.items[0].actions[0].reasonCode = 'PERMISSION_DENIED'
+  assert.throws(() => appCenterTargetLocation(viewerTarget, forbidden, now, 'epoch-1'), /PERMISSION_DENIED/)
 })
 
 test('compatibility bookmarks preserve fixed versions and route local copies through Project', () => {

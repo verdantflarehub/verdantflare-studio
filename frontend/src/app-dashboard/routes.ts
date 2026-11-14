@@ -109,12 +109,24 @@ export function browserDashboardPath(route: { params?: Record<string, unknown>; 
   return canonicalAppPath(appId, dashboardRoutePath(basePath + (qs ? '?' + qs : '')))
 }
 
-/** Project owns its complete category → object trail on the browser route. */
+const worldOwnedBreadcrumbPrefixes = new Set([
+  'character', 'pose', 'costume', 'scene', 'sound', 'music',
+  'shot', 'script', 'knowledge', 'collections', 'learn',
+])
+
+function matchesSegmentPrefix(pathname: string, prefixes: ReadonlySet<string>): boolean {
+  const first = pathname.slice(1).split('/', 1)[0]
+  return first.length > 0 && prefixes.has(first) && (pathname === '/' + first || pathname.startsWith('/' + first + '/'))
+}
+
+/** Project and World own their complete internal breadcrumb trails across their route spaces. */
 export function dashboardOwnsBreadcrumb(appId: string | undefined, value: unknown): boolean {
   if (appId !== 'project' && appId !== 'world') return false
   try {
     const pathname = new URL(dashboardRoutePath(value), 'https://app.invalid').pathname
-    if (appId === 'world') return ['/', '/learn', '/character', '/scene', '/sound', '/music', '/shot', '/script', '/knowledge'].includes(pathname)
-    return pathname === '/projects' || projectCategories.has(pathname.slice(1)) || pathname.startsWith('/ai_short_drama/')
+    if (appId === 'world') {
+      return pathname === '/' || pathname === '/publish' || pathname.startsWith('/item/') || matchesSegmentPrefix(pathname, worldOwnedBreadcrumbPrefixes)
+    }
+    return pathname === '/projects' || matchesSegmentPrefix(pathname, projectCategories)
   } catch { return false }
 }

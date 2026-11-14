@@ -15,7 +15,7 @@ import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
 import { navigationRouteNode } from './navigation-routes'
 import { useNavigationStore } from '../platform/navigationStore'
-import { appTargetLocation, decodeAppTarget } from '../navigation/app-target'
+import { appCenterTargetLocation, appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { nativeTaskLocation, nativeTaskTarget } from '../navigation/native-task-target'
 import { createAppCenterTransport } from '../app-center/transport'
 import { decodeView } from '../app-center/controller'
@@ -128,7 +128,15 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       } else {
         const navigation = decodeNavigation(await createNavigationTransport().read(signal), current.context)
         if (navigation.projection.scope.authorizationEpoch !== current.context.contextRevision) throw new Error('CONTEXT_CHANGED')
-        destination = appTargetLocation(target, navigation)
+        if (navigation.mode === 'preinstalled' && navigation.projection.entries.some(entry => entry.appId === target.appId)) {
+          destination = appTargetLocation(target, navigation)
+        } else {
+          const transport = createAppCenterTransport(), raw = await transport.read(signal)
+          const clock = transport.clock?.(raw)
+          if (!clock) throw new Error('APPCENTER_VIEW_EXPIRED')
+          const view = decodeView(raw, current.context, clock())
+          destination = appCenterTargetLocation(target, view, clock(), current.context.contextRevision)
+        }
       }
       if (signal.aborted) throw new Error('REQUEST_CANCELLED')
       const authorized = await client!.inspect(id, opened.launch.installationId, signal)
