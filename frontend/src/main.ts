@@ -6,6 +6,7 @@ import LegacyMarket from './pages/Market.vue'
 import AppCenterPage from './app-center/AppCenterPage.vue'
 import LegacyAppEntry from './pages/LegacyAppEntry.vue'
 import StudioSettings from './pages/StudioSettings.vue'
+import { reloadIfBuildChanged } from './platform/versionGuard'
 import './theme/market.css'
 
 // One explicit release mode selects the whole AppCenter. A request failure
@@ -31,6 +32,10 @@ const router = createRouter({
     { path: '/settings', name: 'studio-settings', component: StudioSettings },
     { path: '/:pathMatch(.*)*', redirect: '/market' }
   ]
+})
+
+router.afterEach((to, from, failure) => {
+  if (!failure && to.fullPath !== from.fullPath) reloadIfBuildChanged()
 })
 
 createApp(App).use(createPinia()).use(router).mount('#app')

@@ -1,3 +1,4 @@
+import type { RouteLocationRaw } from 'vue-router'
 import type { AppCenterView } from '../app-center/schema.generated'
 import { assertAppPath } from '../app-dashboard/sdk.ts'
 import { dashboardLocation } from '../app-dashboard/routes.ts'
@@ -5,14 +6,26 @@ import type { Json } from '../app-dashboard/types'
 import type { NavigationEnvelope } from './controller'
 
 const deniedReasonCodes = new Set(['PERMISSION_DENIED', 'FORBIDDEN', 'CAPABILITY_DENIED'])
+const appIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 
 export interface AppTarget { appId: string; path: string }
 export function decodeAppTarget(value: Json): AppTarget {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).sort().join(',') !== 'appId,path'
-    || typeof value.appId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.appId)
+    || typeof value.appId !== 'string' || !appIdPattern.test(value.appId)
     || typeof value.path !== 'string') throw new Error('INVALID_NAVIGATION')
   assertAppPath(value.path)
   return { appId: value.appId, path: value.path }
+}
+export function appCenterReturnLocation(path: string, fallback: RouteLocationRaw = '/market'): RouteLocationRaw {
+  assertAppPath(path)
+  const parsed = new URL(path, 'https://studio.invalid')
+  if (parsed.pathname !== '/') throw new Error('INVALID_PATH')
+  if (!parsed.search) return fallback
+  const app = parsed.searchParams.get('app')
+  if (!app || parsed.searchParams.size !== 1 || parsed.searchParams.getAll('app').length !== 1 || !appIdPattern.test(app)) {
+    throw new Error('INVALID_PATH')
+  }
+  return { path: '/market', query: { view: 'all', q: app } }
 }
 export function appTargetLocation(target: AppTarget, navigation: NavigationEnvelope) {
   if (navigation.mode !== 'preinstalled') throw new Error('APP_NAVIGATION_UNAVAILABLE')

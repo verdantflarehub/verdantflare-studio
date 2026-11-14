@@ -15,7 +15,7 @@ import { createNavigationTransport } from '../navigation/transport'
 import { decodeNavigation, selectedNavigationChild } from '../navigation/controller'
 import { navigationRouteNode } from './navigation-routes'
 import { useNavigationStore } from '../platform/navigationStore'
-import { appCenterTargetLocation, appTargetLocation, decodeAppTarget } from '../navigation/app-target'
+import { appCenterReturnLocation, appCenterTargetLocation, appTargetLocation, decodeAppTarget } from '../navigation/app-target'
 import { nativeTaskLocation, nativeTaskTarget } from '../navigation/native-task-target'
 import { createAppCenterTransport } from '../app-center/transport'
 import { decodeView } from '../app-center/controller'
@@ -106,8 +106,7 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
     async navigate(input, signal) {
       await client!.inspect(id, opened.launch.installationId, signal)
       if (input.target === 'appcenter') {
-        if (input.path !== '/') throw new Error('INVALID_PATH')
-        await router.push(props.returnLocation ?? '/market')
+        await router.push(appCenterReturnLocation(input.path, props.returnLocation ?? '/market'))
       } else await router.push(dashboardLocation(opened.context.appId, input.path))
     },
     requestApp: (input, signal) => client!.request(id, input, signal),

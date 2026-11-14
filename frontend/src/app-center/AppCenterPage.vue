@@ -24,9 +24,12 @@ import type { LegacyOpened } from './legacy'
 
 const host = useHostStore(), store = useAppCenterStore(), route = useRoute(), router = useRouter()
 store.setVisible('directory', true)
-const query = ref(''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
-watch(() => [route.path, route.query.view] as const, ([path, view]) => {
-  if (path === '/market') filter.value = directoryView(view)
+const query = ref(typeof route.query.q === 'string' ? route.query.q : ''), group = ref('all'), filter = ref(directoryView(route.query.view)), message = ref(''), menuKey = ref('')
+watch(() => [route.path, route.query.view, route.query.q] as const, ([path, view, q]) => {
+  if (path === '/market') {
+    filter.value = directoryView(view)
+    if (typeof q === 'string') query.value = q
+  }
 }, { immediate: true })
 const returnLocation = computed(() => directoryLocation(filter.value))
 const confirmation = ref<{ card: AppCenterCard; actionId: string; kind: string; scope: string; impact: string } | null>(null)

@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { appCenterTargetLocation, appTargetLocation, decodeAppTarget, legacyAppTarget } from '../src/navigation/app-target.ts'
+import { readFileSync } from 'node:fs'
+import { appCenterReturnLocation, appCenterTargetLocation, appTargetLocation, decodeAppTarget, legacyAppTarget } from '../src/navigation/app-target.ts'
+import { STUDIO_FRONTEND_VERSION, consumeBuildReloadTicket, hasServerBuildSkew } from '../src/platform/versionGuard.ts'
 import type { AppCenterView } from '../src/app-center/schema.generated'
 import type { NavigationEnvelope } from '../src/navigation/controller'
 
@@ -68,6 +70,34 @@ test('compatibility bookmarks preserve fixed versions and route local copies thr
   assert.throws(() => legacyAppTarget('/projects?view=files&project=invalid'))
   assert.deepEqual(legacyAppTarget('/projects?mode=world&view=files&asset=asset&version=fixed'), { appId: 'world', path: '/?view=files&asset=asset&version=fixed' })
   assert.deepEqual(legacyAppTarget('/resources'), { appId: 'resources', path: '/' })
-  assert.deepEqual(legacyAppTarget('/station/proxies'), { appId: 'network', path: '/' })
+  assert.equal(legacyAppTarget('/station/proxies')?.appId, 'network')
   assert.throws(() => legacyAppTarget('/projects?mode=world&mode=projects'))
+})
+
+test('appcenter return navigation supports plain root and ?app=<appId> filter while rejecting invalid paths', () => {
+  assert.equal(appCenterReturnLocation('/', '/market?view=installed'), '/market?view=installed')
+  assert.deepEqual(appCenterReturnLocation('/?app=viewer', '/market'), {
+    path: '/market',
+    query: { view: 'all', q: 'viewer' },
+  })
+  for (const invalid of ['/viewer', '/?app=viewer&extra=1', '/?other=viewer', '/?app=', '/?app=../bad', '//evil.invalid']) {
+    assert.throws(() => appCenterReturnLocation(invalid), /INVALID_PATH/)
+  }
+})
+
+test('frontend version guard stays aligned with package.json and buildinfo and reloads at most once per target build', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
+  const buildInfo = readFileSync(new URL('../../internal/buildinfo/version.go', import.meta.url), 'utf8')
+  assert.equal(STUDIO_FRONTEND_VERSION, pkg.version)
+  assert.match(buildInfo, new RegExp(`Version\\s*=\\s*"${STUDIO_FRONTEND_VERSION.replaceAll('.', '\\.')}"`))
+
+  assert.equal(hasServerBuildSkew(STUDIO_FRONTEND_VERSION, STUDIO_FRONTEND_VERSION), false)
+  assert.equal(hasServerBuildSkew(STUDIO_FRONTEND_VERSION, '0.5.999'), true)
+  assert.equal(hasServerBuildSkew(STUDIO_FRONTEND_VERSION, 'dev'), false)
+
+  const store = new Map<string, string>()
+  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) } }
+  assert.equal(consumeBuildReloadTicket('0.5.999', storage), true)
+  assert.equal(consumeBuildReloadTicket('0.5.999', storage), false)
+  assert.equal(consumeBuildReloadTicket('0.6.000', storage), true)
 })

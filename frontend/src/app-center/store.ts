@@ -6,6 +6,7 @@ import { createAppCenterTransport, prefetchView } from './transport'
 import { createSharedRefresh } from './refresh'
 import { createStateCalibration, subscribeStateHints } from './state-hints'
 import { isDesktopHost } from '../platform/desktop'
+import { probeServerBuild } from '../platform/versionGuard'
 import { createCommands } from './commands'
 import { commandScope, createCommandStorage } from './command-storage'
 import { createCommandTransport } from './command-transport'
@@ -82,6 +83,7 @@ export const useAppCenterStore = defineStore('appcenter', () => {
   const calibration = createStateCalibration(
     () => visible() && host.connected ? sharedRefresh.refreshLatest() : Promise.resolve(),
     !isDesktopHost() && typeof EventSource !== 'undefined' ? notify => subscribeStateHints((rev?: string) => {
+      void probeServerBuild()
       if (rev?.startsWith('nav:')) for (const listener of navHintListeners) listener()
       notify()
     }) : undefined)
