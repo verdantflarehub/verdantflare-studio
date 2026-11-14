@@ -154,21 +154,23 @@ func TestRemoteStableMediaRangeAndConditionalHeaders(t *testing.T) {
 	}
 }
 func TestRemoteStableMedia304IsNotRedirect(t *testing.T) {
-	path := "/studio/media/" + strings.Repeat("a", 64) + "/" + strings.Repeat("b", 64) + "/thumbnail-320-v1"
-	c := fixture(t, func(r *http.Request) (*http.Response, error) {
-		if r.Header.Get("If-None-Match") != `"hash"` {
-			t.Fatal("condition lost")
+	for _, rep := range []string{"thumbnail-320-v1", "thumbnail-320-v2", "thumbnail-640-v2"} {
+		path := "/studio/media/" + strings.Repeat("a", 64) + "/" + strings.Repeat("b", 64) + "/" + rep
+		c := fixture(t, func(r *http.Request) (*http.Response, error) {
+			if r.Header.Get("If-None-Match") != `"hash"` {
+				t.Fatal("condition lost")
+			}
+			return &http.Response{StatusCode: 304, Header: http.Header{"Etag": {`"hash"`}, "Cache-Control": {"private, max-age=2592000, immutable"}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+		})
+		login(t, c)
+		s, _ := c.Session()
+		r, err := s.Media(context.Background(), "GET", path, http.Header{"If-None-Match": {`"hash"`}})
+		if err != nil {
+			t.Fatalf("%s: %v", rep, err)
 		}
-		return &http.Response{StatusCode: 304, Header: http.Header{"Etag": {`"hash"`}, "Cache-Control": {"private, max-age=2592000, immutable"}}, Body: io.NopCloser(strings.NewReader(""))}, nil
-	})
-	login(t, c)
-	s, _ := c.Session()
-	r, err := s.Media(context.Background(), "GET", path, http.Header{"If-None-Match": {`"hash"`}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.Body.Close()
-	if r.StatusCode != 304 || r.Header.Get("ETag") != `"hash"` {
-		t.Fatal("conditional response lost")
+		r.Body.Close()
+		if r.StatusCode != 304 || r.Header.Get("ETag") != `"hash"` {
+			t.Fatalf("%s: conditional response lost", rep)
+		}
 	}
 }

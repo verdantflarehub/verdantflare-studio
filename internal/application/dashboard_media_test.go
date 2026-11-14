@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"slices"
@@ -199,5 +200,79 @@ func TestMediaScopeStableAcrossLoginRefreshButChangesWithPolicy(t *testing.T) {
 	identity.UserID = "two"
 	if first == mediaIdentityScope(identity) {
 		t.Fatal("another user reused cache scope")
+	}
+}
+
+func TestWorldEvidenceThumbnailAntiAliasesAndSupportsV2Representations(t *testing.T) {
+	f, session, _, original := contentFixture(t)
+	t.Setenv("STUDIO_MEDIA_CACHE_DIR", t.TempDir())
+	src := image.NewNRGBA(image.Rect(0, 0, 1672, 941))
+	for y := 0; y < 941; y++ {
+		for x := 0; x < 1672; x++ {
+			v := uint8(20)
+			if ((x/2)+(y/2))%2 == 1 {
+				v = 235
+			}
+			src.SetNRGBA(x, y, color.NRGBA{R: v, G: v, B: v, A: 255})
+		}
+	}
+	var raw bytes.Buffer
+	if err := png.Encode(&raw, src); err != nil {
+		t.Fatal(err)
+	}
+	original.text = raw.String()
+	original.mode = "metadata"
+	original.input.Access = project.Access{AssetID: uuid.Must(uuid.NewV7()).String(), AssetVersionID: uuid.Must(uuid.NewV7()).String()}
+	original.version.MIME = "image/png"
+	original.version.Size = int64(raw.Len())
+	hash := sha256.Sum256(raw.Bytes())
+	original.version.SHA256 = hex.EncodeToString(hash[:])
+	g := &mediaGatewayStub{contentGatewayStub: original}
+
+	for _, tc := range []struct {
+		rep          string
+		wantW, wantH int
+	}{
+		{rep: "thumbnail-320-v2", wantW: 320, wantH: 180},
+		{rep: "thumbnail-640-v2", wantW: 640, wantH: 360},
+	} {
+		in := g.input
+		in.Representation = tc.rep
+		out := f.service.ReadContent(context.Background(), "test-session", session, in, g)
+		if out.Status != 200 {
+			t.Fatalf("%s: status=%d %s", tc.rep, out.Status, string(out.Data))
+		}
+		var value struct {
+			Path string `json:"content_path"`
+		}
+		_ = json.Unmarshal(out.Data, &value)
+		if !strings.HasSuffix(value.Path, "/"+tc.rep) {
+			t.Fatalf("path %q missing suffix %s", value.Path, tc.rep)
+		}
+		body, _, status := readMedia(t, f.service, g, value.Path)
+		if status != 200 {
+			t.Fatalf("%s: media status=%d", tc.rep, status)
+		}
+		img, _, err := image.Decode(strings.NewReader(body))
+		if err != nil || img.Bounds().Dx() != tc.wantW || img.Bounds().Dy() != tc.wantH {
+			t.Fatalf("%s: invalid decoded bounds=%v err=%v", tc.rep, img.Bounds(), err)
+		}
+		var totalDiff float64
+		var samples int
+		for y := 4; y < tc.wantH-4; y++ {
+			for x := 4; x < tc.wantW-5; x++ {
+				r1, _, _, _ := img.At(x, y).RGBA()
+				r2, _, _, _ := img.At(x+1, y).RGBA()
+				d := float64(r1>>8) - float64(r2>>8)
+				if d < 0 {
+					d = -d
+				}
+				totalDiff += d
+				samples++
+			}
+		}
+		if meanDX := totalDiff / float64(samples); meanDX > 15 {
+			t.Fatalf("%s: high-frequency pattern aliased: mean dx=%.2f", tc.rep, meanDX)
+		}
 	}
 }

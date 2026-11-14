@@ -336,7 +336,7 @@ func (d *Dashboards) DownloadMedia(ctx context.Context, token, scope, resource, 
 }
 
 func validRepresentation(value string) bool {
-	return slices.Contains([]string{"original-v1", "thumbnail-320-v1", "thumbnail-640-v1", "poster-320-v1", "poster-640-v1"}, value)
+	return slices.Contains([]string{"original-v1", "thumbnail-320-v1", "thumbnail-640-v1", "thumbnail-320-v2", "thumbnail-640-v2", "poster-320-v1", "poster-640-v1"}, value)
 }
 
 // Login refresh does not invalidate byte identities; permission policy changes do.

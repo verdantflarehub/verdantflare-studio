@@ -209,7 +209,7 @@ export function createDashboardWebClient(
         const prefix = sessionPath(sessionId) + '/content/'
         const requested = input && typeof input === 'object' && !Array.isArray(input) ? input.representation : undefined
         const stable = typeof value.content_path === 'string' && typeof requested === 'string'
-          && /^\/studio\/media\/[a-f0-9]{64}\/[a-f0-9]{64}\/(original-v1|thumbnail-(320|640)-v1|poster-(320|640)-v1)$/.test(value.content_path)
+          && /^\/studio\/media\/[a-f0-9]{64}\/[a-f0-9]{64}\/(original-v1|thumbnail-(320|640)-v(1|2)|poster-(320|640)-v1)$/.test(value.content_path)
           && value.content_path.endsWith('/' + requested)
         if (!stable && (typeof value.content_path !== 'string' || !value.content_path.startsWith(prefix)
           || !uuid.test(value.content_path.slice(prefix.length)) || value.content_path.slice(prefix.length)[14] !== '4')) return failure('INVALID_CONTENT_RESPONSE')

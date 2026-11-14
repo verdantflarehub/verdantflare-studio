@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"github.com/HugoSmits86/nativewebp"
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
@@ -52,11 +53,7 @@ func encodeMediaThumbnail(ctx context.Context, source io.ReadSeeker, edge int, o
 	if longest > edge {
 		nw, nh := max(1, w*edge/longest), max(1, h*edge/longest)
 		scaled := image.NewNRGBA(image.Rect(0, 0, nw, nh))
-		for y := 0; y < nh; y++ {
-			for x := 0; x < nw; x++ {
-				scaled.Set(x, y, img.At(bounds.Min.X+x*w/nw, bounds.Min.Y+y*h/nh))
-			}
-		}
+		draw.CatmullRom.Scale(scaled, scaled.Bounds(), img, bounds, draw.Src, nil)
 		img = scaled
 	}
 	if err := ctx.Err(); err != nil {

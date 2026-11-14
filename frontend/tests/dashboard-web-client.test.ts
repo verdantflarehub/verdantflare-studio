@@ -252,6 +252,11 @@ test('stable content paths require an explicitly matching representation and rem
   const stable = `/studio/media/${'a'.repeat(64)}/${'b'.repeat(64)}/thumbnail-320-v1`
   let path = stable
   const client = createDashboardWebClient('https://studio.invalid', async () => json({ mode: 'download', content_path: path }))
+  for (const rep of ['thumbnail-320-v1', 'thumbnail-320-v2', 'thumbnail-640-v2']) {
+    path = `/studio/media/${'a'.repeat(64)}/${'b'.repeat(64)}/${rep}`
+    assert.equal((await client.capability(sessionId, 'artifact.read', { mode: 'download', representation: rep }) as any).content_path, path)
+  }
+  path = stable
   const input = { mode: 'download', representation: 'thumbnail-320-v1' }
   assert.equal((await client.capability(sessionId, 'artifact.read', input) as any).content_path, stable)
   await assert.rejects(client.capability(sessionId, 'artifact.read', { mode: 'download' }), { code: 'INVALID_CONTENT_RESPONSE' })
