@@ -177,11 +177,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'video-minimax-h3-api',
+    app_id: 'video-minimax-h3',
     display_name: 'MiniMax H3',
     group_id: 'video',
     brand: 'minimax',
-    version: '0.3.1',
+    version: '0.3.4',
     gpu: 2,
     models: ['MiniMax H3'],
     tagline: 'MiniMax H3 本地推理。',
@@ -190,11 +190,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'video-depth-anything-api',
+    app_id: 'video-depth-anything',
     display_name: 'Depth Anything',
     group_id: 'video',
     brand: 'github',
-    version: '0.2.1',
+    version: '0.2.4',
     gpu: 1,
     models: ['Depth Anything'],
     tagline: '从视频中提取空间深度。',

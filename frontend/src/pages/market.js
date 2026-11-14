@@ -53,7 +53,7 @@ export function mountMarket(options = {}) {
 
   function brandInfo(a) {
     if (a.brand === 'vf' || a.app_id.endsWith('-mcp-server')) return { key: 'vf', name: 'VF', title: 'VerdantFlare 官方微服务应用' };
-    if (a.brand === 'minimax' || ['music-minimax-music3', 'video-minimax-h3-api', 'video-minimax-h3-vdn', 'video-minimax-h3-singularity'].includes(a.app_id)) {
+    if (a.brand === 'minimax' || ['music-minimax-music3', 'video-minimax-h3', 'video-minimax-h3-fasth3', 'video-minimax-h3-regenerate-2k', 'video-minimax-h3-vdn', 'video-minimax-h3-singularity'].includes(a.app_id)) {
       return { key: 'minimax', name: 'MiniMax', title: 'MiniMax 官方模型引擎' };
     }
     return { key: 'github', name: 'GitHub', title: '开源算法应用' };

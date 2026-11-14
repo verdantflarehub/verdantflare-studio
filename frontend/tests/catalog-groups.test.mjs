@@ -46,6 +46,7 @@ test('system filtering composes with name, description, model and capability sea
   assert.deepEqual(ids({ group: 'system', query: 'NETWORK.PROBE' }), ['network']);
   assert.deepEqual(ids({ group: 'system', query: 'Whisper' }), []);
   assert.deepEqual(ids({ group: 'music', query: 'Whisper' }), ['music-lyrics-aligner']);
+  assert.deepEqual(ids({ group: 'video', query: 'Depth' }), ['video-depth-anything']);
 });
 
 test('system sections obey the installed and in-progress tab predicates', () => {
