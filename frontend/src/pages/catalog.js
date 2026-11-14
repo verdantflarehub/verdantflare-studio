@@ -52,11 +52,11 @@ export const CATALOG_APPS = [
     dashboard: '/apps/image/dashboard'
   },
   {
-    app_id: 'image-face-fusion-api',
+    app_id: 'image-face-fusion',
     display_name: 'Face Fusion',
     group_id: 'image',
     brand: 'github',
-    version: '0.1.2',
+    version: '0.2.3',
     gpu: 1,
     models: ['InsightFace'],
     tagline: '人脸融合与面部修复。',
@@ -86,11 +86,11 @@ export const CATALOG_APPS = [
     dashboard: 'verdantflare_app_music_dashboard_v1.0.html'
   },
   {
-    app_id: 'music-minimax-music3-api',
+    app_id: 'music-minimax-music3',
     display_name: 'MiniMax Music3',
     group_id: 'music',
     brand: 'minimax',
-    version: '0.1.1',
+    version: '0.1.5',
     gpu: 2,
     models: ['MiniMax Music3'],
     tagline: '把歌词与描述变成音乐。',
@@ -99,11 +99,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'music-uvr5-api',
+    app_id: 'music-uvr5',
     display_name: 'UVR5',
     group_id: 'music',
     brand: 'github',
-    version: '0.1.7',
+    version: '0.1.10',
     gpu: 1,
     models: ['MelBand RoFormer', '去混响模型'],
     tagline: '分离人声，保留音乐细节。',
@@ -112,11 +112,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'music-rvc-api',
+    app_id: 'music-rvc',
     display_name: 'RVC',
     group_id: 'music',
     brand: 'github',
-    version: '0.2.1',
+    version: '0.2.4',
     gpu: 1,
     models: ['RVC 基础模型', '项目声音模型（按需）'],
     tagline: '构建属于项目的人声。',
@@ -125,11 +125,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'music-lyrics-aligner-api',
+    app_id: 'music-lyrics-aligner',
     display_name: 'Lyrics Aligner',
     group_id: 'music',
     brand: 'github',
-    version: '0.1.0',
+    version: '0.1.2',
     gpu: 1,
     models: ['Whisper small'],
     tagline: '让每一句歌词落在对的时刻。',
@@ -138,11 +138,11 @@ export const CATALOG_APPS = [
     dashboard: null
   },
   {
-    app_id: 'music-audio-mixer-api',
+    app_id: 'music-audio-mixer',
     display_name: 'Audio Mixer',
     group_id: 'music',
     brand: 'github',
-    version: '0.1.0',
+    version: '0.2.1',
     gpu: 0,
     models: [],
     tagline: '完成最后一道声音处理。',

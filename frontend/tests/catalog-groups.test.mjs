@@ -45,7 +45,7 @@ test('system filtering composes with name, description, model and capability sea
   assert.deepEqual(ids({ query: ' WORLD ASSETS ' }), ['world']);
   assert.deepEqual(ids({ group: 'system', query: 'NETWORK.PROBE' }), ['network']);
   assert.deepEqual(ids({ group: 'system', query: 'Whisper' }), []);
-  assert.deepEqual(ids({ group: 'music', query: 'Whisper' }), ['music-lyrics-aligner-api']);
+  assert.deepEqual(ids({ group: 'music', query: 'Whisper' }), ['music-lyrics-aligner']);
 });
 
 test('system sections obey the installed and in-progress tab predicates', () => {
@@ -65,4 +65,28 @@ test('system cards are sourced from live catalog data and retain its order', () 
   assert.deepEqual(section[0].apps.map(app => app.app_id), ['resources', 'project']);
   assert.equal(section[0].apps[0].deployment.state, 'unknown');
   assert.deepEqual(selectCatalogGroups(apps, { query: 'no matching application' }), []);
+});
+
+test('renamed media sub-services expose -api-free IDs and aligned fallback versions', () => {
+  const apps = mergeCatalogWithLive([]);
+  const versions = Object.fromEntries(apps.map(app => [app.app_id, app.version]));
+  assert.equal(versions['image-face-fusion'], '0.2.3');
+  assert.equal(versions['music-minimax-music3'], '0.1.5');
+  assert.equal(versions['music-uvr5'], '0.1.10');
+  assert.equal(versions['music-rvc'], '0.2.4');
+  assert.equal(versions['music-lyrics-aligner'], '0.1.2');
+  assert.equal(versions['music-audio-mixer'], '0.2.1');
+  for (const legacyId of [
+    'image-moss-api',
+    'image-face-fusion-api',
+    'music-ace-step-api',
+    'music-audio-mixer-api',
+    'music-lyrics-aligner-api',
+    'music-minimax-music3-api',
+    'music-rvc-api',
+    'music-uvr5-api',
+    'speech-indextts2-api',
+  ]) {
+    assert.equal(versions[legacyId], undefined);
+  }
 });
