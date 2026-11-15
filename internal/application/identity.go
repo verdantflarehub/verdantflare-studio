@@ -33,11 +33,17 @@ type identityContext struct {
 
 // Principal revalidates the actual Core session on every request.
 func (s *Station) Principal(ctx context.Context, token, requestID string) (project.Principal, int) {
+	principal, _, status := s.PrincipalWithAdmin(ctx, token, requestID)
+	return principal, status
+}
+
+// PrincipalWithAdmin revalidates the Core session and reports whether the verified identity holds the org admin role.
+func (s *Station) PrincipalWithAdmin(ctx context.Context, token, requestID string) (project.Principal, bool, int) {
 	identity, status := s.verifiedIdentity(ctx, token, requestID)
 	if status != 200 {
-		return project.Principal{}, status
+		return project.Principal{}, false, status
 	}
-	return project.Principal{OrganizationID: identity.OrganizationID, SubjectID: identity.UserID, RequestID: requestID}, 200
+	return project.Principal{OrganizationID: identity.OrganizationID, SubjectID: identity.UserID, RequestID: requestID}, slices.Contains(identity.Roles, "admin"), 200
 }
 
 // DashboardActor retains the Station and authorization lifetime that a Project

@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -209,5 +210,184 @@ func TestComfyUIResourceHTTPIdentityAndDegradation(t *testing.T) {
 				t.Fatal("invalid request reached app", w.Code)
 			}
 		})
+	}
+}
+
+func TestComfyUIMCPDualAliasRoutingAndCredentialIsolation(t *testing.T) {
+	id := func() string { return uuid.Must(uuid.NewV7()).String() }
+	user, org := id(), id()
+	roles := []string{"member"}
+	revoked := false
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if revoked || r.URL.Path != "/identity/me" || r.Header.Get("Authorization") != "Bearer verified-session" {
+			w.WriteHeader(401)
+			_, _ = w.Write([]byte(`{"code":"UNAUTHENTICATED"}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"station_id": id(), "session_id": id(), "user_id": user, "organization_id": org,
+			"organization_name": "fixture", "request_id": "fixture", "username": "fixture",
+			"roles": roles, "scopes": []string{"identity:read"},
+			"issued_at": time.Now().Add(-time.Minute).UTC(), "expires_at": time.Now().Add(time.Hour).UTC(),
+			"revocation_version": 0, "policy_version": 1,
+		})
+	}))
+	defer core.Close()
+
+	var comfyReceived []*http.Request
+	var comfyBodies []string
+	upstreamMode := "ok"
+	comfyWorker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		comfyReceived = append(comfyReceived, r.Clone(r.Context()))
+		b, _ := io.ReadAll(r.Body)
+		comfyBodies = append(comfyBodies, string(b))
+		switch upstreamMode {
+		case "redirect":
+			w.Header().Set("Location", core.URL)
+			w.WriteHeader(302)
+			return
+		case "non_json":
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = w.Write([]byte("<html>error</html>"))
+			return
+		case "oversized":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(strings.Repeat(" ", comfyuiMCPMaxResponseBytes+1)))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Set-Cookie", "internal-comfy-cookie=secret")
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			_, _ = w.Write([]byte(`{"code":"POST_ONLY"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":9007199254740993,"result":{"tools":[]}}`))
+	}))
+	defer comfyWorker.Close()
+
+	blenderCalls := 0
+	blenderWorker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		blenderCalls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"target":"blender"}}`))
+	}))
+	defer blenderWorker.Close()
+
+	station, err := application.NewStation(core.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router, s := NewServer(station, "https://studio.example", fstest.MapFS{})
+	s.comfyuiEndpoint = func() (string, bool) { return comfyWorker.URL + "/internal/mcp", true }
+	s.blenderEndpoint = func() (string, bool) { return blenderWorker.URL + "/internal/mcp", true }
+	const serviceToken = "comfyui-internal-service-token-0123456789abcdef"
+	t.Setenv("STUDIO_COMFYUI_SERVICE_TOKEN", serviceToken)
+	t.Setenv("STUDIO_BLENDER_SERVICE_TOKEN", "blender-internal-only")
+
+	rpcBody := `{"jsonrpc":"2.0","id":9007199254740993,"method":"tools/list"}`
+	call := func(method, path, token, body string, extra map[string]string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		r.Header.Set("Content-Type", "application/json")
+		for k, v := range extra {
+			r.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		return w
+	}
+
+	// 1. Interactive alias comfyuiA + Headless alias comfyui-api both route cleanly with member admin=false.
+	for _, alias := range []string{"comfyuiA", "comfyui-api"} {
+		w := call("POST", "/mcp/"+alias, "verified-session", rpcBody, map[string]string{
+			"Cookie":           "ext=secret",
+			"X-Instance-Id":    "spoofed",
+			"X-Project-Id":     id(),
+			"X-Forwarded-Host": "evil.example",
+		})
+		if w.Code != 200 || !strings.Contains(w.Body.String(), "9007199254740993") {
+			t.Fatalf("alias %s failed: %d %s", alias, w.Code, w.Body.String())
+		}
+		got := comfyReceived[len(comfyReceived)-1]
+		if got.URL.Path != "/internal/mcp/"+alias {
+			t.Fatalf("unexpected upstream path %s", got.URL.Path)
+		}
+		if got.Header.Get("Authorization") != "Bearer "+serviceToken ||
+			got.Header.Get("X-User-Id") != user ||
+			got.Header.Get("X-Organization-Id") != org ||
+			got.Header.Get("X-Organization-Admin") != "false" {
+			t.Fatalf("trusted headers mismatch: %+v", got.Header)
+		}
+		for _, stripped := range []string{"Cookie", "X-Instance-Id", "X-Project-Id", "X-Forwarded-Host"} {
+			if got.Header.Get(stripped) != "" {
+				t.Fatalf("untrusted header %s leaked upstream", stripped)
+			}
+		}
+		if w.Header().Get("Set-Cookie") != "" {
+			t.Fatal("upstream cookie leaked")
+		}
+		if comfyBodies[len(comfyBodies)-1] != rpcBody {
+			t.Fatal("JSON body mutated")
+		}
+	}
+
+	// 2. Non-admin spoofing X-Organization-Admin: true is rejected with 403 before reaching upstream.
+	before := len(comfyReceived)
+	if w := call("POST", "/mcp/comfyuiA", "verified-session", rpcBody, map[string]string{"X-Organization-Admin": "true"}); w.Code != 403 || len(comfyReceived) != before {
+		t.Fatalf("spoofed admin header was not rejected: code=%d calls=%d", w.Code, len(comfyReceived))
+	}
+
+	// 3. Verified admin forwards X-Organization-Admin: true.
+	roles = []string{"admin"}
+	if w := call("POST", "/mcp/comfyui-api", "verified-session", rpcBody, nil); w.Code != 200 || comfyReceived[len(comfyReceived)-1].Header.Get("X-Organization-Admin") != "true" {
+		t.Fatal("verified admin role was not propagated")
+	}
+
+	// 4. Blender route remains isolated on /mcp/blenderA.
+	if w := call("POST", "/mcp/blenderA", "verified-session", rpcBody, nil); w.Code != 200 || blenderCalls != 1 {
+		t.Fatalf("blender route broken: code=%d calls=%d", w.Code, blenderCalls)
+	}
+
+	// 5. Invalid aliases, query overrides, encoded paths, oversized bodies, bad Content-Type/Encoding never reach upstream.
+	before = len(comfyReceived)
+	for _, tc := range []struct {
+		method, path, body string
+		extra              map[string]string
+		status             int
+	}{
+		{"POST", "/mcp/comfyui-other-hyphen", rpcBody, nil, 404},
+		{"POST", "/mcp/comfyui_underscore", rpcBody, nil, 404},
+		{"POST", "/mcp/unknownApp", rpcBody, nil, 404},
+		{"POST", "/mcp/comfyuiA?target=other", rpcBody, nil, 404},
+		{"POST", "/mcp/comfyui%41", rpcBody, nil, 404},
+		{"PUT", "/mcp/comfyuiA", rpcBody, nil, 405},
+		{"POST", "/mcp/comfyuiA", rpcBody, map[string]string{"Content-Type": "text/plain"}, 415},
+		{"POST", "/mcp/comfyuiA", rpcBody, map[string]string{"Content-Encoding": "gzip"}, 415},
+		{"POST", "/mcp/comfyuiA", strings.Repeat("x", comfyuiMCPMaxRequestBytes+1), nil, 413},
+	} {
+		if w := call(tc.method, tc.path, "verified-session", tc.body, tc.extra); w.Code != tc.status || len(comfyReceived) != before {
+			t.Fatalf("invalid request %s %s expected %d got %d (forwarded=%d)", tc.method, tc.path, tc.status, w.Code, len(comfyReceived)-before)
+		}
+	}
+
+	// 6. Upstream failures fail closed with 502; short token fails closed with 503; revoked session returns 401.
+	for _, mode := range []string{"redirect", "non_json", "oversized"} {
+		upstreamMode = mode
+		if w := call("POST", "/mcp/comfyuiA", "verified-session", rpcBody, nil); w.Code != 502 {
+			t.Fatalf("upstream mode %s expected 502 got %d", mode, w.Code)
+		}
+	}
+	upstreamMode = "ok"
+	t.Setenv("STUDIO_COMFYUI_SERVICE_TOKEN", "too-short")
+	if w := call("POST", "/mcp/comfyuiA", "verified-session", rpcBody, nil); w.Code != 503 {
+		t.Fatalf("short service token expected 503 got %d", w.Code)
+	}
+	t.Setenv("STUDIO_COMFYUI_SERVICE_TOKEN", serviceToken)
+	revoked = true
+	if w := call("POST", "/mcp/comfyuiA", "verified-session", rpcBody, nil); w.Code != 401 {
+		t.Fatalf("revoked session expected 401 got %d", w.Code)
 	}
 }

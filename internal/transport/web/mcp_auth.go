@@ -1,6 +1,7 @@
 package web
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,7 +13,7 @@ import (
 func (s *Server) authenticateMCP(c *gin.Context) (project.Principal, bool) {
 	c.Request.Header.Del("X-VF-Include-NSFW")
 	var empty mcprpc.Request
-	for _, key := range []string{"Authorization", "Origin", "Sec-Fetch-Site", "X-User-Id", "X-Organization-Id", "X-Project-Id", "X-Request-Id"} {
+	for _, key := range []string{"Authorization", "Origin", "Sec-Fetch-Site", "X-User-Id", "X-Organization-Id", "X-Organization-Admin", "X-Project-Id", "X-Request-Id"} {
 		if len(c.Request.Header.Values(key)) > 1 {
 			mcprpc.Reject(c.Writer, c.Request, empty, 400, -32600, "Duplicate request header")
 			return project.Principal{}, false
@@ -50,15 +51,18 @@ func (s *Server) authenticateMCP(c *gin.Context) (project.Principal, bool) {
 		mcprpc.Reject(c.Writer, c.Request, empty, 401, -32000, "Authentication required")
 		return project.Principal{}, false
 	}
-	principal, status := s.station.Principal(c.Request.Context(), token, id)
+	principal, admin, status := s.station.PrincipalWithAdmin(c.Request.Context(), token, id)
 	if status != 200 {
 		mcprpc.Reject(c.Writer, c.Request, empty, status, -32000, "Bearer identity verification failed")
 		return project.Principal{}, false
 	}
-	if (c.GetHeader("X-User-Id") != "" && c.GetHeader("X-User-Id") != principal.SubjectID) || (c.GetHeader("X-Organization-Id") != "" && c.GetHeader("X-Organization-Id") != principal.OrganizationID) {
+	if (c.GetHeader("X-User-Id") != "" && c.GetHeader("X-User-Id") != principal.SubjectID) ||
+		(c.GetHeader("X-Organization-Id") != "" && c.GetHeader("X-Organization-Id") != principal.OrganizationID) ||
+		(c.GetHeader("X-Organization-Admin") != "" && c.GetHeader("X-Organization-Admin") != strconv.FormatBool(admin)) {
 		mcprpc.Reject(c.Writer, c.Request, empty, 403, -32000, "Identity header mismatch")
 		return project.Principal{}, false
 	}
 	c.Set("verifiedStationToken", token)
+	c.Set("verifiedOrgAdmin", admin)
 	return principal, true
 }
