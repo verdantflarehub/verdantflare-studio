@@ -6,6 +6,7 @@ import { useHostStore } from '../platform/hostStore'
 import AppDashboardHost from './AppDashboardHost.vue'
 import AppInstanceHost from './AppInstanceHost.vue'
 import { createDashboardWebClient } from './web-client'
+import { inspectNavigation } from './navigation-guard'
 import type { OpenedDashboard } from './web-client'
 import { DashboardSessions } from './sessions'
 import { appIdPattern, browserDashboardPath, dashboardAppId, dashboardLocation, dashboardOwnsBreadcrumb, dashboardSdkRoute, installationPattern, instanceWorkspaceLocation } from './routes'
@@ -104,7 +105,8 @@ function adapters(opened: OpenedDashboard): SDKAdapters {
       openMediaPreview(mediaOwner, input, () => { mediaState.revision++; void navigate?.(-1).catch(() => {}) }, navigate)
     },
     async navigate(input, signal) {
-      await client!.inspect(id, opened.launch.installationId, signal)
+      await inspectNavigation(signal, () => `${location.href}\n${router.currentRoute.value.fullPath}`,
+        () => client!.inspect(id, opened.launch.installationId, signal))
       if (input.target === 'appcenter') {
         await router.push(appCenterReturnLocation(input.path, props.returnLocation ?? '/market'))
       } else await router.push(dashboardLocation(opened.context.appId, input.path))

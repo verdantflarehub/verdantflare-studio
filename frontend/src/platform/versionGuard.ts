@@ -1,4 +1,4 @@
-export const STUDIO_FRONTEND_VERSION = '0.5.231'
+export const STUDIO_FRONTEND_VERSION = '0.5.232'
 const reloadGuardKey = 'vf.studio.reloadedBuild.v1'
 
 let remoteBuildVersion: string | null = null
