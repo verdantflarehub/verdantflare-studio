@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { openMediaPreview, closeMediaPreview, validateMediaPreview, subscribeMediaPreview } from '../src/platform/media-preview.ts'
-import { mediaAdapter, validMediaRequest, isVideoChannelFailure } from '../src/app-center/legacy-media.ts'
+import { mediaAdapter, legacyMediaHeaders, validMediaRequest, isImmutableMediaRequest, isVideoChannelFailure } from '../src/app-center/legacy-media.ts'
 import { videoPath } from '../src/app-center/legacy.ts'
 import { videoPage, videoTaskLabel, videoTaskName } from '../src/app-center/legacy-video-navigation.ts'
 
@@ -33,25 +33,44 @@ test('global preview authorizes bytes, rejects active content and cancels on rou
   } finally { h.dispose(); off() }
 })
 
-function host(fetcher: typeof fetch = async () => Response.json({})) {
-  const props = { adapterId: 'video-iframe-v1', route: root, title: 'Video MCP', authorize: async () => {} }
+function host(fetcher: typeof fetch = async () => Response.json({}), options: { adapterId?: 'video-iframe-v1' | 'image-iframe-v1'; route?: string; includeNsfw?: boolean } = {}) {
+  const adapterId = options.adapterId ?? 'video-iframe-v1'
+  const defaultRoute = adapterId === 'image-iframe-v1'
+    ? '/market?image=' + encodeURIComponent('/dashboard#tasks')
+    : root
+  const props = { adapterId, route: options.route ?? defaultRoute, title: adapterId === 'image-iframe-v1' ? 'Image MCP' : 'Video MCP', authorize: async () => {} }
   const events: Array<[string, any]> = [], posts: any[] = [], scrolls: number[] = [], callbacks = new Map<number, FrameRequestCallback>()
   let next = 0, dispose = () => {}, mount = () => {}
+  let currentPrefs = { includeNsfw: Boolean(options.includeNsfw) }
+  const prefListeners = new Set<(value: { includeNsfw: boolean }) => void>()
+  const hostContentPreferences = {
+    get: () => ({ ...currentPrefs }),
+    subscribe: (fn: (value: { includeNsfw: boolean }) => void) => {
+      prefListeners.add(fn)
+      return () => { prefListeners.delete(fn) }
+    },
+  }
+  const setIncludeNsfw = (includeNsfw: boolean) => {
+    currentPrefs = { includeNsfw }
+    for (const fn of [...prefListeners]) fn({ ...currentPrefs })
+  }
   const frameWindow = { postMessage: (data: any) => posts.push(data) }
   const win = { history: { scrollRestoration: 'auto' }, scrollY: 0, scrollTo: ({ top }: { top: number }) => { scrolls.push(top); win.scrollY = top }, scrollBy: () => {}, addEventListener: () => {}, removeEventListener: () => {} }
   const doc = { body: { dataset: { theme: 'light' } }, documentElement: { scrollHeight: 5000 } }
   const deps = { defineProps: () => props, defineEmits: () => (name: string, data: any) => events.push([name, data]),
     ref: (value: any) => ({ value }), computed: (get: () => any) => ({ get value() { return get() } }), watch: () => {}, onMounted: (fn: () => void) => { mount = fn }, onBeforeUnmount: (fn: () => void) => { dispose = fn },
-    mediaAdapter, validMediaRequest, isVideoChannelFailure, videoPath, videoPage, videoTaskLabel, videoTaskName, openMediaPreview, closeMediaPreview, validateMediaPreview, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
+    mediaAdapter, legacyMediaHeaders, validMediaRequest, isImmutableMediaRequest, isVideoChannelFailure, hostContentPreferences,
+    videoPath, videoPage, videoTaskLabel, videoTaskName, openMediaPreview, closeMediaPreview, validateMediaPreview, fetchLegacyMedia: () => { throw Error('unexpected desktop fetch') },
     window: win, document: doc, location: { origin: 'https://studio.invalid' }, innerHeight: 1000, fetch: fetcher,
     MutationObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame: (fn: FrameRequestCallback) => { callbacks.set(++next, fn); return next }, cancelAnimationFrame: (id: number) => callbacks.delete(id) }
   const api = new Function(...Object.keys(deps), code + '\nreturn { frame, src, load, receive };')(...Object.values(deps))
   api.frame.value = { contentWindow: frameWindow, style: {} }
-  const receive = (data: object) => api.receive({ source: frameWindow, origin: 'null', data: { channel: 'vf-video', view: new URL(api.src.value, 'https://studio.invalid').searchParams.get('view'), ...data } })
+  const channel = adapterId === 'image-iframe-v1' ? 'vf-image' : 'vf-video'
+  const receive = (data: object) => api.receive({ source: frameWindow, origin: 'null', data: { channel, view: new URL(api.src.value, 'https://studio.invalid').searchParams.get('view'), ...data } })
   const load = () => api.load()
   const flush = () => { while (callbacks.size) { const batch = [...callbacks.values()]; callbacks.clear(); batch.forEach(fn => fn(0)) } }
-  return { props, events, posts, scrolls, win, doc, receive, load, flush, mount: () => mount(), dispose: () => dispose() }
+  return { props, events, posts, scrolls, win, doc, frame: api.frame, src: api.src, setIncludeNsfw, receive, load, flush, mount: () => mount(), dispose: () => dispose() }
 }
 
 test('Video owns scroll restoration only while its host is mounted', () => {
@@ -174,4 +193,66 @@ test('malformed, oversized and non-JSON 401 bodies cannot masquerade as channel 
   assert.equal(isVideoChannelFailure('text/html', bytes({ error })), false)
   assert.equal(isVideoChannelFailure('application/json', new ArrayBuffer(65537)), false)
   assert.equal(isVideoChannelFailure('application/json', new TextEncoder().encode('{').buffer), false)
+})
+
+test('image-iframe-v1 resize clamps height across [600, 2000000] and ignores non-finite values', async () => {
+  const h = host(undefined, { adapterId: 'image-iframe-v1' })
+  try {
+    h.load()
+    await h.receive({ type: 'ready' })
+    await h.receive({ type: 'resize', height: 320 })
+    assert.equal(h.frame.value.style.height, '600px')
+    await h.receive({ type: 'resize', height: 2400 })
+    assert.equal(h.frame.value.style.height, '2400px')
+    await h.receive({ type: 'resize', height: 295000 })
+    assert.equal(h.frame.value.style.height, '295000px')
+    await h.receive({ type: 'resize', height: 2500000 })
+    assert.equal(h.frame.value.style.height, '2000000px')
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      await h.receive({ type: 'resize', height: bad })
+      assert.equal(h.frame.value.style.height, '2000000px')
+    }
+  } finally { h.dispose() }
+})
+
+test('image-iframe-v1 posts contentPreferences on ready, proxies keyset before_cursor with NSFW header, and reloads on preference change', async () => {
+  const seenRequests: Array<{ url: string; headers: Record<string, string> }> = []
+  const h = host(async (input, init) => {
+    seenRequests.push({ url: String(input), headers: (init?.headers as Record<string, string>) ?? {} })
+    return Response.json({ tasks: [], total: 0, limit: 50, offset: 0, has_more: false, next_cursor: null })
+  }, { adapterId: 'image-iframe-v1', includeNsfw: false })
+  try {
+    h.mount()
+    const firstSrc = h.src.value
+    await h.receive({ type: 'ready' })
+    assert.deepEqual(h.posts.find(p => p.type === 'contentPreferences'), {
+      channel: 'vf-studio',
+      type: 'contentPreferences',
+      includeNsfw: false,
+    })
+    await h.receive({
+      type: 'request',
+      id: 1,
+      path: '/api/tasks?limit=50&offset=0&before_cursor=' + encodeURIComponent('4413:2026-11-15T04:00:00.000Z'),
+    })
+    assert.equal(seenRequests.length, 1)
+    assert.equal(seenRequests[0].url, '/apps/image/api/tasks?limit=50&offset=0&before_cursor=4413%3A2026-11-15T04%3A00%3A00.000Z')
+    assert.equal(seenRequests[0].headers['X-VF-Include-NSFW'], undefined)
+
+    h.setIncludeNsfw(true)
+    assert.notEqual(h.src.value, firstSrc, 'toggling includeNsfw must force reload to a new iframe generation')
+    await h.receive({ type: 'ready' })
+    assert.deepEqual(h.posts.filter(p => p.type === 'contentPreferences').at(-1), {
+      channel: 'vf-studio',
+      type: 'contentPreferences',
+      includeNsfw: true,
+    })
+    await h.receive({
+      type: 'request',
+      id: 2,
+      path: '/api/tasks?limit=50&offset=0&before_cursor=' + encodeURIComponent('4363:2026-11-15T03:50:00.000Z'),
+    })
+    assert.equal(seenRequests.length, 2)
+    assert.equal(seenRequests[1].headers['X-VF-Include-NSFW'], '1')
+  } finally { h.dispose() }
 })

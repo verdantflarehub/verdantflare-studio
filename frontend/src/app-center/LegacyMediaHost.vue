@@ -100,7 +100,7 @@ async function receive(event: MessageEvent) {
     }
     emit('navigate', '/market?' + a.query + '=' + encodeURIComponent(data.path)); return
   }
-  if (data.type === 'resize' && Number.isFinite(data.height)) { if (frame.value) frame.value.style.height = Math.max(600, Math.min(100000, data.height)) + 'px'; restoreListScroll(); return }
+  if (data.type === 'resize' && Number.isFinite(data.height)) { if (frame.value) frame.value.style.height = Math.max(600, Math.min(2000000, data.height)) + 'px'; restoreListScroll(); return }
   if (data.type === 'wheel' && Number.isFinite(data.deltaY)) {
     if (Number.isSafeInteger(data.captureId) && data.captureId > 0) {
       post({ type: 'restore', viewport: { captureId: data.captureId, scrollY: window.scrollY } }); return
