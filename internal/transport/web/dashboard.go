@@ -89,6 +89,11 @@ func (s *Server) EnableDashboards(r *gin.Engine, service DashboardService) {
 			if len(req.Header.Values("Content-Type")) != 1 || err != nil || value != "application/json" {
 				return fail(400, "INVALID_DASHBOARD_REQUEST")
 			}
+		} else if req.Method == "PUT" && c.FullPath() == "/studio/dashboards/:session_id/uploads/:write_id" {
+			value, _, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+			if len(req.Header.Values("Content-Type")) != 1 || err != nil || value != "application/octet-stream" || req.ContentLength < 0 || req.ContentLength > application.DashboardUploadLimit {
+				return fail(400, "INVALID_DASHBOARD_REQUEST")
+			}
 		} else {
 			body, err := io.ReadAll(io.LimitReader(req.Body, 1))
 			if err != nil || len(body) != 0 {

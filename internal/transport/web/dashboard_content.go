@@ -1,10 +1,13 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,6 +21,11 @@ type dashboardContentService interface {
 
 type dashboardContentWriter interface {
 	WriteContent(context.Context, string, string, application.DashboardTextWrite, application.DashboardContentGateway) application.Result
+}
+
+type dashboardContentUploader interface {
+	PrepareContentUpload(context.Context, string, string, application.DashboardUploadRequest, application.DashboardContentGateway) application.Result
+	UploadContent(context.Context, string, string, application.DashboardUploadRequest, io.Reader, int64, application.DashboardContentGateway) application.Result
 }
 
 func (s *Server) enableDashboardContent(r *gin.Engine, dashboards DashboardService, gate func(*gin.Context) (string, bool), result func(*gin.Context, application.Result)) {
@@ -40,12 +48,56 @@ func (s *Server) enableDashboardContent(r *gin.Engine, dashboards DashboardServi
 			result(c, application.Error(503, "CAPABILITY_UNAVAILABLE"))
 			return
 		}
-		in, err := application.DecodeDashboardTextWrite(c.Request.Body)
+		raw, err := io.ReadAll(io.LimitReader(c.Request.Body, (4<<20)+1))
+		var mode struct {
+			Mode string `json:"mode"`
+		}
+		if err != nil || len(raw) > 4<<20 || json.Unmarshal(raw, &mode) != nil {
+			result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
+			return
+		}
+		if mode.Mode == "prepare" {
+			in, err := application.DecodeDashboardUpload(bytes.NewReader(raw))
+			if err != nil {
+				result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
+				return
+			}
+			uploader, ok := dashboards.(dashboardContentUploader)
+			if !ok {
+				result(c, application.Error(503, "CAPABILITY_UNAVAILABLE"))
+				return
+			}
+			result(c, uploader.PrepareContentUpload(c.Request.Context(), token, c.Param("session_id"), in, gateway()))
+			return
+		}
+		in, err := application.DecodeDashboardTextWrite(bytes.NewReader(raw))
 		if err != nil {
 			result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
 			return
 		}
 		result(c, writer.WriteContent(c.Request.Context(), token, c.Param("session_id"), in, gateway()))
+	})
+	r.PUT("/studio/dashboards/:session_id/uploads/:write_id", func(c *gin.Context) {
+		token, ok := gate(c)
+		if !ok {
+			return
+		}
+		metadata := c.Request.Header.Values("X-Artifact-Metadata")
+		if len(metadata) != 1 || len(metadata[0]) > 4096 || c.Request.Header.Get("Range") != "" {
+			result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
+			return
+		}
+		in, err := application.DecodeDashboardUpload(strings.NewReader(metadata[0]))
+		if err != nil || in.WriteID != c.Param("write_id") || in.Size != c.Request.ContentLength {
+			result(c, application.Error(400, "INVALID_CONTENT_REQUEST"))
+			return
+		}
+		uploader, ok := dashboards.(dashboardContentUploader)
+		if !ok {
+			result(c, application.Error(503, "CAPABILITY_UNAVAILABLE"))
+			return
+		}
+		result(c, uploader.UploadContent(c.Request.Context(), token, c.Param("session_id"), in, http.MaxBytesReader(c.Writer, c.Request.Body, in.Size), in.Size, gateway()))
 	})
 	r.POST("/studio/dashboards/:session_id/capabilities/artifact.read", func(c *gin.Context) {
 		token, ok := gate(c)
