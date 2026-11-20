@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/verdantflarehub/verdantflare-studio/internal/dashboard"
 )
 
@@ -140,20 +141,41 @@ func filterGoogleFlowTurnResponse(raw []byte) ([]byte, error) {
 	return json.Marshal(out)
 }
 
-func (s *Server) googleFlowDesktop(c *gin.Context) {
-	path := c.Param("path")
-	if c.Request.URL.RawQuery != "" || strings.Contains(c.Request.URL.EscapedPath(), "%") || strings.Contains(path, "..") {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	p, ok := s.authenticateMCP(c)
-	if !ok {
-		return
-	}
+func (s *Server) authenticateGoogleFlowDesktop(c *gin.Context, path string) (dashboard.Actor, string, string, string, bool) {
+	// Allow direct browser address-bar navigation (Sec-Fetch-Site: none) to the desktop HTML entrypoint
+	// while still enforcing strict same-origin checks on subresources, /turn, /settings, and WebSocket.
+	isTopLevelEntry := (path == "/" || path == "/index.html") &&
+		c.Request.Method == http.MethodGet &&
+		c.GetHeader("Origin") == "" &&
+		c.GetHeader("Authorization") == "" &&
+		c.GetHeader("Sec-Fetch-Site") == "none"
+
 	initialToken := strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer ")
 	cookieID := ""
 	if cookie, err := c.Request.Cookie(cookieName); err == nil {
 		cookieID = cookie.Value
+	}
+
+	var reqID string
+	if isTopLevelEntry {
+		reqID = uuid.Must(uuid.NewV7()).String()
+		c.Header("X-Request-Id", reqID)
+		token, _ := s.getSession(c.Request.Context(), cookieID)
+		if token == "" {
+			c.Status(http.StatusUnauthorized)
+			return dashboard.Actor{}, "", "", "", false
+		}
+		actor, status := s.station.DashboardActor(c.Request.Context(), token, reqID)
+		if status != http.StatusOK {
+			c.Status(http.StatusUnauthorized)
+			return dashboard.Actor{}, "", "", "", false
+		}
+		return actor, reqID, "", cookieID, true
+	}
+
+	p, ok := s.authenticateMCP(c)
+	if !ok {
+		return dashboard.Actor{}, "", "", "", false
 	}
 	token := initialToken
 	if token == "" {
@@ -162,6 +184,19 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 	actor, actorStatus := s.station.DashboardActor(c.Request.Context(), token, p.RequestID)
 	if actorStatus != http.StatusOK || actor.UserID != p.SubjectID || actor.OrganizationID != p.OrganizationID {
 		c.Status(http.StatusUnauthorized)
+		return dashboard.Actor{}, "", "", "", false
+	}
+	return actor, p.RequestID, initialToken, cookieID, true
+}
+
+func (s *Server) googleFlowDesktop(c *gin.Context) {
+	path := c.Param("path")
+	if c.Request.URL.RawQuery != "" || strings.Contains(c.Request.URL.EscapedPath(), "%") || strings.Contains(path, "..") {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	actor, reqID, initialToken, cookieID, ok := s.authenticateGoogleFlowDesktop(c, path)
+	if !ok {
 		return
 	}
 	c.Header("Cache-Control", "no-store")
@@ -169,11 +204,11 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 
 	switch path {
 	case "/turn":
-		if err := s.googleFlowGUICheck(c.Request.Context(), actor, p.RequestID); err != nil {
+		if err := s.googleFlowGUICheck(c.Request.Context(), actor, reqID); err != nil {
 			c.Status(http.StatusForbidden)
 			return
 		}
-		status, _, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, p.RequestID, http.MethodPost, "/desktop/turn")
+		status, _, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, reqID, http.MethodPost, "/desktop/turn")
 		if err != nil || status != http.StatusOK {
 			c.Status(http.StatusBadGateway)
 			return
@@ -186,11 +221,11 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		c.Data(http.StatusOK, "application/json; charset=utf-8", safe)
 		return
 	case "/settings":
-		if err := s.googleFlowGUICheck(c.Request.Context(), actor, p.RequestID); err != nil {
+		if err := s.googleFlowGUICheck(c.Request.Context(), actor, reqID); err != nil {
 			c.Status(http.StatusForbidden)
 			return
 		}
-		status, _, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, p.RequestID, http.MethodGet, "/desktop/settings")
+		status, _, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, reqID, http.MethodGet, "/desktop/settings")
 		if err != nil || status != http.StatusOK {
 			c.Status(http.StatusBadGateway)
 			return
@@ -204,7 +239,7 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		}
 		ctx, cancel := context.WithCancel(c.Request.Context())
 		defer cancel()
-		if err := s.googleFlowGUICheck(ctx, actor, p.RequestID); err != nil {
+		if err := s.googleFlowGUICheck(ctx, actor, reqID); err != nil {
 			c.Status(http.StatusForbidden)
 			return
 		}
@@ -257,11 +292,11 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 							if curToken == "" {
 								curToken, _ = s.getSession(ctx, cookieID)
 							}
-							curActor, st := s.station.DashboardActor(ctx, curToken, p.RequestID)
+							curActor, st := s.station.DashboardActor(ctx, curToken, reqID)
 							if st != http.StatusOK || curActor.UserID != actor.UserID || curActor.OrganizationID != actor.OrganizationID || curActor.StationID != actor.StationID {
 								return
 							}
-							if err := s.googleFlowGUICheck(ctx, curActor, p.RequestID); err != nil {
+							if err := s.googleFlowGUICheck(ctx, curActor, reqID); err != nil {
 								return
 							}
 						}
@@ -276,7 +311,7 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		proxy.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 		return
 	default:
-		if err := s.googleFlowGUICheck(c.Request.Context(), actor, p.RequestID); err != nil {
+		if err := s.googleFlowGUICheck(c.Request.Context(), actor, reqID); err != nil {
 			c.Status(http.StatusForbidden)
 			return
 		}
@@ -284,7 +319,7 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		if asset == "" {
 			asset = "index.html"
 		}
-		status, hdr, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, p.RequestID, http.MethodGet, "/desktop/assets/"+asset)
+		status, hdr, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, reqID, http.MethodGet, "/desktop/assets/"+asset)
 		if err != nil {
 			c.Status(http.StatusBadGateway)
 			return
