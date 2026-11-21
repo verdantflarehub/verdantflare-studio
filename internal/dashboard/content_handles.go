@@ -18,37 +18,67 @@ type ContentHandle struct {
 }
 
 type ContentHandles struct {
-	mu    sync.Mutex
-	items map[string]ContentHandle
+	mu       sync.Mutex
+	items    map[string]contentHandleEntry
+	sequence uint64
+}
+
+type contentHandleEntry struct {
+	ContentHandle
+	lastUsed uint64
+}
+
+func (h *ContentHandles) touch(id string, entry contentHandleEntry) {
+	h.sequence++
+	entry.lastUsed = h.sequence
+	h.items[id] = entry
 }
 
 func (h *ContentHandles) Add(in ContentHandle) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if !in.ExpiresAt.After(time.Now()) {
+	now := time.Now()
+	if !in.ExpiresAt.After(now) {
 		return "", ErrExpired
 	}
 	if h.items == nil {
-		h.items = map[string]ContentHandle{}
+		h.items = map[string]contentHandleEntry{}
 	}
 	count := 0
+	var reusable, oldest string
+	var oldestUse uint64
 	for id, existing := range h.items {
-		if !existing.ExpiresAt.After(time.Now()) {
+		if !existing.ExpiresAt.After(now) {
 			delete(h.items, id)
 			continue
 		}
 		if existing.SessionID == in.SessionID {
 			count++
-			if existing.Actor == in.Actor && reflect.DeepEqual(existing.Version, in.Version) && existing.Access == in.Access {
-				return id, nil
+			if existing.Actor == in.Actor {
+				if oldest == "" || existing.lastUsed < oldestUse {
+					oldest, oldestUse = id, existing.lastUsed
+				}
+				if reflect.DeepEqual(existing.Version, in.Version) && existing.Access == in.Access {
+					reusable = id
+				}
 			}
 		}
 	}
+	if reusable != "" {
+		h.touch(reusable, h.items[reusable])
+		return reusable, nil
+	}
 	if count >= 128 || len(h.items) >= 4096 {
-		return "", ErrUnavailable
+		// Recycle only this actor's own session. Other sessions cannot displace
+		// its handles. A Get already holding a value can finish its transfer;
+		// later uses of the retired path must obtain a freshly authorized handle.
+		if oldest == "" {
+			return "", ErrUnavailable
+		}
+		delete(h.items, oldest)
 	}
 	id := uuid.NewString()
-	h.items[id] = in
+	h.touch(id, contentHandleEntry{ContentHandle: in})
 	return id, nil
 }
 
@@ -63,7 +93,8 @@ func (h *ContentHandles) Get(actor Actor, sessionID, id string) (ContentHandle, 
 	if item.Actor != actor || item.SessionID != sessionID {
 		return ContentHandle{}, ErrDenied
 	}
-	return item, nil
+	h.touch(id, item)
+	return item.ContentHandle, nil
 }
 
 func (h *ContentHandles) Close(actor Actor, sessionID string) {

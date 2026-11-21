@@ -127,6 +127,30 @@ func TestDashboardContentHandleRetainsScopeAndRevokesWithPage(t *testing.T) {
 	}
 }
 
+func TestDashboardContentContinuousBrowsingBeyondHandleCapacity(t *testing.T) {
+	f, session, _, g := contentFixture(t)
+	for i := 0; i < 300; i++ {
+		g.input.Ref.VersionID = uuid.Must(uuid.NewV7()).String()
+		g.version.ContentRef = g.input.Ref
+		out := f.service.ReadContent(context.Background(), "test-session", session, g.input, g)
+		var value struct {
+			Path string `json:"content_path"`
+		}
+		if out.Status != 200 || json.Unmarshal(out.Data, &value) != nil {
+			t.Fatalf("continuous read %d failed: %d %s", i+1, out.Status, out.Data)
+		}
+		id := value.Path[strings.LastIndex(value.Path, "/")+1:]
+		resp, result := f.service.DownloadContent(context.Background(), "test-session", session, id, g)
+		if result.Status != 200 {
+			t.Fatalf("continuous download %d failed: %d", i+1, result.Status)
+		}
+		resp.Body.Close()
+	}
+	if g.calls != 300 || g.transfers != 300 {
+		t.Fatal("continuous browsing bypassed artifact authorization")
+	}
+}
+
 func TestDashboardContentRejectsChangedGrantAndCorruptText(t *testing.T) {
 	f, session, source, g := contentFixture(t)
 	g.input.Mode, g.mode = "text", "text"
