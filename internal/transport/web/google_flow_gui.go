@@ -148,7 +148,7 @@ func (s *Server) authenticateGoogleFlowDesktop(c *gin.Context, path string) (das
 		c.Request.Method == http.MethodGet &&
 		c.GetHeader("Origin") == "" &&
 		c.GetHeader("Authorization") == "" &&
-		c.GetHeader("Sec-Fetch-Site") == "none"
+		(c.GetHeader("Sec-Fetch-Site") == "none" || c.GetHeader("Sec-Fetch-Site") == "same-origin")
 
 	initialToken := strings.TrimPrefix(c.Request.Header.Get("Authorization"), "Bearer ")
 	cookieID := ""
@@ -245,6 +245,10 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 			return
 		}
 		isWS := strings.EqualFold(c.GetHeader("Upgrade"), "websocket")
+		if !isWS && (path == "/" || path == "") && c.Query("path") == "" && c.GetHeader("Authorization") == "" {
+			c.Redirect(http.StatusFound, "/apps/google-flow/desktop/?path=apps/google-flow/desktop/websockify&autoconnect=1&resize=remote")
+			return
+		}
 		if path == "/webrtc/signalling/" {
 			if !isWS {
 				c.Status(http.StatusBadRequest)
