@@ -23,6 +23,10 @@ import (
 const ServicesPrefix = "/verdantflare/mcp/services/"
 const DefaultTimeout = 30 * time.Second
 
+// Image face fusion is synchronous and defaults to a 150-second execution
+// window. Keep this exception local to that tool and honor request cancellation.
+const ImageFaceSwapTimeout = 3 * time.Minute
+
 type ToolDefinition struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
@@ -349,6 +353,10 @@ func (g *Gateway) callVersion(ctx context.Context, name string, args map[string]
 	if name == "music.generate" {
 		copy := *client
 		copy.Timeout = MusicGenerateTimeout
+		client = &copy
+	} else if name == "image.faceswap" {
+		copy := *client
+		copy.Timeout = ImageFaceSwapTimeout
 		client = &copy
 	}
 	started := time.Now()

@@ -60,8 +60,15 @@ func (s *Server) mcpHandler(c *gin.Context) {
 			mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Service discovery unavailable")
 			return
 		}
-		if name == "music.generate" {
-			if http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(mcp.MusicGenerateTimeout+time.Minute)) != nil {
+		var responseWindow time.Duration
+		switch name {
+		case "music.generate":
+			responseWindow = mcp.MusicGenerateTimeout + time.Minute
+		case "image.faceswap":
+			responseWindow = mcp.ImageFaceSwapTimeout + 30*time.Second
+		}
+		if responseWindow > 0 {
+			if http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(responseWindow)) != nil {
 				mcprpc.Reject(c.Writer, c.Request, request, 503, -32001, "Long-running response unavailable")
 				return
 			}
