@@ -280,7 +280,7 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 				if isWS {
 					pr.Out.Header.Set("Connection", "Upgrade")
 					pr.Out.Header.Set("Upgrade", "websocket")
-					for _, key := range []string{"Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions"} {
+					for _, key := range []string{"Origin", "Sec-WebSocket-Origin", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions"} {
 						if value := c.GetHeader(key); value != "" {
 							pr.Out.Header.Set(key, value)
 						}
