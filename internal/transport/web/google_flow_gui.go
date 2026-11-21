@@ -191,7 +191,7 @@ func (s *Server) authenticateGoogleFlowDesktop(c *gin.Context, path string) (das
 
 func (s *Server) googleFlowDesktop(c *gin.Context) {
 	path := c.Param("path")
-	if c.Request.URL.RawQuery != "" || strings.Contains(c.Request.URL.EscapedPath(), "%") || strings.Contains(path, "..") {
+	if strings.Contains(c.Request.URL.EscapedPath(), "%2e") || strings.Contains(c.Request.URL.EscapedPath(), "%2E") || strings.Contains(path, "..") {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -232,11 +232,7 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		}
 		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 		return
-	case "/webrtc/signalling/":
-		if !strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
-			c.Status(http.StatusBadRequest)
-			return
-		}
+	default:
 		ctx, cancel := context.WithCancel(c.Request.Context())
 		defer cancel()
 		if err := s.googleFlowGUICheck(ctx, actor, reqID); err != nil {
@@ -248,7 +244,21 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 			c.Status(http.StatusServiceUnavailable)
 			return
 		}
-		target.Path = "/ws"
+		isWS := strings.EqualFold(c.GetHeader("Upgrade"), "websocket")
+		if path == "/webrtc/signalling/" {
+			if !isWS {
+				c.Status(http.StatusBadRequest)
+				return
+			}
+			target.Path = "/ws"
+		} else {
+			if path == "" {
+				target.Path = "/"
+			} else {
+				target.Path = path
+			}
+			target.RawQuery = c.Request.URL.RawQuery
+		}
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = nil
 		transport.ResponseHeaderTimeout = 10 * time.Second
@@ -263,11 +273,19 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 				pr.Out.URL = target
 				pr.Out.Host = target.Host
 				pr.Out.Header = make(http.Header)
-				pr.Out.Header.Set("Connection", "Upgrade")
-				pr.Out.Header.Set("Upgrade", "websocket")
-				for _, key := range []string{"Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions"} {
-					if value := c.GetHeader(key); value != "" {
-						pr.Out.Header.Set(key, value)
+				if isWS {
+					pr.Out.Header.Set("Connection", "Upgrade")
+					pr.Out.Header.Set("Upgrade", "websocket")
+					for _, key := range []string{"Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol", "Sec-WebSocket-Extensions"} {
+						if value := c.GetHeader(key); value != "" {
+							pr.Out.Header.Set(key, value)
+						}
+					}
+				} else {
+					for _, key := range []string{"Accept", "Accept-Language", "Content-Type", "If-None-Match", "If-Modified-Since", "Range"} {
+						if value := c.GetHeader(key); value != "" {
+							pr.Out.Header.Set(key, value)
+						}
 					}
 				}
 			},
@@ -276,32 +294,34 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 				resp.Header.Del("Location")
 				resp.Header.Set("Cache-Control", "no-store")
 				resp.Header.Set("X-Content-Type-Options", "nosniff")
-				if resp.StatusCode != http.StatusSwitchingProtocols {
-					return errors.New("google flow desktop upgrade failed")
-				}
-				go func(upstream io.ReadCloser) {
-					defer upstream.Close()
-					ticker := time.NewTicker(interval)
-					defer ticker.Stop()
-					for {
-						select {
-						case <-ctx.Done():
-							return
-						case <-ticker.C:
-							curToken := initialToken
-							if curToken == "" {
-								curToken, _ = s.getSession(ctx, cookieID)
-							}
-							curActor, st := s.station.DashboardActor(ctx, curToken, reqID)
-							if st != http.StatusOK || curActor.UserID != actor.UserID || curActor.OrganizationID != actor.OrganizationID || curActor.StationID != actor.StationID {
+				if isWS {
+					if resp.StatusCode != http.StatusSwitchingProtocols {
+						return errors.New("google flow desktop upgrade failed")
+					}
+					go func(upstream io.ReadCloser) {
+						defer upstream.Close()
+						ticker := time.NewTicker(interval)
+						defer ticker.Stop()
+						for {
+							select {
+							case <-ctx.Done():
 								return
-							}
-							if err := s.googleFlowGUICheck(ctx, curActor, reqID); err != nil {
-								return
+							case <-ticker.C:
+								curToken := initialToken
+								if curToken == "" {
+									curToken, _ = s.getSession(ctx, cookieID)
+								}
+								curActor, st := s.station.DashboardActor(ctx, curToken, reqID)
+								if st != http.StatusOK || curActor.UserID != actor.UserID || curActor.OrganizationID != actor.OrganizationID || curActor.StationID != actor.StationID {
+									return
+								}
+								if err := s.googleFlowGUICheck(ctx, curActor, reqID); err != nil {
+									return
+								}
 							}
 						}
-					}
-				}(resp.Body)
+					}(resp.Body)
+				}
 				return nil
 			},
 			ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -310,32 +330,5 @@ func (s *Server) googleFlowDesktop(c *gin.Context) {
 		}
 		proxy.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 		return
-	default:
-		if err := s.googleFlowGUICheck(c.Request.Context(), actor, reqID); err != nil {
-			c.Status(http.StatusForbidden)
-			return
-		}
-		asset := strings.TrimPrefix(path, "/")
-		if asset == "" {
-			asset = "index.html"
-		}
-		status, hdr, body, err := s.googleFlowManagementRequest(c.Request.Context(), actor, reqID, http.MethodGet, "/desktop/assets/"+asset)
-		if err != nil {
-			c.Status(http.StatusBadGateway)
-			return
-		}
-		if status == http.StatusNotFound {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		if status != http.StatusOK {
-			c.Status(http.StatusBadGateway)
-			return
-		}
-		ct := hdr.Get("Content-Type")
-		if ct == "" {
-			ct = "application/octet-stream"
-		}
-		c.Data(http.StatusOK, ct, body)
 	}
 }

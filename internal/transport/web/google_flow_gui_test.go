@@ -48,8 +48,18 @@ func TestGoogleFlowDesktopRoutesAndWebSocket(t *testing.T) {
 
 	disconnected := make(chan struct{}, 2)
 	webrtc := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/ws" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
-			t.Error("webrtc worker headers/path invalid")
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("desktop upstream leaked auth/cookie headers")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(`<!doctype html><head><title>KasmVNC</title></head><body>ok</body>`))
+			return
+		}
+		if r.URL.Path != "/ws" && r.URL.Path != "/websockify" {
+			t.Errorf("desktop upstream unexpected path %s", r.URL.Path)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -133,12 +143,12 @@ func TestGoogleFlowDesktopRoutesAndWebSocket(t *testing.T) {
 		t.Fatalf("expected 401/403, got %d", resp.StatusCode)
 	}
 
-	// 2. Authenticated desktop index proxies gateway webclient assets.
+	// 2. Authenticated desktop index proxies KasmVNC HTTP frontend.
 	resp = doAuthGet("/apps/google-flow/desktop/")
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "studio-embed.js") {
-		t.Fatalf("expected 200 proxied webclient index, got %d body=%s", resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "KasmVNC") {
+		t.Fatalf("expected 200 proxied KasmVNC index, got %d body=%s", resp.StatusCode, string(body))
 	}
 
 	// 3. /settings proxies settings JSON when desktop is open.
