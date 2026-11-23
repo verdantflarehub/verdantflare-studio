@@ -227,6 +227,18 @@ test('Image delete permits only the exact POST task deletion route', () => {
   assert.equal(validMediaRequest(image, 'DELETE', '/api/tasks/a', undefined), false)
 })
 
+test('Video delete, cleanup, and content-rating permit exact POST task routes', () => {
+  const video = mediaAdapter('video-iframe-v1')!
+  assert.equal(validMediaRequest(video, 'POST', '/api/tasks/video_task_test/delete', '{}'), true)
+  assert.equal(validMediaRequest(video, 'POST', '/api/tasks/_cleanup/delete', '{"clean_unknown":true}'), true)
+  assert.equal(validMediaRequest(video, 'POST', '/api/tasks/cleanup', '{"clean_unknown":true,"clean_failed":true}'), true)
+  assert.equal(validMediaRequest(video, 'POST', '/api/tasks/video_task_test/content-rating', '{"action":"mark"}'), true)
+  for (const path of ['/api/tasks/a/delete/extra', '/api/tasks/a%2fb/delete', '/api/tasks/../delete', '/api/tasks/cleanup/extra']) {
+    assert.equal(validMediaRequest(video, 'POST', path, '{}'), false)
+  }
+  assert.equal(validMediaRequest(video, 'DELETE', '/api/tasks/video_task_test', undefined), false)
+})
+
 test('legacy media UI requests take inclusion from host preference for lists and images', () => {
   assert.deepEqual(legacyMediaHeaders('GET', false), {})
   assert.deepEqual(legacyMediaHeaders('GET', true), { 'X-VF-Include-NSFW': '1' })
