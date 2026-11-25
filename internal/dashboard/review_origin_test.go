@@ -15,6 +15,9 @@ func TestReviewOriginRequiresAuthenticatedContextAndExactAppRoute(t *testing.T) 
 		interactive               bool
 	}{
 		{"project", "/api/v1/project/review/append", "/api/v1/project/review/append", "human_interactive", true},
+		{"project", "/api/v1/project/crew_task", "/api/v1/project/crew_task", "human_interactive", true},
+		{"project", "/api/v1/project/crew_task", "/api/v1/project/crew_task", "agent", false},
+		{"world", "/api/v1/world/crew_task", "/api/v1/world/crew_task", "", true},
 		{"world", "/api/v1/world/review/open", "/api/v1/world/review/open", "human_interactive", true},
 		{"project", "/api/v1/project/review/append", "/api/v1/project/review/append", "agent", false},
 		{"sample", "/api/v1/project/review/append", "/api/v1/project/review/append", "", true},

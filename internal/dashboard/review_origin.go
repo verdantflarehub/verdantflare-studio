@@ -32,6 +32,9 @@ func reviewOperation(appID, method, path string) bool {
 		return false
 	}
 	prefix := "/api/v1/" + appID + "/"
+	if appID == "project" && path == prefix+"crew_task" {
+		return true
+	}
 	return path == prefix+"review/open" || path == prefix+"review/append" || path == prefix+"review/status"
 }
 
